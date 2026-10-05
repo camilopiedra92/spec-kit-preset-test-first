@@ -7,7 +7,7 @@ nothing, so upstream changes to the rest of each skill keep arriving.
 | Skill | What the preset adds |
 |---|---|
 | `speckit-tasks` | Test tasks are required (overriding core's "Tests are OPTIONAL") for behaviour with logic of its own; one behaviour per task; implementation tasks cite their `FR-`/`SC-` IDs |
-| `speckit-implement` | A test counts once it has failed from inside, not on an import or collection error; a task is marked done only after a passing run |
+| `speckit-implement` | A test counts once it has failed from inside, not on an import or collection error; a task is marked done only after a passing run; the run ends with a review from a fresh context that tries wrong versions of the code against the tests, and every gap it finds is closed with a test |
 
 ## When to use it
 
@@ -29,7 +29,7 @@ overrides, but that is not tested.
 ## Install
 
 ```bash
-specify preset add --from https://github.com/camilopiedra92/spec-kit-preset-test-first/archive/refs/tags/v1.0.0.zip
+specify preset add --from https://github.com/camilopiedra92/spec-kit-preset-test-first/archive/refs/tags/v1.1.0.zip
 ```
 
 To move a project to a newer release:

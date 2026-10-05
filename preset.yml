@@ -8,8 +8,8 @@ schema_version: "1.0"
 preset:
   id: "test-first"
   name: "Test-first"
-  version: "1.0.0"
-  description: "Makes test tasks required in /speckit-tasks and test-first verifiable in /speckit-implement"
+  version: "1.1.0"
+  description: "Makes test tasks required in /speckit-tasks, and test-first verifiable and independently reviewed in /speckit-implement"
   author: "camilopiedra92"
   repository: "https://github.com/camilopiedra92/spec-kit-preset-test-first"
   license: "MIT"
@@ -28,7 +28,7 @@ provides:
     - type: "command"
       name: "speckit.implement"
       file: "commands/speckit.implement.md"
-      description: "A test counts once it has failed from inside; a task closes on a passing run"
+      description: "A test counts once it has failed from inside; a task closes on a passing run; the run ends with an independent review"
       strategy: "append"
 
 tags:
