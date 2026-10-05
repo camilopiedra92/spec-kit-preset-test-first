@@ -54,7 +54,9 @@ print(yaml.safe_load(text.split("---")[1])["description"])' "$1"
 
 cd "$work"
 quiet git init -q
-quiet specify init --here --force --integration claude
+# The skills are what is under test, not Claude Code, which a runner lacks:
+# without this, init stops at "claude not found".
+quiet specify init --here --force --integration claude --ignore-agent-tools
 skills=.claude/skills
 mkdir core
 for s in tasks implement; do cp "$skills/speckit-$s/SKILL.md" "core/$s.md"; done
