@@ -85,3 +85,26 @@ Close each test gap with a test watched failing against that wrong version and
 passing against the code. Carry out each structural finding as a refactor:
 behaviour unchanged, the whole suite run after each step. Report what the
 review found and what it did not fix.
+
+## Stop gate
+
+Instructions stop holding once this run ends; a Stop hook does not. When a
+run of the whole suite you saw is green and `.claude/hooks/stop-gate.sh` does
+not exist, install the gate before going on, from the repository root:
+
+```bash
+bash .specify/presets/test-first/scripts/bash/install-stop-gate.sh <test command>
+```
+
+- `<test command>` is the one that runs the whole suite, as the plan's
+  Technical Context or the constitution names it, given as separate arguments
+  (`uv run pytest -q`, not a quoted string). It runs at the end of every
+  turn: if the whole suite takes more than a few seconds, give a fast subset
+  and say which in the completion report.
+- The installer makes a commit of its own holding only the hook and
+  `.claude/settings.json`. If it refuses — something staged, an uncommitted
+  `settings.json`, `.claude/` ignored — do not work around it: carry on, try
+  again at the next green suite, and if it never installed, put its last
+  refusal in the completion report.
+- A project with no suite yet gets the gate at the first task that closes
+  green.

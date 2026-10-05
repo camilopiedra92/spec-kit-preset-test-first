@@ -91,6 +91,15 @@ for s in tasks implement; do
     problem "speckit-$s description changed: $(description "$skill")"
 done
 
+# The implement fragment runs the installer by this path, so it must land
+# there as committed. Through `bash`, because installing from an archive drops
+# the executable bit (specify 1.1.0: 644 from a zip that stores 755).
+gate=.specify/presets/test-first/scripts/bash/install-stop-gate.sh
+cmp -s "$gate" "$PRESET/scripts/bash/install-stop-gate.sh" ||
+  problem "$gate is not installed as committed"
+grep -qF "bash $gate" "$skills/speckit-implement/SKILL.md" ||
+  problem "speckit-implement does not run bash $gate"
+
 specify version > version.txt 2>&1 || true
 [ "$fail" -eq 0 ] && echo "ok: composes on specify $(grep -m1 -oE '[0-9]+\.[0-9]+\.[0-9]+' version.txt)"
 exit "$fail"
