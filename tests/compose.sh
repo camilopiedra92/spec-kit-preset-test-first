@@ -65,6 +65,9 @@ for s in tasks implement; do cp "$skills/speckit-$s/SKILL.md" "core/$s.md"; done
 # it, the fragment refers to nothing and has to be revised.
 grep -q 'Tests are OPTIONAL' core/tasks.md ||
   problem "core speckit-tasks no longer says 'Tests are OPTIONAL'; revise the fragment"
+# Same for the implement step the fragment narrows by name.
+grep -q 'Project Setup Verification' core/implement.md ||
+  problem "core speckit-implement no longer has 'Project Setup Verification'; revise the fragment"
 
 quiet specify preset add --from "http://127.0.0.1:$port/preset.zip"
 
