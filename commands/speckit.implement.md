@@ -61,7 +61,10 @@ story, the feature directory, and this brief:
 - Judge the code against `spec.md` (only the story under review), `plan.md`,
   the contracts and `.specify/memory/constitution.md`.
 - For each behaviour, write a plausible wrong version in a scratch copy and run
-  the suite. A wrong version the suite still passes is a test gap.
+  the suite. A wrong version the suite still passes is a test gap. First
+  break something obvious in the copy and watch the suite fail: a virtualenv
+  copied with the repo can still import the original's code, and then every
+  wrong version passes.
 - Prove every finding with a concrete input, observed against expected, and
   label anything unproven. Do not edit the repository.
 

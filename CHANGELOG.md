@@ -6,6 +6,16 @@ All notable changes to this preset are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-10-05
+
+### Fixed
+
+- `speckit-implement` review brief: the reviewer first confirms the scratch
+  copy's suite runs the copy. A virtualenv copied with the repo kept importing
+  the original source (reproduced with uv: a copy with a broken `cli.py` still
+  passed 90 of 90), so every wrong version would read as a test gap or none
+  would. Found by the first review in a feature run on v1.2.0.
+
 ## [1.2.0] - 2026-10-05
 
 ### Added
@@ -59,7 +69,8 @@ All notable changes to this preset are documented here. The format follows
 - `tests/compose.sh` and CI composing the preset against the pinned and the
   latest Spec Kit release.
 
-[Unreleased]: https://github.com/camilopiedra92/spec-kit-preset-test-first/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/camilopiedra92/spec-kit-preset-test-first/compare/v1.2.1...HEAD
+[1.2.1]: https://github.com/camilopiedra92/spec-kit-preset-test-first/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/camilopiedra92/spec-kit-preset-test-first/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/camilopiedra92/spec-kit-preset-test-first/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/camilopiedra92/spec-kit-preset-test-first/releases/tag/v1.0.0
