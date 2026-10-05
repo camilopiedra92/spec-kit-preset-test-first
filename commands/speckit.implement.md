@@ -10,14 +10,18 @@
 
 ## Independent review
 
-Before reporting this run complete, hand its work to a reviewer with a fresh
-context: a subagent or a separate session, never this conversation or a fork of
-it, because a review from the context that wrote the code finds the typos and
-none of the assumptions. Give it the commit range this run produced, the feature
-directory, and this brief:
+When a user story's phase is complete, and before the next phase starts, hand
+that story's work to a reviewer with a fresh context: a subagent or a separate
+session, never this conversation or a fork of it, because a review from the
+context that wrote the code finds the typos and none of the assumptions. Once
+per story, not per task: a task is too small to show how its tests fall short
+together with its neighbours', and the story is the unit the spec gives an
+independent test. Work after the last story (polish) is reviewed the same way
+before the run is reported complete. Give the reviewer the commits for that
+story, the feature directory, and this brief:
 
-- Judge the code against `spec.md` (only the stories this run implemented),
-  `plan.md`, the contracts and `.specify/memory/constitution.md`.
+- Judge the code against `spec.md` (only the story under review), `plan.md`,
+  the contracts and `.specify/memory/constitution.md`.
 - For each behaviour, write a plausible wrong version in a scratch copy and run
   the suite. A wrong version the suite still passes is a test gap.
 - Prove every finding with a concrete input, observed against expected, and

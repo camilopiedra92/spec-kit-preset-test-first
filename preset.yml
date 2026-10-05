@@ -28,7 +28,7 @@ provides:
     - type: "command"
       name: "speckit.implement"
       file: "commands/speckit.implement.md"
-      description: "A test counts once it has failed from inside; a task closes on a passing run; the run ends with an independent review"
+      description: "A test counts once it has failed from inside; a task closes on a passing run; each story ends with an independent review"
       strategy: "append"
 
 tags:

@@ -7,7 +7,7 @@ nothing, so upstream changes to the rest of each skill keep arriving.
 | Skill | What the preset adds |
 |---|---|
 | `speckit-tasks` | Test tasks are required (overriding core's "Tests are OPTIONAL") for behaviour with logic of its own; one behaviour per task; implementation tasks cite their `FR-`/`SC-` IDs |
-| `speckit-implement` | A test counts once it has failed from inside, not on an import or collection error; a task is marked done only after a passing run; the run ends with a review from a fresh context that tries wrong versions of the code against the tests, and every gap it finds is closed with a test |
+| `speckit-implement` | A test counts once it has failed from inside, not on an import or collection error; a task is marked done only after a passing run; each completed user story gets a review from a fresh context that tries wrong versions of the code against the tests, and every gap it finds is closed with a test |
 
 ## When to use it
 

@@ -10,10 +10,10 @@ All notable changes to this preset are documented here. The format follows
 
 ### Added
 
-- `speckit-implement` fragment: the run ends with a review from a fresh
-  context (a subagent or separate session) that tries plausible wrong versions
-  of the code against the tests; each gap is closed with a test watched
-  failing. In the pilot that motivated it, one such review found three wrong
+- `speckit-implement` fragment: each completed user story gets a review from
+  a fresh context (a subagent or separate session) that tries plausible wrong
+  versions of the code against the tests; each gap is closed with a test
+  watched failing. In the pilot that motivated it, one such review found three wrong
   versions the 67-test suite accepted, after analyze and converge passed.
 - README sections on when to use the preset and when not to, and which
   integration it is verified with.
