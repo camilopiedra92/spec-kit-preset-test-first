@@ -32,10 +32,12 @@ The design and what was tried and dropped are in the script's header.
 The installer refuses rather than guesses: a red suite, anything staged, an
 uncommitted, symlinked, ignored or skip-worktree `settings.json`, a hook or a
 Stop entry for it already there, or a commit hook that rejects its commit. To
-change the command later, edit `TEST_COMMAND` in the hook. To opt out, remove
-the hook and its entry in `.claude/settings.json` in a commit: the installer
-refuses from then on, naming that commit, and `git revert` of it brings the
-gate back. Only with `.specify/` at the repository root. The installer needs
+change the command later, edit `TEST_COMMAND` in the hook. To turn the gate
+off, remove its entry under `hooks.Stop` in `.claude/settings.json` and keep
+the hook file: the file is what `/speckit-implement` looks for, so the gate
+stays off. Removing the file as well, as reverting the feature that installed
+it does, means the next run installs it again. Only with `.specify/` at the
+repository root. The installer needs
 `jq`; the hook does not.
 
 ## When to use it

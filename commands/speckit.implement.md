@@ -69,7 +69,8 @@ story, the feature directory, and this brief:
   Rebuild the environment inside the copy (`rm -rf .venv && uv sync` for uv)
   or use a fresh clone, and repeat the check. A Claude session started in the
   copy runs the copy's Stop gate, which would ask it to fix the wrong
-  version: delete `.claude/hooks/stop-gate.sh` in the copy first. Run every
+  version: remove the gate's entry under `hooks.Stop` in the copy's
+  `.claude/settings.json` first. Run every
   wrong version from a clean build state: a cache keyed on timestamps can
   serve the previous version (Python's bytecode is, to the second — delete every `__pycache__`
   in the copy, `find . -name __pycache__ -prune -exec rm -rf {} +`, and run
@@ -109,9 +110,7 @@ bash .specify/presets/test-first/scripts/bash/install-stop-gate.sh <test command
 - The installer makes a commit of its own holding only the hook and
   `.claude/settings.json`. If it refuses, do not work around it and do not
   retry at every task: try once more after the last task, and if it still
-  refuses, put its message in the completion report. A refusal that names
-  the commit that removed the gate means the project opted out: do not retry
-  it, and do not report it as a problem.
+  refuses, put its message in the completion report.
 - A project with no suite yet gets the gate at the first task that closes
   green.
 - With `.specify/` below the repository root, do not install it; say so in

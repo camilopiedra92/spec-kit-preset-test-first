@@ -46,18 +46,10 @@ fi
 hook=.claude/hooks/stop-gate.sh
 settings=.claude/settings.json
 # -L as well: a dangling symlink is not -e, and writing through it would land
-# the hook wherever it points.
+# the hook wherever it points. A hook with no Stop entry is how a repository
+# turns the gate off, so this refusal is also what keeps it off.
 if [ -e "$hook" ] || [ -L "$hook" ]; then
   echo "install-stop-gate: $hook already exists; edit its TEST_COMMAND to change the command" >&2
-  exit 1
-fi
-# Removing the gate in a commit is how a repository opts out, and
-# /speckit-implement runs this whenever the hook is missing; without this it
-# would come back on the next run. Only this branch's history counts: a gate
-# committed on an abandoned branch was never removed here.
-removed=$(git log -1 --format=%h --diff-filter=D -- "$hook" 2> /dev/null || true)
-if [ -n "$removed" ]; then
-  echo "install-stop-gate: the gate was removed in $removed; to bring it back, git revert $removed" >&2
   exit 1
 fi
 # Written through, a symlinked settings.json would change a file outside this

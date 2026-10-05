@@ -18,11 +18,11 @@ All notable changes to this preset are documented here. The format follows
   by hand in each repository; its tests moved with it as `tests/stop-gate.sh`.
   Run through `bash` because `specify preset add --from` drops the executable
   bit (1.1.0: a zip entry stored as 755 installs as 644).
-- Installer, beyond what `sdd-gate` did: removing the gate in a commit opts
-  the repository out, and the installer refuses from then on, naming that
-  commit; it refuses a leftover Stop entry for the hook, which would run the
-  suite twice per stop; and a commit refused by a commit hook is reported as
-  such instead of only by the hook's own output.
+- Installer, beyond what `sdd-gate` did: it refuses a leftover Stop entry for
+  the hook, which would run the suite twice per stop, and reports a commit
+  refused by a commit hook as such instead of only through the hook's own
+  output. The gate is turned off by removing its Stop entry and keeping the
+  hook file, which `/speckit-implement` checks for.
 
 ## [1.3.0] - 2026-10-05
 

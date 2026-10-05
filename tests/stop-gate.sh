@@ -16,7 +16,7 @@ set -uo pipefail
 PRESET="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 stop_gate() {
-  local tmp repo out rc removed
+  local tmp repo out rc
   tmp=$(mktemp -d) || return 1
   trap 'rm -rf "$tmp"' RETURN
   mkdir -p "$tmp/bin"
@@ -284,30 +284,38 @@ FAKE
     }
   done
 
-  # Removing the gate in a commit is how a repository opts out: the next run
-  # refuses, names that commit, and writes nothing.
+  # Reverting the feature that installed the gate removes both its files.
+  # That is not a decision about the gate, so the next run installs it again,
+  # whatever else was deleted before it.
+  fresh reverted
+  echo x > "$repo/old.txt"
+  git -C "$repo" add old.txt
+  git -C "$repo" -c user.name=t -c user.email=t@t commit -q -m "old file"
+  git -C "$repo" rm -q old.txt
+  git -C "$repo" -c user.name=t -c user.email=t@t commit -q -m "drop old file"
+  out=$(run) || {
+    echo "refused a first install: $out"
+    return 1
+  }
+  git -C "$repo" -c user.name=t -c user.email=t@t revert --no-edit HEAD > /dev/null
+  out=$(run) || {
+    echo "refused to reinstall after the gate's commit was reverted: $out"
+    return 1
+  }
+
+  # Opting out is removing the Stop entry and keeping the hook: its presence
+  # is what /speckit-implement checks, so the installer refuses from then on.
   fresh optout
   out=$(run) || {
     echo "refused a first install: $out"
     return 1
   }
-  git -C "$repo" rm -q .claude/hooks/stop-gate.sh
   echo '{"permissions": {"deny": ["Read(./.env)"]}}' > "$repo/.claude/settings.json"
-  git -C "$repo" -c user.name=t -c user.email=t@t commit -q -am "drop the gate"
-  removed=$(git -C "$repo" rev-parse --short HEAD)
-  before=$(snapshot)
+  git -C "$repo" -c user.name=t -c user.email=t@t commit -q -am "turn the gate off"
   if out=$(run); then
-    echo "reinstalled a gate the repository removed: $out"
+    echo "reinstalled a gate the repository turned off: $out"
     return 1
   fi
-  echo "$out" | grep -q "removed in $removed" || {
-    echo "refused a removed gate without naming the commit: $out"
-    return 1
-  }
-  [ "$(snapshot)" = "$before" ] || {
-    echo "refusing a removed gate left something behind"
-    return 1
-  }
 
   # A Stop entry already pointing at the hook means a second would be added.
   fresh half-removed

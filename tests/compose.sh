@@ -101,8 +101,9 @@ grep -qF "bash $gate" "$skills/speckit-implement/SKILL.md" ||
   problem "speckit-implement does not run bash $gate"
 # The fragment decides by whether the hook exists, so it must look where the
 # installer writes; otherwise every task re-runs an installer that refuses.
+# Joined into one line first, so rewrapping the fragment does not fail this.
 hook=$(sed -n 's/^hook=//p' "$gate")
-grep -qF "\`$hook\` does not exist" "$skills/speckit-implement/SKILL.md" ||
+tr -s ' \n' '  ' < "$skills/speckit-implement/SKILL.md" | grep -qF "\`$hook\` does not exist" ||
   problem "speckit-implement does not check for $hook, where the installer writes"
 
 specify version > version.txt 2>&1 || true
