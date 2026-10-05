@@ -66,9 +66,20 @@ story, the feature directory, and this brief:
   passes, the copy is running the original: an environment copied with the
   repo keeps absolute paths to it (uv's editable `.pth`, script shebangs).
   Rebuild the environment inside the copy (`rm -rf .venv && uv sync` for uv)
-  or use a fresh clone, and repeat the check.
+  or use a fresh clone, and repeat the check. Run every wrong version from a
+  clean build state: a cache keyed on timestamps can serve the previous
+  version (Python's bytecode is, to the second — delete `__pycache__` in the
+  copy and run with `PYTHONDONTWRITEBYTECODE=1` from then on).
+- Read the story's code as its next maintainer would, for what each cycle's
+  refactor step should have removed: duplication, a special case the
+  behaviour does not need, a name that does not say what it holds, a
+  function doing two things. Name the place and the simpler shape. Nothing
+  that is a matter of taste, and nothing a formatter or linter the project
+  runs already decides.
 - Prove every finding with a concrete input, observed against expected, and
   label anything unproven. Do not edit the repository.
 
 Close each test gap with a test watched failing against that wrong version and
-passing against the code. Report what the review found and what it did not fix.
+passing against the code. Carry out each structural finding as a refactor:
+behaviour unchanged, the whole suite run after each step. Report what the
+review found and what it did not fix.

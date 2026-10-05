@@ -6,6 +6,27 @@ All notable changes to this preset are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-05
+
+### Added
+
+- `speckit-implement` review brief: the reviewer also reads the story's code
+  for what each cycle's refactor step should have removed — duplication, an
+  unneeded special case, names that do not say what they hold, a function
+  doing two things — and each finding is carried out as a refactor. The
+  refactor step left no trace in a feature run on v1.2.0, so it is now
+  checked from another context instead of self-reported. Tested on code with
+  planted, behaviour-neutral duplication and bad names: the v1.2.1 brief
+  caught the duplication only through the test gap it caused and named none
+  of the names; this brief named both.
+
+### Fixed
+
+- Review brief: wrong versions run from a clean build state. A reviewer got a
+  false survivor from Python's bytecode cache, which is keyed on mtime to the
+  second; `PYTHONDONTWRITEBYTECODE=1` alone does not help once `__pycache__`
+  exists (reproduced), so the cache is deleted first.
+
 ## [1.2.1] - 2026-10-05
 
 ### Fixed
@@ -72,7 +93,8 @@ All notable changes to this preset are documented here. The format follows
 - `tests/compose.sh` and CI composing the preset against the pinned and the
   latest Spec Kit release.
 
-[Unreleased]: https://github.com/camilopiedra92/spec-kit-preset-test-first/compare/v1.2.1...HEAD
+[Unreleased]: https://github.com/camilopiedra92/spec-kit-preset-test-first/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/camilopiedra92/spec-kit-preset-test-first/compare/v1.2.1...v1.3.0
 [1.2.1]: https://github.com/camilopiedra92/spec-kit-preset-test-first/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/camilopiedra92/spec-kit-preset-test-first/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/camilopiedra92/spec-kit-preset-test-first/compare/v1.0.0...v1.1.0
