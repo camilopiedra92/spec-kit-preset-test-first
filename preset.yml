@@ -22,13 +22,13 @@ provides:
     - type: "command"
       name: "speckit.tasks"
       file: "commands/speckit.tasks.md"
-      description: "Test tasks are required, one behaviour per task, ordered simplest first, requirement IDs cited"
+      description: "Test tasks are required, one cycle per behaviour, never parallel, ordered simplest first, requirement IDs cited"
       strategy: "append"
 
     - type: "command"
       name: "speckit.implement"
       file: "commands/speckit.implement.md"
-      description: "Red, green, refactor; new cases join the task list; a task closes on a passing suite and the project's static checks; tool config stays the project's; each story ends with an independent review"
+      description: "One red-green-refactor cycle at a time; new cases join the task list; a task closes on a green suite and the project's static checks against a baseline; tool config stays the project's; each story ends with an independent review"
       strategy: "append"
 
 tags:

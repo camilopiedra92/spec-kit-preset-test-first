@@ -1,26 +1,35 @@
 ## Test-first
 
+- Before the first task, run the suite and the static checks the project
+  already runs — the lint and type check its CI, its task runner or its
+  constitution declare; add none it does not have — and record the result as
+  the baseline.
+- One cycle at a time: a test task, the task that makes it pass, then
+  refactor. Never write tests ahead of the cycle in progress.
 - Run a test task's tests before writing the code they cover, and confirm they
   fail for the expected reason. An import error, a collection error or a missing
   module proves the test was found, not that it exercises anything: stub the
   code under test until the test runs and fails from inside.
-- A new test that passes on its first run has not been watched failing. Find
-  out why before going on: either the behaviour already exists — say so in
-  tasks.md and do not count it as test-first — or the test does not exercise
-  what it names, and it is fixed until it fails against the missing code.
+- A new test that passes on its first run has not been watched failing. Break
+  the code it pins on purpose, watch the test fail for the expected reason,
+  restore the code, and note in tasks.md that the behaviour already existed.
+  If breaking the code does not make it fail, fix the test: it does not
+  exercise what it names.
 - Then write the least code that makes it pass, and run the whole suite.
-- With the suite green, refactor: remove the duplication the least code left,
-  in the code and in the tests, and make names say what they mean. Change
-  structure, never behaviour, and run the whole suite after each step.
-  Behaviour the refactor seems to need is a new test first.
+- With the suite green, refactor what this cycle left — duplication it added,
+  in the code or the tests, and names that no longer say what they mean.
+  Structure only, never behaviour; run the whole suite after each step. If
+  the cycle left nothing to clean, move on.
 - A case found while implementing — an edge case, a failure mode — does not go
-  into the test in progress. Add it to tasks.md as a new test task in the same
-  story, citing the requirement it falls under. If no requirement covers it,
-  that is a gap in the spec: report it rather than decide the behaviour.
-- Mark a task `[X]` only after a run you saw pass: the whole suite, and the
-  static checks the project already runs — the lint and type check its CI, its
-  task runner or its constitution declare. Add no check it does not have. If
-  anything is red when you stop, say so and show the output.
+  into the test in progress. Append a test task and its implementation task to
+  the same story's phase, numbered after the highest task ID, citing the
+  requirement the case falls under. If no requirement covers it, it is a gap
+  in the spec: do not decide the behaviour; carry on, and list the gap in the
+  completion report.
+- A test task closes on its watched failure. Any other task is marked `[X]`
+  only after a run you saw: the whole suite green, and no static-check finding
+  beyond the baseline. If anything is red when you stop, say so and show the
+  output.
 
 ## Project setup
 
@@ -28,12 +37,13 @@ This narrows "Project Setup Verification" above. A project's ignore files and
 tool configuration belong to the project, not to this run:
 
 - `.gitignore`: append patterns only for files this feature's build or tests
-  generate, and none that matches a tracked file — after the change,
-  `git ls-files -ci --exclude-standard` must list nothing new.
+  generate. Run `git ls-files -ci --exclude-standard` (tracked files ignored)
+  and `git status --porcelain --ignored` (untracked files ignored) before and
+  after the change; afterwards neither may list a source, test or other file
+  the feature means to commit.
 - Every other ignore file, and linter or formatter configuration
   (`eslint.config.*`, `.eslintrc*`, `.prettierrc*`): create or edit it only
-  when plan.md introduces that tool. Otherwise list the patterns you would
-  have added in the report.
+  when the tool is new to the repository in this feature.
 
 ## Independent review
 

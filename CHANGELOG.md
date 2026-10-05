@@ -10,18 +10,24 @@ All notable changes to this preset are documented here. The format follows
 
 ### Added
 
-- `speckit-implement`: a refactor step once the suite is green (structure
-  only, suite run after each step); a test that passes on its first run is
-  investigated rather than counted; a case found mid-implementation becomes a
-  new test task, or a reported spec gap; a task closes only when the project's
-  existing lint and type checks pass too, not only the suite.
+- `speckit-implement`: one red-green-refactor cycle at a time, with a refactor
+  step limited to what the cycle left (structure only, suite run after each
+  step); a test that passes on its first run is checked by breaking the code
+  it pins; a case found mid-implementation becomes a new test and
+  implementation task, or a spec gap listed in the completion report; a
+  baseline of the suite and the project's existing lint and type checks is
+  recorded before the first task, and a task closes only with no finding
+  beyond it (a test task closes on its watched failure).
 - `speckit-implement`: core's "Project Setup Verification" is narrowed —
-  `.gitignore` gets only patterns for generated files and never one matching a
-  tracked file; other ignore files and linter or formatter config are touched
-  only when plan.md introduces the tool.
-- `speckit-tasks`: a story's test tasks are ordered from the simplest case.
-- `tests/compose.sh` fails if core drops the "Project Setup Verification" step
-  the implement fragment narrows.
+  `.gitignore` gets only patterns for generated files and may not end up
+  ignoring a tracked file or one the feature means to commit; other ignore
+  files and linter or formatter config are touched only when the tool is new
+  to the repository in this feature.
+- `speckit-tasks`: a story is a sequence of cycles — each test task
+  immediately before its implementation task, neither `[P]` — ordered from
+  the simplest case, replacing core's all-tests-then-models order.
+- `tests/compose.sh` fails if core drops the rule or step a fragment replaces
+  or narrows.
 
 ### Changed
 
