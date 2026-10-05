@@ -17,7 +17,8 @@
   exercise what it names.
 - Then write the least code that makes it pass, and run the whole suite.
 - With the suite green, refactor what this cycle left — duplication it added,
-  in the code or the tests, and names that no longer say what they mean.
+  in the code or the tests, a special case the behaviour does not need, a
+  function now doing two things, and names that no longer say what they mean.
   Structure only, never behaviour; run the whole suite after each step. If
   the cycle left nothing to clean, move on.
 - A case found while implementing — an edge case, a failure mode — does not go
@@ -68,8 +69,9 @@ story, the feature directory, and this brief:
   Rebuild the environment inside the copy (`rm -rf .venv && uv sync` for uv)
   or use a fresh clone, and repeat the check. Run every wrong version from a
   clean build state: a cache keyed on timestamps can serve the previous
-  version (Python's bytecode is, to the second — delete `__pycache__` in the
-  copy and run with `PYTHONDONTWRITEBYTECODE=1` from then on).
+  version (Python's bytecode is, to the second — delete every `__pycache__`
+  in the copy, `find . -name __pycache__ -prune -exec rm -rf {} +`, and run
+  with `PYTHONDONTWRITEBYTECODE=1` from then on).
 - Read the story's code as its next maintainer would, for what each cycle's
   refactor step should have removed: duplication, a special case the
   behaviour does not need, a name that does not say what it holds, a
