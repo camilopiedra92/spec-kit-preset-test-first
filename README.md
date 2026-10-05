@@ -6,8 +6,8 @@ nothing, so upstream changes to the rest of each skill keep arriving.
 
 | Skill | What the preset adds |
 |---|---|
-| `speckit-tasks` | Test tasks are required (overriding core's "Tests are OPTIONAL") for behaviour with logic of its own; one behaviour per task; implementation tasks cite their `FR-`/`SC-` IDs |
-| `speckit-implement` | A test counts once it has failed from inside, not on an import or collection error; a task is marked done only after a passing run; each completed user story gets a review from a fresh context that tries wrong versions of the code against the tests, and every gap it finds is closed with a test |
+| `speckit-tasks` | Test tasks are required (overriding core's "Tests are OPTIONAL") for behaviour with logic of its own; one behaviour per task; each test task immediately before its implementation task, never `[P]`, ordered from the simplest case; implementation tasks cite their `FR-`/`SC-` IDs |
+| `speckit-implement` | A test counts once it has failed from inside, not on an import or collection error, and one that passes on its first run is investigated; one red-green-refactor cycle at a time; a case found mid-implementation becomes a new task instead of growing the current test; a task is marked done only on a green suite and no lint or type finding beyond a baseline taken before the first task; ignore files and tool config are touched only as far as the feature needs; each completed user story gets a review from a fresh context that tries wrong versions of the code against the tests, and every gap it finds is closed with a test |
 
 ## When to use it
 
@@ -29,7 +29,7 @@ overrides, but that is not tested.
 ## Install
 
 ```bash
-specify preset add --from https://github.com/camilopiedra92/spec-kit-preset-test-first/archive/refs/tags/v1.1.0.zip
+specify preset add --from https://github.com/camilopiedra92/spec-kit-preset-test-first/archive/refs/tags/v1.2.0.zip
 ```
 
 To move a project to a newer release:
@@ -45,7 +45,7 @@ environment does: `$(uv tool dir)/specify-cli/bin/python`.
 `tests/compose.sh` installs the preset from a tag-shaped archive into a scratch
 project with the real CLI and checks that each skill keeps its core body and
 description and ends with the fragment, and that core still carries the rule
-the tasks fragment overrides. CI runs it against the pinned Spec Kit release on
+the fragments override or narrow. CI runs it against the pinned Spec Kit release on
 every push and against the latest release weekly.
 
 In one pilot (Spec Kit 1.1.0, 2026-10-05), `/speckit-tasks` produced 61 tasks,

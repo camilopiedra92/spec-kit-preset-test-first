@@ -6,6 +6,36 @@ All notable changes to this preset are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-05
+
+### Added
+
+- `speckit-implement`: one red-green-refactor cycle at a time, with a refactor
+  step limited to what the cycle left (structure only, suite run after each
+  step); a test that passes on its first run is checked by breaking the code
+  it pins; a case found mid-implementation becomes a new test and
+  implementation task, or a spec gap listed in the completion report; a
+  baseline of the suite and the project's existing lint and type checks is
+  recorded before the first task, and a task closes only with no test failure
+  or static-check finding beyond it and none of its new files ignored by git
+  (a test task closes on its watched failure).
+- `speckit-implement`: core's "Project Setup Verification" is narrowed —
+  `.gitignore` gets only patterns for generated files and may not end up
+  ignoring a tracked file or one the feature means to commit; other ignore
+  files and linter or formatter config are touched only when the tool is new
+  to the repository in this feature.
+- `speckit-tasks`: a story is a sequence of cycles — each test task
+  immediately before its implementation task, neither `[P]` — ordered from
+  the simplest case, replacing core's all-tests-then-models order and the
+  tasks template's "Write these tests FIRST" block.
+- `tests/compose.sh` fails if core drops a rule, template block or step a
+  fragment replaces or narrows.
+
+### Changed
+
+- "Logic of its own" is now spelled out (a branch, a computation, a parse, a
+  state change), so it matches the threshold in the author's global rules.
+
 ## [1.1.0] - 2026-10-05
 
 ### Added
@@ -29,6 +59,7 @@ All notable changes to this preset are documented here. The format follows
 - `tests/compose.sh` and CI composing the preset against the pinned and the
   latest Spec Kit release.
 
-[Unreleased]: https://github.com/camilopiedra92/spec-kit-preset-test-first/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/camilopiedra92/spec-kit-preset-test-first/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/camilopiedra92/spec-kit-preset-test-first/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/camilopiedra92/spec-kit-preset-test-first/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/camilopiedra92/spec-kit-preset-test-first/releases/tag/v1.0.0
