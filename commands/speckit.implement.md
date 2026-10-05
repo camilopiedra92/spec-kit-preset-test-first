@@ -23,10 +23,9 @@
 - A case found while implementing — an edge case, a failure mode — does not go
   into the test in progress. Append a test task and its implementation task to
   the same story's phase, with the next free task IDs — IDs added mid-run
-  follow creation, not execution order — citing the
-  requirement the case falls under. If no requirement covers it, it is a gap
-  in the spec: do not decide the behaviour; carry on, and list the gap in the
-  completion report.
+  follow creation, not execution order — citing the requirement the case
+  falls under. If no requirement covers it, it is a gap in the spec: do not
+  decide the behaviour; carry on, and list the gap in the completion report.
 - A test task closes on its watched failure. Any other task is marked `[X]`
   only after a run you saw with no test failure and no static-check finding
   beyond the baseline, and with `git status --porcelain --ignored` listing
