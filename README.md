@@ -9,6 +9,23 @@ nothing, so upstream changes to the rest of each skill keep arriving.
 | `speckit-tasks` | Test tasks are required (overriding core's "Tests are OPTIONAL") for behaviour with logic of its own; one behaviour per task; implementation tasks cite their `FR-`/`SC-` IDs |
 | `speckit-implement` | A test counts once it has failed from inside, not on an import or collection error; a task is marked done only after a passing run |
 
+## When to use it
+
+- Work where a test that never failed is not evidence: domain logic, money,
+  parsing, anything with edge cases.
+- Projects that want every task traceable to a requirement ID.
+
+## When not to use it
+
+- Spikes and prototypes, where the point is to learn what to build.
+- Features with no logic of their own (copy, styling, configuration): the
+  preset exempts such tasks, but its one-behaviour-per-task granularity
+  roughly doubled the task count in the pilot below, which buys nothing there.
+
+Verified with the Claude Code integration only. The fragments are plain
+Markdown and should compose for any integration that registers command
+overrides, but that is not tested.
+
 ## Install
 
 ```bash
