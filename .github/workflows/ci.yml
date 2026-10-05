@@ -1,0 +1,53 @@
+# Runs tests/compose.sh against the real specify CLI: pinned on every push and
+# pull request, and weekly against upstream's latest release. The pinned run
+# says this commit works; the weekly one says upstream has not moved under it,
+# which is the only way a change to the core skills reaches this repo before it
+# reaches a project.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "0 12 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # The release this preset is verified against. Bump it together with
+  # `requires.speckit_version` in preset.yml when a new release changes what
+  # the fragments compose onto.
+  SPECKIT_PINNED: v1.1.0
+
+jobs:
+  compose:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        speckit: [pinned, latest]
+        exclude:
+          # Latest only on the schedule and on demand: on a push it would make
+          # this commit's result depend on upstream's release calendar.
+          - speckit: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && 'none' || 'latest' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - name: Install specify
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${{ matrix.speckit }}" = latest ]; then
+            tag=$(gh release view -R github/spec-kit --json tagName -q .tagName)
+          else
+            tag=$SPECKIT_PINNED
+          fi
+          uv tool install specify-cli --from "git+https://github.com/github/spec-kit.git@$tag"
+      - run: tests/compose.sh

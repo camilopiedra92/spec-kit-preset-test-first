@@ -1,0 +1,37 @@
+schema_version: "1.0"
+
+# Appends to two core skills rather than replacing them, so upstream changes to
+# the rest of each skill keep arriving. The fragments carry no frontmatter: a
+# description there replaces the skill's own, which is what Claude reads to
+# decide when to invoke it. tests/compose.sh checks all of this against the
+# real CLI.
+preset:
+  id: "test-first"
+  name: "Test-first"
+  version: "1.0.0"
+  description: "Makes test tasks required in /speckit-tasks and test-first verifiable in /speckit-implement"
+  author: "camilopiedra92"
+  repository: "https://github.com/camilopiedra92/spec-kit-preset-test-first"
+  license: "MIT"
+
+requires:
+  speckit_version: ">=1.1.0"
+
+provides:
+  templates:
+    - type: "command"
+      name: "speckit.tasks"
+      file: "commands/speckit.tasks.md"
+      description: "Test tasks are required, one behaviour per task, requirement IDs cited"
+      strategy: "append"
+
+    - type: "command"
+      name: "speckit.implement"
+      file: "commands/speckit.implement.md"
+      description: "A test counts once it has failed from inside; a task closes on a passing run"
+      strategy: "append"
+
+tags:
+  - "tdd"
+  - "test-first"
+  - "testing"
