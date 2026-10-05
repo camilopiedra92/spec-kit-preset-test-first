@@ -62,9 +62,11 @@ story, the feature directory, and this brief:
   the contracts and `.specify/memory/constitution.md`.
 - For each behaviour, write a plausible wrong version in a scratch copy and run
   the suite. A wrong version the suite still passes is a test gap. First
-  break something obvious in the copy and watch the suite fail: a virtualenv
-  copied with the repo can still import the original's code, and then every
-  wrong version passes.
+  break something obvious in the copy and watch the suite fail. If it still
+  passes, the copy is running the original: an environment copied with the
+  repo keeps absolute paths to it (uv's editable `.pth`, script shebangs).
+  Rebuild the environment inside the copy (`rm -rf .venv && uv sync` for uv)
+  or use a fresh clone, and repeat the check.
 - Prove every finding with a concrete input, observed against expected, and
   label anything unproven. Do not edit the repository.
 

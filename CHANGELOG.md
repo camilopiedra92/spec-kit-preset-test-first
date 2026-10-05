@@ -10,11 +10,14 @@ All notable changes to this preset are documented here. The format follows
 
 ### Fixed
 
-- `speckit-implement` review brief: the reviewer first confirms the scratch
-  copy's suite runs the copy. A virtualenv copied with the repo kept importing
-  the original source (reproduced with uv: a copy with a broken `cli.py` still
-  passed 90 of 90), so every wrong version would read as a test gap or none
-  would. Found by the first review in a feature run on v1.2.0.
+- `speckit-implement` review brief: the reviewer first breaks something
+  obvious in its scratch copy and watches the suite fail, rebuilding the
+  copy's environment if it does not. An environment copied with the repo keeps
+  absolute paths to the original (uv's editable `.pth`, script shebangs):
+  reproduced with uv, a copy with a broken `cli.py` still passed 90 of 90, so
+  every wrong version would pass and be misreported as a test gap. Rebuilding
+  with `uv sync` inside the copy made it fail. Found by the first story
+  review in a headless feature run on v1.2.0 (sdd-pilot, feature 002).
 
 ## [1.2.0] - 2026-10-05
 
