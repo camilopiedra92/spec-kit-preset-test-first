@@ -31,10 +31,9 @@ provides:
       description: "One red-green-refactor cycle at a time; new cases join the task list; a task closes on a green suite and the project's static checks against a baseline; tool config stays the project's; each story ends with an independent review of tests and structure; the first green suite installs a Stop hook that gates every later turn on it"
       strategy: "append"
 
-    # Not a core script, so nothing resolves it by name: the implement fragment
-    # runs it by its installed path, which tests/compose.sh checks. Install
-    # copies the whole preset either way; this entry is what makes `specify
-    # preset info` list it.
+    # The implement fragment runs it by its installed path, which
+    # tests/compose.sh checks. Install copies the whole preset either way; this
+    # entry is what makes `specify preset info` list it.
     - type: "script"
       name: "install-stop-gate"
       file: "scripts/bash/install-stop-gate.sh"

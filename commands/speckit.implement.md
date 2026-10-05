@@ -67,9 +67,11 @@ story, the feature directory, and this brief:
   passes, the copy is running the original: an environment copied with the
   repo keeps absolute paths to it (uv's editable `.pth`, script shebangs).
   Rebuild the environment inside the copy (`rm -rf .venv && uv sync` for uv)
-  or use a fresh clone, and repeat the check. Run every wrong version from a
-  clean build state: a cache keyed on timestamps can serve the previous
-  version (Python's bytecode is, to the second — delete every `__pycache__`
+  or use a fresh clone, and repeat the check. A Claude session started in the
+  copy runs the copy's Stop gate, which would ask it to fix the wrong
+  version: delete `.claude/hooks/stop-gate.sh` in the copy first. Run every
+  wrong version from a clean build state: a cache keyed on timestamps can
+  serve the previous version (Python's bytecode is, to the second — delete every `__pycache__`
   in the copy, `find . -name __pycache__ -prune -exec rm -rf {} +`, and run
   with `PYTHONDONTWRITEBYTECODE=1` from then on).
 - Read the story's code as its next maintainer would, for what each cycle's
@@ -88,9 +90,10 @@ review found and what it did not fix.
 
 ## Stop gate
 
-Instructions stop holding once this run ends; a Stop hook does not. When a
-run of the whole suite you saw is green and `.claude/hooks/stop-gate.sh` does
-not exist, install the gate before going on, from the repository root:
+Instructions stop holding once this run ends; a Stop hook does not. Where
+`.specify/` sits at the root of the git repository, install the gate the first
+time a run of the whole suite you saw is green and
+`.claude/hooks/stop-gate.sh` does not exist, before going on, from that root:
 
 ```bash
 bash .specify/presets/test-first/scripts/bash/install-stop-gate.sh <test command>
@@ -98,13 +101,18 @@ bash .specify/presets/test-first/scripts/bash/install-stop-gate.sh <test command
 
 - `<test command>` is the one that runs the whole suite, as the plan's
   Technical Context or the constitution names it, given as separate arguments
-  (`uv run pytest -q`, not a quoted string). It runs at the end of every
-  turn: if the whole suite takes more than a few seconds, give a fast subset
-  and say which in the completion report.
+  (`uv run pytest -q`, not one quoted string). A command that needs a shell —
+  a variable assignment, `&&`, a pipe — goes through one:
+  `sh -c 'CI=1 npm test'`. It runs at the end of every turn: if the whole
+  suite takes more than a few seconds, give a fast subset and say which in
+  the completion report.
 - The installer makes a commit of its own holding only the hook and
-  `.claude/settings.json`. If it refuses — something staged, an uncommitted
-  `settings.json`, `.claude/` ignored — do not work around it: carry on, try
-  again at the next green suite, and if it never installed, put its last
-  refusal in the completion report.
+  `.claude/settings.json`. If it refuses, do not work around it and do not
+  retry at every task: try once more after the last task, and if it still
+  refuses, put its message in the completion report. A refusal that names
+  the commit that removed the gate means the project opted out: do not retry
+  it, and do not report it as a problem.
 - A project with no suite yet gets the gate at the first task that closes
   green.
+- With `.specify/` below the repository root, do not install it; say so in
+  the completion report.

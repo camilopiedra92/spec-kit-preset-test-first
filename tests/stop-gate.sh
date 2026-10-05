@@ -16,7 +16,7 @@ set -uo pipefail
 PRESET="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 stop_gate() {
-  local tmp repo out rc
+  local tmp repo out rc removed
   tmp=$(mktemp -d) || return 1
   trap 'rm -rf "$tmp"' RETURN
   mkdir -p "$tmp/bin"
@@ -266,6 +266,12 @@ FAKE
       echo "reported success when the commit was refused: $out"
       return 1
     fi
+    # Said in its own words: a commit hook's output alone does not say that
+    # the gate is what it refused.
+    echo "$out" | grep -q "install-stop-gate: the commit was refused" || {
+      echo "a refused commit did not say so: $out"
+      return 1
+    }
     [ "$(snapshot)" = "$before" ] || {
       echo "a refused commit in a $kind repository left it changed:"
       diff <(echo "$before") <(snapshot)
@@ -277,6 +283,46 @@ FAKE
       return 1
     }
   done
+
+  # Removing the gate in a commit is how a repository opts out: the next run
+  # refuses, names that commit, and writes nothing.
+  fresh optout
+  out=$(run) || {
+    echo "refused a first install: $out"
+    return 1
+  }
+  git -C "$repo" rm -q .claude/hooks/stop-gate.sh
+  echo '{"permissions": {"deny": ["Read(./.env)"]}}' > "$repo/.claude/settings.json"
+  git -C "$repo" -c user.name=t -c user.email=t@t commit -q -am "drop the gate"
+  removed=$(git -C "$repo" rev-parse --short HEAD)
+  before=$(snapshot)
+  if out=$(run); then
+    echo "reinstalled a gate the repository removed: $out"
+    return 1
+  fi
+  echo "$out" | grep -q "removed in $removed" || {
+    echo "refused a removed gate without naming the commit: $out"
+    return 1
+  }
+  [ "$(snapshot)" = "$before" ] || {
+    echo "refusing a removed gate left something behind"
+    return 1
+  }
+
+  # A Stop entry already pointing at the hook means a second would be added.
+  fresh half-removed
+  # shellcheck disable=SC2016  # the literal Claude Code expands, as the installer writes it
+  echo '{"hooks": {"Stop": [{"hooks": [{"type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/stop-gate.sh"}]}]}}' \
+    > "$repo/.claude/settings.json"
+  git -C "$repo" -c user.name=t -c user.email=t@t commit -q -am "entry without hook"
+  if out=$(run); then
+    echo "added a second Stop entry for the gate: $out"
+    return 1
+  fi
+  echo "$out" | grep -q "already has a Stop entry" || {
+    echo "refused a leftover Stop entry for another reason: $out"
+    return 1
+  }
 }
 
 if stop_gate; then

@@ -51,6 +51,15 @@ if [ -e "$hook" ] || [ -L "$hook" ]; then
   echo "install-stop-gate: $hook already exists; edit its TEST_COMMAND to change the command" >&2
   exit 1
 fi
+# Removing the gate in a commit is how a repository opts out, and
+# /speckit-implement runs this whenever the hook is missing; without this it
+# would come back on the next run. Only this branch's history counts: a gate
+# committed on an abandoned branch was never removed here.
+removed=$(git log -1 --format=%h --diff-filter=D -- "$hook" 2> /dev/null || true)
+if [ -n "$removed" ]; then
+  echo "install-stop-gate: the gate was removed in $removed; to bring it back, git revert $removed" >&2
+  exit 1
+fi
 # Written through, a symlinked settings.json would change a file outside this
 # repository and leave the one git tracks, the link, as it was.
 if [ -L "$settings" ]; then
@@ -92,6 +101,13 @@ if [ -e "$settings" ]; then
   if ! jq -e 'type == "object"' "$settings" > /dev/null 2>&1 ||
     ! merged=$(jq --argjson entry "$entry" '.hooks.Stop += [$entry]' "$settings"); then
     echo "install-stop-gate: $settings is not a JSON object" >&2
+    exit 1
+  fi
+  # The hook file gone but its entry left: a second entry would run the suite
+  # twice at every stop.
+  if jq -e '[.hooks.Stop[]?.hooks[]?.command | strings | select(contains(".claude/hooks/stop-gate.sh"))] | length > 0' \
+    "$settings" > /dev/null; then
+    echo "install-stop-gate: $settings already has a Stop entry for $hook; remove it or restore the hook" >&2
     exit 1
   fi
 else
@@ -177,8 +193,14 @@ printf '%s\n' "$merged" > "$settings"
 # Only these two paths, whatever else is staged by now (the suite ran since
 # the staged check).
 git add "$hook" "$settings"
-git commit -q -m "Gate the end of every Claude turn on the test suite" \
+# A commit hook's own output does not say what it refused, and a commit-msg
+# policy will refuse every attempt; the caller needs to know which it was.
+if ! git commit -q -m "Gate the end of every Claude turn on the test suite" \
   -m "Written by install-stop-gate: a Stop hook runs \`$*\` and blocks a red turn once." \
-  -- "$hook" "$settings"
+  -- "$hook" "$settings"; then
+  echo "install-stop-gate: the commit was refused, by a pre-commit or commit-msg hook if" >&2
+  echo "                   its output is above; nothing is left behind" >&2
+  exit 1
+fi
 committed=1
 echo "install-stop-gate: committed $hook and $settings"

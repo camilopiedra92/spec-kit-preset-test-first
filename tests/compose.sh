@@ -99,6 +99,11 @@ cmp -s "$gate" "$PRESET/scripts/bash/install-stop-gate.sh" ||
   problem "$gate is not installed as committed"
 grep -qF "bash $gate" "$skills/speckit-implement/SKILL.md" ||
   problem "speckit-implement does not run bash $gate"
+# The fragment decides by whether the hook exists, so it must look where the
+# installer writes; otherwise every task re-runs an installer that refuses.
+hook=$(sed -n 's/^hook=//p' "$gate")
+grep -qF "\`$hook\` does not exist" "$skills/speckit-implement/SKILL.md" ||
+  problem "speckit-implement does not check for $hook, where the installer writes"
 
 specify version > version.txt 2>&1 || true
 [ "$fail" -eq 0 ] && echo "ok: composes on specify $(grep -m1 -oE '[0-9]+\.[0-9]+\.[0-9]+' version.txt)"

@@ -30,9 +30,13 @@ test that cannot pass honestly gets reported instead of edited until it does.
 The design and what was tried and dropped are in the script's header.
 
 The installer refuses rather than guesses: a red suite, anything staged, an
-uncommitted, symlinked, ignored or skip-worktree `settings.json`, or a hook
-already there. To change the command later, edit `TEST_COMMAND` in the hook.
-It needs `jq`.
+uncommitted, symlinked, ignored or skip-worktree `settings.json`, a hook or a
+Stop entry for it already there, or a commit hook that rejects its commit. To
+change the command later, edit `TEST_COMMAND` in the hook. To opt out, remove
+the hook and its entry in `.claude/settings.json` in a commit: the installer
+refuses from then on, naming that commit, and `git revert` of it brings the
+gate back. Only with `.specify/` at the repository root. The installer needs
+`jq`; the hook does not.
 
 ## When to use it
 
