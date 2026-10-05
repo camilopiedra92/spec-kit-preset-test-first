@@ -16,8 +16,9 @@ All notable changes to this preset are documented here. The format follows
   it pins; a case found mid-implementation becomes a new test and
   implementation task, or a spec gap listed in the completion report; a
   baseline of the suite and the project's existing lint and type checks is
-  recorded before the first task, and a task closes only with no finding
-  beyond it (a test task closes on its watched failure).
+  recorded before the first task, and a task closes only with no test failure
+  or static-check finding beyond it and none of its new files ignored by git
+  (a test task closes on its watched failure).
 - `speckit-implement`: core's "Project Setup Verification" is narrowed —
   `.gitignore` gets only patterns for generated files and may not end up
   ignoring a tracked file or one the feature means to commit; other ignore
@@ -25,9 +26,10 @@ All notable changes to this preset are documented here. The format follows
   to the repository in this feature.
 - `speckit-tasks`: a story is a sequence of cycles — each test task
   immediately before its implementation task, neither `[P]` — ordered from
-  the simplest case, replacing core's all-tests-then-models order.
-- `tests/compose.sh` fails if core drops the rule or step a fragment replaces
-  or narrows.
+  the simplest case, replacing core's all-tests-then-models order and the
+  tasks template's "Write these tests FIRST" block.
+- `tests/compose.sh` fails if core drops a rule, template block or step a
+  fragment replaces or narrows.
 
 ### Changed
 

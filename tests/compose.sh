@@ -67,6 +67,8 @@ grep -q 'Tests are OPTIONAL' core/tasks.md ||
   problem "core speckit-tasks no longer says 'Tests are OPTIONAL'; revise the fragment"
 grep -qF 'Tests (if requested) → Models' core/tasks.md ||
   problem "core speckit-tasks no longer orders 'Tests (if requested) → Models'; revise the fragment"
+grep -qF 'Write these tests FIRST' .specify/templates/tasks-template.md ||
+  problem "core tasks-template.md no longer has its 'Write these tests FIRST' block; revise the fragment"
 # Same for the implement step the fragment narrows by name.
 grep -q 'Project Setup Verification' core/implement.md ||
   problem "core speckit-implement no longer has 'Project Setup Verification'; revise the fragment"

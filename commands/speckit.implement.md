@@ -22,14 +22,16 @@
   the cycle left nothing to clean, move on.
 - A case found while implementing — an edge case, a failure mode — does not go
   into the test in progress. Append a test task and its implementation task to
-  the same story's phase, numbered after the highest task ID, citing the
+  the same story's phase, with the next free task IDs — IDs added mid-run
+  follow creation, not execution order — citing the
   requirement the case falls under. If no requirement covers it, it is a gap
   in the spec: do not decide the behaviour; carry on, and list the gap in the
   completion report.
 - A test task closes on its watched failure. Any other task is marked `[X]`
-  only after a run you saw: the whole suite green, and no static-check finding
-  beyond the baseline. If anything is red when you stop, say so and show the
-  output.
+  only after a run you saw with no test failure and no static-check finding
+  beyond the baseline, and with `git status --porcelain --ignored` listing
+  none of the files the task created as ignored. If anything is red when you
+  stop, say so and show the output.
 
 ## Project setup
 
@@ -37,10 +39,10 @@ This narrows "Project Setup Verification" above. A project's ignore files and
 tool configuration belong to the project, not to this run:
 
 - `.gitignore`: append patterns only for files this feature's build or tests
-  generate. Run `git ls-files -ci --exclude-standard` (tracked files ignored)
-  and `git status --porcelain --ignored` (untracked files ignored) before and
-  after the change; afterwards neither may list a source, test or other file
-  the feature means to commit.
+  generate. `git ls-files -ci --exclude-standard` lists the tracked files a
+  pattern ignores; it must list nothing after the change that it did not
+  before. Files the feature has yet to create are checked as each task
+  closes (above).
 - Every other ignore file, and linter or formatter configuration
   (`eslint.config.*`, `.eslintrc*`, `.prettierrc*`): create or edit it only
   when the tool is new to the repository in this feature.
