@@ -29,7 +29,7 @@ overrides, but that is not tested.
 ## Install
 
 ```bash
-specify preset add --from https://github.com/camilopiedra92/spec-kit-preset-test-first/archive/refs/tags/v1.2.0.zip
+specify preset add --from https://github.com/camilopiedra92/spec-kit-preset-test-first/archive/refs/tags/v1.2.1.zip
 ```
 
 To move a project to a newer release:
