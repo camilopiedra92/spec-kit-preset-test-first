@@ -111,6 +111,18 @@ FAKE
     return 1
   }
 
+  # How to turn it off is said where someone who wants to will look: the
+  # hook and its commit. Deleting the hook instead would bring it back.
+  off="remove its entry under hooks.Stop in .claude/settings.json and keep"
+  tr -s ' #\n' '   ' < "$repo/.claude/hooks/stop-gate.sh" | grep -qF "$off" || {
+    echo "the hook does not say how to turn it off"
+    return 1
+  }
+  git -C "$repo" log -1 --format=%B | tr -s ' \n' '  ' | grep -qF "$off" || {
+    echo "the gate's commit does not say how to turn it off: $(git -C "$repo" log -1 --format=%B)"
+    return 1
+  }
+
   # Green: the stop goes through, and the suite ran once, from the project,
   # with its arguments exactly as given.
   : > "$tmp/runs"

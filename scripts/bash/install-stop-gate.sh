@@ -147,6 +147,10 @@ mkdir -p .claude/hooks
 # suite is red, the first stop of a turn is blocked with the failure and the
 # next stop goes through, so Claude is shown the failure and a test that cannot
 # pass honestly gets reported instead of forced green.
+#
+# To turn it off, remove its entry under hooks.Stop in .claude/settings.json
+# and keep this file: /speckit-implement installs the gate wherever this file
+# is missing.
 set -uo pipefail
 
 EOF
@@ -189,6 +193,7 @@ git add "$hook" "$settings"
 # policy will refuse every attempt; the caller needs to know which it was.
 if ! git commit -q -m "Gate the end of every Claude turn on the test suite" \
   -m "Written by install-stop-gate: a Stop hook runs \`$*\` and blocks a red turn once." \
+  -m "To turn it off, remove its entry under hooks.Stop in .claude/settings.json and keep $hook: /speckit-implement installs the gate wherever that file is missing." \
   -- "$hook" "$settings"; then
   echo "install-stop-gate: the commit was refused, by a pre-commit or commit-msg hook if" >&2
   echo "                   its output is above; nothing is left behind" >&2
