@@ -12,6 +12,15 @@ PRESET="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 work=$(mktemp -d)
 server=
 trap '[ -n "$server" ] && kill "$server" 2> /dev/null; rm -rf "$work"' EXIT
+# Quiet on success, the whole output on failure: the CLI reports through a
+# rich console on stdout, so silencing it blindly hid why CI failed.
+quiet() {
+  "$@" > "$work/last.log" 2>&1 || {
+    echo "FAIL: $*"
+    cat "$work/last.log"
+    exit 1
+  }
+}
 
 # Installed the way a project installs it: GitHub's tag archive is a zip of the
 # committed tree under one top-level directory, minus export-ignore paths, and
@@ -19,7 +28,7 @@ trap '[ -n "$server" ] && kill "$server" 2> /dev/null; rm -rf "$work"' EXIT
 # CLI accepts plain HTTP from localhost only, so a local server stands in for
 # GitHub. Uncommitted changes are not in HEAD and so are not tested.
 mkdir "$work/www"
-git -C "$PRESET" archive --format=zip --prefix=spec-kit-preset-test-first/ \
+quiet git -C "$PRESET" archive --format=zip --prefix=spec-kit-preset-test-first/ \
   -o "$work/www/preset.zip" HEAD
 port=$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])')
 python3 -m http.server "$port" --bind 127.0.0.1 --directory "$work/www" > /dev/null 2>&1 &
@@ -44,8 +53,8 @@ print(yaml.safe_load(text.split("---")[1])["description"])' "$1"
 }
 
 cd "$work"
-git init -q
-specify init --here --force --integration claude > /dev/null
+quiet git init -q
+quiet specify init --here --force --integration claude
 skills=.claude/skills
 mkdir core
 for s in tasks implement; do cp "$skills/speckit-$s/SKILL.md" "core/$s.md"; done
@@ -55,7 +64,7 @@ for s in tasks implement; do cp "$skills/speckit-$s/SKILL.md" "core/$s.md"; done
 grep -q 'Tests are OPTIONAL' core/tasks.md ||
   problem "core speckit-tasks no longer says 'Tests are OPTIONAL'; revise the fragment"
 
-specify preset add --from "http://127.0.0.1:$port/preset.zip" > /dev/null
+quiet specify preset add --from "http://127.0.0.1:$port/preset.zip"
 
 for s in tasks implement; do
   skill="$skills/speckit-$s/SKILL.md"
