@@ -10,15 +10,25 @@ All notable changes to this preset are documented here. The format follows
 
 ### Fixed
 
-- Story review: every run of a wrong version is bounded by a deadline that
-  kills the suite's whole process group, and the reviewer confirms nothing
-  started in the scratch copy is still running before reporting. A wrong
-  version that looped in the CLI under test ran for 13 hours after its review
-  ended, reaching 232 GB of virtual memory and 67 GB of swap: the Bash tool's
-  timeout moved the run to the background instead of stopping it, and the
-  reviewer's `subprocess.run(timeout=...)` and `pkill` stopped one process,
-  not its children. A run stopped by its deadline counts as caught and is
-  reported, since the test should fail on its own instead of hanging.
+- Story review: each run of a wrong version goes through
+  `scripts/bash/run-bounded.sh <seconds> <command>`, which runs the command
+  in a process group of its own and kills the whole group when the command
+  ends, when the deadline passes (SIGTERM, then SIGKILL after 5 seconds), or
+  when the runner itself is stopped, repeating the kill until no member is
+  left. Exit 124 says the deadline fired, whatever the command answered; a
+  deadline that is not a whole number above 0 is refused with exit 2, since
+  one `sleep` rejects would fire at once and read as caught. A wrong version
+  that looped in the CLI under test ran for 13 hours after its review ended,
+  to 232 GB of virtual memory and 67 GB of swap: the Bash tool's timeout
+  moved the run to the background instead of stopping it, and the
+  reviewer's `subprocess.run(timeout=...)` and `pkill` each stopped one
+  process, not its children. A run stopped by its deadline counts as caught
+  and is reported, since the test should fail on its own instead of hanging.
+
+### Added
+
+- `tests/run-bounded.sh`, run in CI; `tests/compose.sh` checks the runner is
+  installed as committed and that the implement fragment runs it.
 
 ## [1.5.0] - 2026-10-05
 

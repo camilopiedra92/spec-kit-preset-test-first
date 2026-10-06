@@ -20,32 +20,51 @@
 # leaves the group and is out of reach; macOS has no cgroup to hold it.
 set -u
 
-[ $# -ge 2 ] || {
-  echo "usage: run-bounded.sh <seconds> <command> [args...]" >&2
+usage() {
+  echo "usage: run-bounded.sh <seconds> <command> [args...]   seconds: a whole number above 0" >&2
   exit 2
 }
+[ $# -ge 2 ] || usage
+# Whole seconds, because that is all POSIX sleep takes; a value sleep rejects
+# would make the watchdog fire at once and the run read as caught.
+case $1 in
+  '' | *[!0-9]* | 0*) usage ;;
+esac
 seconds=$1
 shift
 # A child that ignores SIGTERM gets this long before SIGKILL.
 grace=5
 
+# Under a terminal the command is a background job, and a read from the
+# terminal would stop it (SIGTTIN) until the deadline.
+[ ! -t 0 ] || exec < /dev/null
+
 flags=$(mktemp -d) || exit 1
 fired=$flags/fired
 pid=
 watchdog=
+# One kill reaches the members that exist when it runs; a child forked at that
+# instant survives it (on macOS, in about a quarter of runs of a fork loop).
+# Repeated until the group is empty, capped because a leader not yet reaped
+# still counts as a member.
+kill_group() {
+  local tries=0
+  while kill -KILL -- "-$1" 2> /dev/null && [ $tries -lt 20 ]; do
+    tries=$((tries + 1))
+  done
+}
 # shellcheck disable=SC2329  # invoked by the EXIT trap
 cleanup() {
-  [ -z "$watchdog" ] || kill -KILL -- "-$watchdog" 2> /dev/null
+  [ -z "$watchdog" ] || kill_group "$watchdog"
   # After the leader is gone its group can still hold children; SIGKILL
   # because they had their chance at SIGTERM, or ended on time and are
   # leftovers.
-  [ -z "$pid" ] || kill -KILL -- "-$pid" 2> /dev/null
+  [ -z "$pid" ] || kill_group "$pid"
   rm -rf "$flags"
 }
+# Bash runs the EXIT trap also when a signal ends it, so a runner stopped from
+# outside still kills the group.
 trap cleanup EXIT
-trap 'exit 143' TERM
-trap 'exit 130' INT
-trap 'exit 129' HUP
 
 # Job control gives each background job its own process group, led by the
 # job's first process, so $! names the group.
@@ -60,12 +79,12 @@ pid=$!
   kill -KILL -- "-$pid"
 ) 2> /dev/null &
 watchdog=$!
-# Bash reports each job it reaps on stderr ("Terminated: 15"); the command's
-# own output is unaffected.
+# Quiets bash's report of how the job ended ("Terminated: 15"); the command's
+# own stderr is unaffected. A runner stopped from outside still prints one.
 wait "$pid" 2> /dev/null
 status=$?
 # Shut the watchdog before reading the flag, so it cannot fire in between.
-kill -KILL -- "-$watchdog" 2> /dev/null
+kill_group "$watchdog"
 wait "$watchdog" 2> /dev/null
 watchdog=
 [ ! -e "$fired" ] || exit 124
