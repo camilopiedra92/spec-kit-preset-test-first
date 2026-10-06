@@ -26,15 +26,20 @@ printf '%s|' "\$@" >> "$tmp/runs"
 echo >> "$tmp/runs"
 pwd -P > "$tmp/cwd"
 [ ! -e "$tmp/stage" ] || { echo x > snapshot.txt; git add snapshot.txt; }
+[ "\$(cat "$tmp/verdict")" != hang ] || exec sleep 9301
 echo "suite says \$(cat "$tmp/verdict")"
 [ "\$(cat "$tmp/verdict")" = green ]
 FAKE
   chmod +x "$tmp/bin/suite"
   ln -s "$PRESET/scripts/bash/install-stop-gate.sh" "$tmp/install-stop-gate"
-  # A repository with a committed settings.json, or with no .claude/ at all.
+  # A repository with a committed settings.json, or with no .claude/ at all,
+  # and with the preset's runner where an installed preset puts it.
+  runner=.specify/presets/test-first/scripts/bash/run-bounded.sh
   fresh() {
     repo="$tmp/repo-$1"
     git init -q "$repo"
+    mkdir -p "$repo/$(dirname "$runner")"
+    cp "$PRESET/scripts/bash/run-bounded.sh" "$repo/$runner"
     if [ "${2:-}" != bare ]; then
       mkdir -p "$repo/.claude"
       echo '{"permissions": {"deny": ["Read(./.env)"]}}' > "$repo/.claude/settings.json"
@@ -77,6 +82,20 @@ FAKE
   fi
   [ "$(snapshot)" = "$before" ] || {
     echo "refusing a red suite left something behind"
+    return 1
+  }
+
+  # The hook runs the suite through the runner, so without it the gate could
+  # not keep its deadline; refused before anything is written.
+  fresh no-runner
+  rm "$repo/$runner"
+  before=$(snapshot)
+  if out=$(run); then
+    echo "installed a gate with no runner: $out"
+    return 1
+  fi
+  [ "$(snapshot)" = "$before" ] || {
+    echo "refusing for a missing runner left something behind"
     return 1
   }
 
@@ -167,6 +186,39 @@ FAKE
     echo "the second stop of a turn was blocked or ran the suite (rc $rc)"
     return 1
   }
+
+  # A suite that never finishes is stopped at the hook's deadline, its whole
+  # process group with it, and the turn is blocked saying so. The deadline is
+  # a line of the hook, as the command is; shortened here.
+  sed -i.bak 's/^DEADLINE=.*/DEADLINE=1/' "$repo/.claude/hooks/stop-gate.sh"
+  rm -f "$repo/.claude/hooks/stop-gate.sh.bak"
+  echo hang > "$tmp/verdict"
+  local start=$SECONDS
+  stop false
+  if ! { [ "$rc" -eq 2 ] && grep -qF "did not finish in 1s" "$tmp/stderr"; }; then
+    echo "a hung suite did not block the stop with its deadline (rc $rc): $(cat "$tmp/stderr")"
+    return 1
+  fi
+  [ $((SECONDS - start)) -le 4 ] || {
+    echo "a hung suite held the stop for $((SECONDS - start))s on a 1s deadline"
+    return 1
+  }
+  if pgrep -f "^sleep 9301" > /dev/null; then
+    pkill -KILL -f "sleep 9301"
+    echo "the hung suite outlived the hook"
+    return 1
+  fi
+
+  # Without the runner the gate blocks, naming it, instead of letting the turn
+  # through unchecked.
+  echo green > "$tmp/verdict"
+  mv "$repo/$runner" "$tmp/runner"
+  stop false
+  mv "$tmp/runner" "$repo/$runner"
+  if ! { [ "$rc" -eq 2 ] && grep -qF "run-bounded.sh" "$tmp/stderr"; }; then
+    echo "a missing runner did not block the stop with its name (rc $rc): $(cat "$tmp/stderr")"
+    return 1
+  fi
 
   # A second run would add a second hook. Green, so only that can refuse it.
   echo green > "$tmp/verdict"

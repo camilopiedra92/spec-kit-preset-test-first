@@ -45,11 +45,19 @@ if [ "$top" != "$(pwd -P)" ]; then
 fi
 hook=.claude/hooks/stop-gate.sh
 settings=.claude/settings.json
+runner=.specify/presets/test-first/scripts/bash/run-bounded.sh
 # -L as well: a dangling symlink is not -e, and writing through it would land
 # the hook wherever it points. A hook with no Stop entry is how a repository
 # turns the gate off, so this refusal is also what keeps it off.
 if [ -e "$hook" ] || [ -L "$hook" ]; then
   echo "install-stop-gate: $hook already exists; edit its TEST_COMMAND to change the command" >&2
+  exit 1
+fi
+# The hook runs the suite through the preset's runner, at the path an
+# installed preset is committed under, so the gate keeps its deadline in every
+# clone and a preset upgrade upgrades the runner.
+if [ ! -f "$runner" ]; then
+  echo "install-stop-gate: $runner is missing; the gate runs the suite through it" >&2
   exit 1
 fi
 # Written through, a symlinked settings.json would change a file outside this
@@ -169,12 +177,22 @@ set -uo pipefail
 EOF
   printf 'TEST_COMMAND=(%s)\n' "$words"
   cat << 'EOF'
+# Seconds the suite gets before its whole process group is killed: with the
+# runner's 5-second grace, under the 600 Claude Code gives this hook.
+DEADLINE=540
 
 cd "${CLAUDE_PROJECT_DIR:?}" || exit 0
 grep -Eq '"stop_hook_active"[[:space:]]*:[[:space:]]*true' && exit 0
-out=$("${TEST_COMMAND[@]}" 2>&1) && exit 0
+out=$(bash .specify/presets/test-first/scripts/bash/run-bounded.sh "$DEADLINE" "${TEST_COMMAND[@]}" 2>&1)
+status=$?
+[ "$status" -eq 0 ] && exit 0
 {
-  echo "Stop gate: the test suite is red (${TEST_COMMAND[*]})."
+  if [ "$status" -eq 124 ]; then
+    echo "Stop gate: the test suite did not finish in ${DEADLINE}s (${TEST_COMMAND[*]}). A test that"
+    echo "hangs needs a time limit of its own; find which one from the output below."
+  else
+    echo "Stop gate: the test suite is red (${TEST_COMMAND[*]})."
+  fi
   printf '%s\n' "$out" | tail -n 40
   echo "Make it green by fixing the code. If a test is what is wrong, or cannot"
   echo "pass without contradicting the spec, say which test and why in your final"
