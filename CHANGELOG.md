@@ -14,10 +14,11 @@ All notable changes to this preset are documented here. The format follows
   `scripts/bash/run-bounded.sh <seconds> <command>`, which runs the command
   in a process group of its own and kills the whole group when the command
   ends, when the deadline passes (SIGTERM, then SIGKILL after 5 seconds), or
-  when the runner itself is stopped, repeating the kill until no member is
-  left. Exit 124 says the deadline fired, whatever the command answered; a
-  deadline that is not a whole number above 0 is refused with exit 2, since
-  one `sleep` rejects would fire at once and read as caught. A wrong version
+  when the runner itself gets TERM, INT, HUP or QUIT, repeating the kill
+  until no member is left (up to 20 times). Exit 124 says the deadline
+  fired, whatever the command answered; a deadline other than 1 to
+  999999999 written plainly is refused with exit 2, since one `sleep` rejects
+  would fire at once and read as caught. A wrong version
   that looped in the CLI under test ran for 13 hours after its review ended,
   to 232 GB of virtual memory and 67 GB of swap: the Bash tool's timeout
   moved the run to the background instead of stopping it, and the

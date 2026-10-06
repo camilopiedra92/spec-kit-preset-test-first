@@ -16,19 +16,22 @@
 # swap. A bash script rather than a snippet, because the agent's shell may be
 # zsh, which refuses `set -m` without a terminal.
 #
-# Ceiling: a process that starts a session of its own (setsid, a daemon)
-# leaves the group and is out of reach; macOS has no cgroup to hold it.
+# Ceilings: a process that starts a session of its own (setsid, a daemon)
+# leaves the group and is out of reach, macOS having no cgroup to hold it; and
+# under a terminal, a command that opens /dev/tty itself is still stopped
+# until the deadline.
 set -u
 
 usage() {
-  echo "usage: run-bounded.sh <seconds> <command> [args...]   seconds: a whole number above 0" >&2
+  echo "usage: run-bounded.sh <seconds> <command> [args...]   seconds: 1 to 999999999" >&2
   exit 2
 }
 [ $# -ge 2 ] || usage
-# Whole seconds, because that is all POSIX sleep takes; a value sleep rejects
+# Whole seconds, because that is all POSIX sleep takes, and at most 9 digits,
+# because macOS sleep rejects 2147483648 and above: a value sleep rejects
 # would make the watchdog fire at once and the run read as caught.
 case $1 in
-  '' | *[!0-9]* | 0*) usage ;;
+  '' | *[!0-9]* | 0* | ??????????*) usage ;;
 esac
 seconds=$1
 shift
@@ -62,9 +65,11 @@ cleanup() {
   [ -z "$pid" ] || kill_group "$pid"
   rm -rf "$flags"
 }
-# Bash runs the EXIT trap also when a signal ends it, so a runner stopped from
-# outside still kills the group.
+# Bash runs the EXIT trap when TERM, INT or HUP ends it, not QUIT, so QUIT is
+# turned into an exit. Nothing runs on KILL; the watchdog still enforces the
+# deadline then.
 trap cleanup EXIT
+trap 'exit 131' QUIT
 
 # Job control gives each background job its own process group, led by the
 # job's first process, so $! names the group.
@@ -84,8 +89,11 @@ watchdog=$!
 wait "$pid" 2> /dev/null
 status=$?
 # Shut the watchdog before reading the flag, so it cannot fire in between.
-kill_group "$watchdog"
-wait "$watchdog" 2> /dev/null
+# Both quieted: bash can report the killed job between the two.
+{
+  kill_group "$watchdog"
+  wait "$watchdog"
+} 2> /dev/null
 watchdog=
 [ ! -e "$fired" ] || exit 124
 exit "$status"

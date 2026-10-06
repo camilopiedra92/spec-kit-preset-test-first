@@ -98,8 +98,9 @@ story, the feature directory, and this brief:
 - Put every run of a wrong version through the preset's runner, from the
   copy's root: `bash .specify/presets/test-first/scripts/bash/run-bounded.sh
   <seconds> <suite command>`. The deadline is whole seconds, a few times the
-  suite's normal duration and under your shell tool's own timeout, so the
-  status comes back to you; a pipeline goes in as one `bash -c '...'`
+  suite's normal duration, and with 5 seconds added for the runner's grace
+  period it stays under your shell tool's own timeout, so the status comes
+  back to you; a pipeline goes in as one `bash -c '...'`
   argument, and environment variables are exported before the call, not
   written after the seconds. A wrong version can loop or grow without end,
   and a tool's timeout, a `subprocess.run(timeout=...)` or a kill by name

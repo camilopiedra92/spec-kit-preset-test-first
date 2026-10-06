@@ -44,7 +44,7 @@ rb() {
     sleep 0.1
     tenths=$((tenths + 1))
   done
-  wait "$runner"
+  wait "$runner" 2> /dev/null
 }
 
 expect() { # name expected-status actual-status
@@ -56,7 +56,8 @@ expect "no arguments" 2 $?
 grep -q usage <<< "$out" || problem "no arguments: no usage line"
 
 # A deadline sleep rejects would fire at once and read as caught.
-for bad in 0 -5 abc 5min 1.5; do
+# macOS sleep rejects 2147483648 and above.
+for bad in 0 -5 abc 5min 1.5 9999999999; do
   rb "$bad" true 2> /dev/null
   expect "deadline '$bad'" 2 $?
 done
@@ -93,8 +94,10 @@ rb 5 sh -c 'sleep 9104 & exit 1'
 expect "exits on time, child left running" 1 $?
 leftover 9104 && problem "exits on time: its background child survived"
 
-rb 1 bash -c 'sleep 9105 | cat'
+err=$(rb 1 bash -c 'sleep 9105 | cat' 2>&1 > /dev/null)
 expect "pipeline" 124 $?
+# Bash's report of a job it killed reads as the suite being killed.
+[ -z "$err" ] || problem "pipeline: stderr has the runner's job reports: $err"
 leftover 9105 && problem "pipeline: a stage survived"
 
 # A child forked while the group is being killed is not in the group the kill
@@ -126,14 +129,20 @@ else
   echo "skip: zsh not installed"
 fi
 
-# Killed from outside, as a tool's timeout or a kill by name would.
-bash "$RUN" 30 sleep 9106 &
-runner=$!
-sleep 1
-kill -TERM "$runner"
-wait "$runner"
-sleep 1
-leftover 9106 && problem "runner killed: the command survived it"
+# Killed from outside, as a tool's timeout or a kill by name would. Job
+# control gives the runner a group of its own, so it receives INT and QUIT
+# as from a terminal: a background job without it starts with both ignored.
+set -m
+for signal in TERM INT HUP QUIT; do
+  bash "$RUN" 30 sh -c 'sleep 9106 & wait' 2> /dev/null &
+  runner=$!
+  sleep 1
+  kill -"$signal" "$runner"
+  wait "$runner" 2> /dev/null
+  sleep 1
+  leftover 9106 && problem "runner killed by $signal: the command survived it"
+done
+set +m
 
 [ "$fail" -eq 0 ] && echo "ok: run-bounded"
 exit "$fail"
