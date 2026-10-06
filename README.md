@@ -37,8 +37,10 @@ off, remove its entry under `hooks.Stop` in `.claude/settings.json` and keep
 the hook file: the file is what `/speckit-implement` looks for, so the gate
 stays off. Removing the file as well, as reverting the feature that installed
 it does, means the next run installs it again. Only with `.specify/` at the
-repository root. The installer needs
-`jq`; the hook does not.
+repository root, and not where the project has a gate of its own: a Stop
+hook whose command or script runs the suite, or a fast subset, and exits 2
+when it is red. A hook that runs tests only to notify or log does not count.
+The installer needs `jq`; the hook does not.
 
 ## When to use it
 
@@ -60,7 +62,7 @@ overrides, but that is not tested.
 ## Install
 
 ```bash
-specify preset add --from https://github.com/camilopiedra92/spec-kit-preset-test-first/archive/refs/tags/v1.4.0.zip
+specify preset add --from https://github.com/camilopiedra92/spec-kit-preset-test-first/archive/refs/tags/v1.4.1.zip
 ```
 
 To move a project to a newer release:

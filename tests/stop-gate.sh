@@ -111,6 +111,14 @@ FAKE
     return 1
   }
 
+  # The commit names the command as a shell reads it back, quotes included,
+  # not as its words run together.
+  # shellcheck disable=SC2016  # the expected text, not an expansion
+  git -C "$repo" log -1 --format=%B | grep -qF "runs \`'$tmp/bin/suite' 'two words' 'it'\\''s' '~' 'a=~/x'\`" || {
+    echo "the gate's commit does not quote the command: $(git -C "$repo" log -1 --format=%B)"
+    return 1
+  }
+
   # How to turn it off is said where someone who wants to will look: the
   # hook and its commit. Deleting the hook instead would bring it back.
   off="remove its entry under hooks.Stop in .claude/settings.json and keep"

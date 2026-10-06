@@ -137,6 +137,19 @@ undo() {
 }
 trap undo EXIT
 
+# Each argument in single quotes, a quote inside one closed and reopened
+# around an escaped quote: nothing in it is expanded when the hook runs, and
+# the commit shows the command as a shell reads it back. printf %q is not used
+# because bash 3.2 leaves a leading ~ unquoted, and the quote and its
+# replacement sit in variables because bash 3.2 misparses quotes written
+# inside ${var//...}.
+quote="'"
+escaped="'\\''"
+words=
+for arg in "$@"; do
+  words="$words${words:+ }'${arg//$quote/$escaped}'"
+done
+
 mkdir -p .claude/hooks
 {
   cat << 'EOF'
@@ -149,25 +162,12 @@ mkdir -p .claude/hooks
 # pass honestly gets reported instead of forced green.
 #
 # To turn it off, remove its entry under hooks.Stop in .claude/settings.json
-# and keep this file: /speckit-implement installs the gate wherever this file
-# is missing.
+# and keep this file: deleting it makes /speckit-implement install the gate
+# again.
 set -uo pipefail
 
 EOF
-  # Each argument in single quotes, a quote inside one closed and reopened
-  # around an escaped quote: nothing in it is expanded when the hook runs.
-  # printf %q is not used because bash 3.2 leaves a leading ~ unquoted, and
-  # the quote and its replacement sit in variables because bash 3.2 misparses
-  # quotes written inside ${var//...}.
-  quote="'"
-  escaped="'\\''"
-  printf 'TEST_COMMAND=('
-  sep=
-  for arg in "$@"; do
-    printf "%s'%s'" "$sep" "${arg//$quote/$escaped}"
-    sep=' '
-  done
-  printf ')\n'
+  printf 'TEST_COMMAND=(%s)\n' "$words"
   cat << 'EOF'
 
 cd "${CLAUDE_PROJECT_DIR:?}" || exit 0
@@ -192,8 +192,8 @@ git add "$hook" "$settings"
 # A commit hook's own output does not say what it refused, and a commit-msg
 # policy will refuse every attempt; the caller needs to know which it was.
 if ! git commit -q -m "Gate the end of every Claude turn on the test suite" \
-  -m "Written by install-stop-gate: a Stop hook runs \`$*\` and blocks a red turn once." \
-  -m "To turn it off, remove its entry under hooks.Stop in .claude/settings.json and keep $hook: /speckit-implement installs the gate wherever that file is missing." \
+  -m "Written by install-stop-gate: a Stop hook runs \`$words\` and blocks a red turn once." \
+  -m "To turn it off, remove its entry under hooks.Stop in .claude/settings.json and keep $hook: deleting it makes /speckit-implement install the gate again." \
   -- "$hook" "$settings"; then
   echo "install-stop-gate: the commit was refused, by a pre-commit or commit-msg hook if" >&2
   echo "                   its output is above; nothing is left behind" >&2

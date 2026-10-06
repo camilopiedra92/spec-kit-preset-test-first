@@ -8,7 +8,7 @@ schema_version: "1.0"
 preset:
   id: "test-first"
   name: "Test-first"
-  version: "1.4.0"
+  version: "1.4.1"
   description: "Makes test tasks required in /speckit-tasks, and red-green-refactor verifiable and independently reviewed in /speckit-implement"
   author: "camilopiedra92"
   repository: "https://github.com/camilopiedra92/spec-kit-preset-test-first"
