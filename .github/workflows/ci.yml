@@ -1,5 +1,6 @@
-# Runs tests/compose.sh against the real specify CLI: pinned on every push and
-# pull request, and weekly against upstream's latest release. The pinned run
+# Runs tests/compose.sh against the real specify CLI, pinned on every push and
+# pull request and weekly against upstream's latest release, and
+# tests/stop-gate.sh, which needs no specify, alongside it. The pinned run
 # says this commit works; the weekly one says upstream has not moved under it,
 # which is the only way a change to the core skills reaches this repo before it
 # reaches a project.
@@ -51,3 +52,5 @@ jobs:
           fi
           uv tool install specify-cli --from "git+https://github.com/github/spec-kit.git@$tag"
       - run: tests/compose.sh
+      # Needs no specify, so it says the same on both legs; it is cheap.
+      - run: tests/stop-gate.sh

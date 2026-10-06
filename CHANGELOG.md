@@ -6,6 +6,24 @@ All notable changes to this preset are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-10-05
+
+### Added
+
+- Stop gate: `scripts/bash/install-stop-gate.sh`, and a `speckit-implement`
+  section that runs it the first time the whole suite is green with no gate in
+  place. It commits a Claude Code Stop hook that runs the suite at the end of
+  every turn and blocks the first stop of a red one. Moved here from the
+  `sdd-gate` command in github.com/camilopiedra92/dotfiles, which had to be run
+  by hand in each repository; its tests moved with it as `tests/stop-gate.sh`.
+  Run through `bash` because `specify preset add --from` drops the executable
+  bit (1.1.0: a zip entry stored as 755 installs as 644).
+- Installer, beyond what `sdd-gate` did: it refuses a leftover Stop entry for
+  the hook, which would run the suite twice per stop, and reports a commit
+  refused by a commit hook as such instead of only through the hook's own
+  output. The gate is turned off by removing its Stop entry and keeping the
+  hook file, which `/speckit-implement` checks for.
+
 ## [1.3.0] - 2026-10-05
 
 ### Added
@@ -93,7 +111,8 @@ All notable changes to this preset are documented here. The format follows
 - `tests/compose.sh` and CI composing the preset against the pinned and the
   latest Spec Kit release.
 
-[Unreleased]: https://github.com/camilopiedra92/spec-kit-preset-test-first/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/camilopiedra92/spec-kit-preset-test-first/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/camilopiedra92/spec-kit-preset-test-first/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/camilopiedra92/spec-kit-preset-test-first/compare/v1.2.1...v1.3.0
 [1.2.1]: https://github.com/camilopiedra92/spec-kit-preset-test-first/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/camilopiedra92/spec-kit-preset-test-first/compare/v1.1.0...v1.2.0
