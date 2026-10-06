@@ -31,10 +31,10 @@ All notable changes to this preset are documented here. The format follows
   the group (setsid), which the runner cannot reach, does not hold the stop
   past the deadline. The installer refuses when the runner is missing or
   not committed, since other clones would not have it; a hook whose runner
-  was later removed blocks saying so rather than calling the suite red. A
-  gate
-  installed by an earlier version is not rewritten: to move one over, remove
-  the hook file and its entry under `hooks.Stop`, then let
+  was later removed, or that cannot create the file, blocks saying so
+  rather than calling the suite red or letting the turn through. A gate
+  installed by an earlier version is not rewritten: to move one over,
+  remove the hook file and its entry under `hooks.Stop`, then let
   `/speckit-implement` install it again.
 
 ## [1.5.1] - 2026-10-06

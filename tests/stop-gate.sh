@@ -233,10 +233,13 @@ FAKE
   fi
 
   # A process that left the suite's group keeps running, but it does not hold
-  # the stop past the deadline.
+  # the stop past the deadline. Through pipes, as Claude Code reads the hook:
+  # a file would not show the hook's own output being held open.
   echo escape > "$tmp/verdict"
   start=$SECONDS
-  stop false
+  (cd / && CLAUDE_PROJECT_DIR=$repo "$repo/.claude/hooks/stop-gate.sh" \
+    <<< '{"hook_event_name":"Stop","stop_hook_active":false}' 2>&1 | cat > "$tmp/stderr")
+  rc=${PIPESTATUS[0]}
   pkill -KILL -f "sleep 930[12]"
   [ "$rc" -eq 2 ] || {
     echo "a suite with an escaped child did not block the stop (rc $rc)"
@@ -246,6 +249,18 @@ FAKE
     echo "an escaped child held the stop for $((SECONDS - start))s on a 1s deadline"
     return 1
   }
+
+  # With nowhere to put the suite's output the gate blocks rather than letting
+  # a turn it never checked through.
+  mkdir -p "$tmp/no-mktemp"
+  printf '#!/bin/sh\nexit 1\n' > "$tmp/no-mktemp/mktemp"
+  chmod +x "$tmp/no-mktemp/mktemp"
+  echo green > "$tmp/verdict"
+  PATH="$tmp/no-mktemp:$PATH" stop false
+  if ! { [ "$rc" -eq 2 ] && grep -qF "temporary file" "$tmp/stderr"; }; then
+    echo "a failing mktemp did not block the stop (rc $rc): $(cat "$tmp/stderr")"
+    return 1
+  fi
 
   # Without the runner the gate blocks, naming it, instead of letting the turn
   # through unchecked, and does not send Claude to fix code that is not wrong.

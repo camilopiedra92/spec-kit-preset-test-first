@@ -61,7 +61,7 @@ if [ ! -f "$runner" ]; then
   exit 1
 fi
 if ! git ls-files --error-unmatch "$runner" > /dev/null 2>&1; then
-  echo "install-stop-gate: $runner is not committed, so other clones would not have it; commit the preset first" >&2
+  echo "install-stop-gate: $runner is not committed in this repository (a submodule's files do not count), so other clones would not have it" >&2
   exit 1
 fi
 # Written through, a symlinked settings.json would change a file outside this
@@ -193,7 +193,10 @@ if [ ! -f "$RUNNER" ]; then
   echo "Restore the test-first preset and commit it, or turn this gate off as its file says." >&2
   exit 2
 fi
-log=$(mktemp) || exit 0
+log=$(mktemp) || {
+  echo "Stop gate: could not create a temporary file for the suite's output, so the suite did not run." >&2
+  exit 2
+}
 trap 'rm -f "$log"' EXIT
 # To a file rather than through $(...): a process that left the suite's group
 # (setsid) keeps running out of the runner's reach, and would hold a pipe, and
@@ -205,7 +208,7 @@ status=$?
   if [ "$status" -eq 124 ]; then
     echo "Stop gate: the test suite did not finish in ${DEADLINE}s, or exited 124 itself"
     echo "(${TEST_COMMAND[*]}). A test that hangs needs a time limit of its own; the output"
-    echo "below shows how far it got, and a verbose run names each test as it starts."
+    echo "below shows how far it got; a verbose run (pytest -v) names the test it was on."
   else
     echo "Stop gate: the test suite is red (${TEST_COMMAND[*]})."
   fi
