@@ -6,6 +6,40 @@ All notable changes to this preset are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-10-05
+
+### Added
+
+- `speckit-implement`: a case's expected result is never changed to reach
+  green; one believed wrong is stopped, its test removed so the suite stays
+  green, marked `stopped: possible spec gap` in the list, and reported. The
+  story review compares each task's tests with its list.
+- `tests/compose.sh` also checks that core still has the rules the fragments
+  now replace: the contract test task per contract and "Tests specific to that
+  story" in tasks, the test-tasks-first order and "Tests before code" in
+  implement.
+
+### Changed
+
+- `speckit-tasks`: a behaviour task carries its test list — concrete cases
+  with input and expected result, taken from the spec, simplest first, as
+  plain bullets under the task line — instead of a test task before each
+  implementation task. On the pilot about a fifth (7–8 of 36)
+  of three `/speckit-analyze` rounds' findings corrected predicted failures; tasks no
+  longer predict them.
+- `speckit-implement`: one cycle per case of the list, with the command and
+  failure line of each red run recorded under the case; a case found mid-run
+  joins its task's list; a task closes when every case is taken, and its list
+  stays for the review. A tasks.md from an earlier version still works: a
+  test task and its implementation task are read as one task.
+- Stop gate: installed at the first green run of the whole suite, also when
+  the suite is created during the run (previously "the first task that closes
+  green", which per-case cycles would have delayed).
+
+### Removed
+
+- Separate test tasks and predicted failures in `speckit-tasks`.
+
 ## [1.4.1] - 2026-10-05
 
 ### Fixed
@@ -126,7 +160,8 @@ All notable changes to this preset are documented here. The format follows
 - `tests/compose.sh` and CI composing the preset against the pinned and the
   latest Spec Kit release.
 
-[Unreleased]: https://github.com/camilopiedra92/spec-kit-preset-test-first/compare/v1.4.1...HEAD
+[Unreleased]: https://github.com/camilopiedra92/spec-kit-preset-test-first/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/camilopiedra92/spec-kit-preset-test-first/compare/v1.4.1...v1.5.0
 [1.4.1]: https://github.com/camilopiedra92/spec-kit-preset-test-first/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/camilopiedra92/spec-kit-preset-test-first/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/camilopiedra92/spec-kit-preset-test-first/compare/v1.2.1...v1.3.0

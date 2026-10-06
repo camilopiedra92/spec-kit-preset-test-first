@@ -1,23 +1,37 @@
 ## Test-first
 
-This section replaces the "Tests are OPTIONAL" rule above. Test tasks are
-required whether or not the specification or the user asked for them, because
-an implementation nobody has watched a test reject is not evidence of anything.
+This section replaces the "Tests are OPTIONAL" rule above, and with it every
+rule that applies "if tests requested": tests are required whether or not the
+specification or the user asked for them, because an implementation nobody
+has watched a test reject is not evidence of anything.
 
-- Every task that adds or changes behaviour with logic of its own — a branch,
-  a computation, a parse, a state change — is immediately preceded by a test
-  task for that behaviour. Setup, configuration, wiring, and code with no
-  logic of its own — getters, wrappers, one-line delegations — need none.
-- A test task names the behaviour it pins and the failure expected while the
-  implementation does not exist yet.
-- One behaviour per task. A task that implements a whole module is a batch of
-  red-green cycles; split it.
-- A story is a sequence of cycles, each a test task followed by the task that
-  makes it pass, and neither is `[P]`. This replaces the "Tests (if requested)
-  → Models → …" order above and the tasks template's "Tests for User Story N"
-  block ("Write these tests FIRST", every test `[P]`): writing all of a
-  story's tests before any of its code is the batch this splits.
-- A story's test tasks are its test list: order the cycles from the simplest
-  case to the hardest, so each one drives a single small step.
-- Every implementation task cites the requirement IDs it implements (`FR-###`,
-  `SC-###`), so whoever executes it can trace it without rereading the spec.
+- Two kinds of task. A behaviour task adds or changes behaviour with logic of
+  its own — a branch, a computation, a parse, a state change — and carries a
+  test list. Setup, configuration, wiring, and code with no logic of its own
+  — getters, wrappers, one-line delegations — are plain tasks with none.
+- Every behaviour task cites the requirement IDs it implements (`FR-###`,
+  `SC-###`), so whoever executes it can trace it without rereading the spec;
+  a plain task cites what it serves, if anything.
+- A behaviour task's test list holds the cases that pin it, taken from the
+  specification and its contracts: one case per line, a concrete input and
+  the expected result, ordered from the simplest to the hardest so each
+  drives a single small step. Write the cases as plain bullets indented under
+  the task's checklist line, never as checkboxes, so the task format above
+  still reads one task per line. Implementation turns them into tests one at
+  a time and adds the cases it discovers; the list is where it starts, not a
+  plan of every cycle.
+- No test task separate from the behaviour it pins: this replaces "Each
+  interface contract → contract test task [P] before implementation" and
+  "Tests specific to that story" above. A contract's cases go in the list of
+  the task that implements it. Do not predict how a test will fail before the
+  code exists: what a failing run looks like is observed during
+  implementation, not planned here.
+- A task too big for one short list — a whole module, several requirements
+  with nothing in common — is several behaviours; split it.
+- A story's tasks are sequential and none is `[P]`. This replaces the
+  "Tests (if requested) → Models → …" order above and the tasks template's
+  "Tests for User Story N" block ("Write these tests FIRST", every test
+  `[P]`): writing all of a story's tests before any of its code is the batch
+  the per-case cycle in implementation avoids. Order a story's tasks from the
+  simplest behaviour to the hardest, so the first one can be built without
+  the others.
