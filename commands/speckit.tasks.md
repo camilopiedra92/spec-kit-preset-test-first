@@ -26,6 +26,13 @@ has watched a test reject is not evidence of anything.
   the task that implements it. Do not predict how a test will fail before the
   code exists: what a failing run looks like is observed during
   implementation, not planned here.
+- The suite fails instead of hanging: every test runs under a time limit,
+  so code that loops fails its test rather than holding the run, the Stop
+  gate and CI. A framework's own default counts (Jest's and Vitest's 5
+  seconds); where there is none (pytest, unittest), the setup phase gets a
+  task that sets one with the project's tooling, such as pytest-timeout's
+  `timeout`, and carries a test list when the limit is code the project
+  writes. A test that starts a process passes it a timeout too.
 - A task too big for one short list — a whole module, several requirements
   with nothing in common — is several behaviours; split it.
 - A story's tasks are sequential and none is `[P]`. This replaces the
