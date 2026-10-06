@@ -4,17 +4,34 @@
   already runs — the lint and type check its CI, its task runner or its
   constitution declare; add none it does not have — and record the result as
   the baseline.
-- One cycle at a time: a test task, the task that makes it pass, then
-  refactor. Never write tests ahead of the cycle in progress.
-- Run a test task's tests before writing the code they cover, and confirm they
-  fail for the expected reason. An import error, a collection error or a missing
-  module proves the test was found, not that it exercises anything: stub the
-  code under test until the test runs and fails from inside.
+- This replaces "Execute test tasks before their corresponding implementation
+  tasks", the "Tests" phase and "Tests before code" above: the order is per
+  case, inside each behaviour task.
+- One cycle at a time: take the next case from the task's test list, write
+  it as a test, make it pass, then refactor. Never write a test ahead of the
+  case in progress. A tasks.md from an earlier version of this preset — a
+  test task followed by the task that makes it pass — is read as one task
+  whose list holds the cases its test task names; mark both checkboxes when
+  it closes.
+- Run the new test before writing the code it covers, and confirm it fails
+  because the behaviour is missing. An import error, a collection error or a
+  missing module proves the test was found, not that it exercises anything:
+  stub the code under test until the test runs and fails from inside. Record
+  the red run in tasks.md as a plain bullet indented under the case, never a
+  checkbox (under the task, in a tasks.md from an earlier version): the
+  command and the failure line you saw. That is the evidence
+  the cycle went red first.
 - A new test that passes on its first run has not been watched failing. Break
   the code it pins on purpose, watch the test fail for the expected reason,
-  restore the code, and note in tasks.md that the behaviour already existed.
-  If breaking the code does not make it fail, fix the test: it does not
-  exercise what it names.
+  restore the code, and record that failure and that the behaviour already
+  existed. If breaking the code does not make it fail, fix the test: it does
+  not exercise what it names.
+- A case's expected result comes from the specification, through the task's
+  test list: never change it, or the test that encodes it, to reach green.
+  If you believe an expected result is wrong, stop that case: remove its
+  test if you wrote it, so the suite stays green and the Stop gate keeps
+  meaning a real failure; mark the case in the list `stopped: possible spec
+  gap` with the reason, and list it in the completion report.
 - Then write the least code that makes it pass, and run the whole suite.
 - With the suite green, refactor what this cycle left — duplication it added,
   in the code or the tests, a special case the behaviour does not need, a
@@ -22,16 +39,19 @@
   Structure only, never behaviour; run the whole suite after each step. If
   the cycle left nothing to clean, move on.
 - A case found while implementing — an edge case, a failure mode — does not go
-  into the test in progress. Append a test task and its implementation task to
-  the same story's phase, with the next free task IDs — IDs added mid-run
-  follow creation, not execution order — citing the requirement the case
+  into the test in progress. Add it to the test list of the task whose
+  behaviour it belongs to, marked as found during implementation, and take it
+  in turn; one that belongs to no task's behaviour becomes a new task at the
+  end of the same story's phase, with the next free task ID — IDs added
+  mid-run follow creation, not execution order — citing the requirement it
   falls under. If no requirement covers it, it is a gap in the spec: do not
   decide the behaviour; carry on, and list the gap in the completion report.
-- A test task closes on its watched failure. Any other task is marked `[X]`
-  only after a run you saw with no test failure and no static-check finding
-  beyond the baseline, and with `git status --porcelain --ignored` listing
-  none of the files the task created as ignored. If anything is red when you
-  stop, say so and show the output.
+- A task is marked `[X]` when every case on its list has been taken — a
+  recorded red run, or marked stopped — after a run you saw with no test
+  failure and no static-check finding beyond the baseline, and with `git
+  status --porcelain --ignored` listing none of the files the task created as
+  ignored. The list stays in tasks.md: the story review reads it. If anything
+  is red when you stop, say so and show the output.
 
 ## Project setup
 
@@ -81,6 +101,9 @@ story, the feature directory, and this brief:
   function doing two things. Name the place and the simpler shape. Nothing
   that is a matter of taste, and nothing a formatter or linter the project
   runs already decides.
+- Compare each task's tests with its test list: an expected result that
+  differs from the list's, or a listed case with no test that is not marked
+  stopped, is a finding.
 - Prove every finding with a concrete input, observed against expected, and
   label anything unproven. Do not edit the repository.
 
@@ -115,7 +138,8 @@ bash .specify/presets/test-first/scripts/bash/install-stop-gate.sh <test command
   `.claude/settings.json`. If it refuses, do not work around it and do not
   retry at every task: try once more after the last task, and if it still
   refuses, put its message in the completion report.
-- A project with no suite yet gets the gate at the first task that closes
-  green.
+- A project with no suite yet gets the gate at the first green run of the
+  suite this run creates, which is its first case's green, not the end of its
+  first task.
 - With `.specify/` below the repository root, do not install it; say so in
   the completion report.

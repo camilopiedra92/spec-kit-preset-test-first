@@ -8,8 +8,8 @@ turn on the test suite.
 
 | Skill | What the preset adds |
 |---|---|
-| `speckit-tasks` | Test tasks are required (overriding core's "Tests are OPTIONAL") for behaviour with logic of its own; one behaviour per task; each test task immediately before its implementation task, never `[P]`, ordered from the simplest case; implementation tasks cite their `FR-`/`SC-` IDs |
-| `speckit-implement` | A test counts once it has failed from inside, not on an import or collection error, and one that passes on its first run is investigated; one red-green-refactor cycle at a time; a case found mid-implementation becomes a new task instead of growing the current test; a task is marked done only on a green suite and no lint or type finding beyond a baseline taken before the first task; ignore files and tool config are touched only as far as the feature needs; each completed user story gets a review from a fresh context that tries wrong versions of the code against the tests and reads the code for what the refactor step should have removed; every test gap is closed with a test and every structural finding with a refactor; the first green suite installs the Stop gate (below) |
+| `speckit-tasks` | Tests are required (overriding core's "Tests are OPTIONAL") for behaviour with logic of its own; one task per behaviour, carrying its test list — concrete cases, input and expected result, taken from the spec before any code exists, simplest first; no separate test tasks and no predicted failures; never `[P]`; tasks cite their `FR-`/`SC-` IDs |
+| `speckit-implement` | A test counts once it has failed from inside, not on an import or collection error, and one that passes on its first run is investigated; one red-green-refactor cycle per case of the task's list, each red run recorded under the case; a case's expected result is never changed to reach green — one believed wrong is stopped and reported as a spec gap; a case found mid-implementation joins the list instead of growing the current test; a task is marked done only on a green suite and no lint or type finding beyond a baseline taken before the first task; ignore files and tool config are touched only as far as the feature needs; each completed user story gets a review from a fresh context that tries wrong versions of the code against the tests and reads the code for what the refactor step should have removed; every test gap is closed with a test and every structural finding with a refactor; the first green suite installs the Stop gate (below) |
 
 ## Stop gate
 
@@ -52,8 +52,7 @@ The installer needs `jq`; the hook does not.
 
 - Spikes and prototypes, where the point is to learn what to build.
 - Features with no logic of their own (copy, styling, configuration): the
-  preset exempts such tasks, but its one-behaviour-per-task granularity
-  roughly doubled the task count in the pilot below, which buys nothing there.
+  preset exempts such tasks, so it adds little there.
 
 Verified with the Claude Code integration only. The fragments are plain
 Markdown and should compose for any integration that registers command
@@ -62,7 +61,7 @@ overrides, but that is not tested.
 ## Install
 
 ```bash
-specify preset add --from https://github.com/camilopiedra92/spec-kit-preset-test-first/archive/refs/tags/v1.4.1.zip
+specify preset add --from https://github.com/camilopiedra92/spec-kit-preset-test-first/archive/refs/tags/v1.5.0.zip
 ```
 
 To move a project to a newer release:
@@ -85,6 +84,48 @@ as it was, what its commit holds, and how the hook it writes answers a green, a
 red and a second stop. CI runs both against the pinned Spec Kit release on
 every push and against the latest release weekly.
 
-In one pilot (Spec Kit 1.1.0, 2026-10-05), `/speckit-tasks` produced 61 tasks,
-52 citing requirement IDs, against 29 and 5 without the preset. Test tasks
-appeared either way there, because the plan already carried a test strategy.
+With v1.0.0, in one pilot (Spec Kit 1.1.0, 2026-10-05), `/speckit-tasks`
+produced 61 tasks, 52 citing requirement IDs, against 29 and 5 without the
+preset; that version still wrote a test task before each implementation task.
+
+v1.5.0, the same feature implemented on Spec Kit 1.1.0, 2026-10-05, from the
+same spec, plan and contract (one run per arm, so directional):
+
+| Story 1 | v1.4.1: a test task before each implementation task | v1.5.0: one task per behaviour with its test list |
+|---|---|---|
+| Tasks | 26 | 9 |
+| Test methods at the end of the story | 27 | 62 |
+| Test gaps the story review found | 6 | 3, plus 1 the implementer found itself |
+| Red run recorded for each case | yes | yes, with a deliberate break for each case that passed first |
+| `/speckit-analyze` rounds before implementing | 3; about a fifth of their findings (7–8 of 36) corrected predicted failures | not run: B started from the artifacts A's rounds had already fixed |
+
+Arm A packs several cases into `subTest` loops, so its 27 methods understate
+its cases; in B 28 evidence entries, covering about 40 cases, record a
+first-run pass confirmed by breaking the code on purpose. The Stop gate installed itself in both arms: in A
+at the first green run, in B only after its first task closed, which the
+wording then allowed and v1.5.0 now rules out. In a copy
+with one deliberately broken format string (16 tests red), a turn asked only to
+reply "done" was blocked by the gate and ended with the code fixed.
+
+Why this shape, by source (searched 2026-10-05):
+
+- One case at a time from a test list that grows as cases are found: Kent
+  Beck, [Canon TDD](https://newsletter.kentbeck.com/p/canon-tdd), which names
+  turning the whole list into tests up front as a mistake ("Rework.").
+- Cases taken from the spec before any code exists: tests generated without
+  seeing the code caught about 25% of faults against about 14% when generated
+  after erroneous code ([arXiv 2607.05139](https://arxiv.org/html/2607.05139)).
+- Expected results not changed to reach green, with a way to stop and report:
+  on impossible SWE-bench tasks GPT-5 cheated in 54% and o3 in 49%; a way out
+  cut GPT-5 to 9%, though the paper finds the effect much smaller for Claude
+  Opus 4.1 ([ImpossibleBench](https://arxiv.org/abs/2510.20270)), so the rule
+  pairs it with the story review's check of tests against the list.
+- A deterministic gate and a verifier that is not the author: Claude Code's
+  [best practices](https://code.claude.com/docs/en/best-practices) ("hooks are
+  deterministic"; a verification subagent "so the agent doing the work isn't
+  the one grading it").
+- Not adopted, for lack of evidence: a separate test-writing agent, and more
+  ceremony around cycle size. The only direct comparison of strict TDD with
+  agents found no gain at 3 to 8.5 times the tokens
+  ([Böckeler](https://martinfowler.com/articles/exploring-gen-ai/tdd-in-the-agent-loop.html)).
+

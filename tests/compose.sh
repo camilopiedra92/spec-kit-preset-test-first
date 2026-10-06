@@ -69,9 +69,17 @@ grep -qF 'Tests (if requested) → Models' core/tasks.md ||
   problem "core speckit-tasks no longer orders 'Tests (if requested) → Models'; revise the fragment"
 grep -qF 'Write these tests FIRST' .specify/templates/tasks-template.md ||
   problem "core tasks-template.md no longer has its 'Write these tests FIRST' block; revise the fragment"
-# Same for the implement step the fragment narrows by name.
+grep -qF 'contract test task [P] before implementation' core/tasks.md ||
+  problem "core speckit-tasks no longer makes a contract test task per contract; revise the fragment"
+grep -qF 'Tests specific to that story' core/tasks.md ||
+  problem "core speckit-tasks no longer lists 'Tests specific to that story'; revise the fragment"
+# Same for the implement steps the fragment narrows or replaces by name.
 grep -q 'Project Setup Verification' core/implement.md ||
   problem "core speckit-implement no longer has 'Project Setup Verification'; revise the fragment"
+grep -qF 'Execute test tasks before their corresponding implementation tasks' core/implement.md ||
+  problem "core speckit-implement no longer orders test tasks first; revise the fragment"
+grep -qF 'Tests before code' core/implement.md ||
+  problem "core speckit-implement no longer says 'Tests before code'; revise the fragment"
 
 quiet specify preset add --from "http://127.0.0.1:$port/preset.zip"
 
