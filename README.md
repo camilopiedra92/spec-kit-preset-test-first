@@ -128,4 +128,18 @@ Why this shape, by source (searched 2026-10-05):
   ceremony around cycle size. The only direct comparison of strict TDD with
   agents found no gain at 3 to 8.5 times the tokens
   ([Böckeler](https://martinfowler.com/articles/exploring-gen-ai/tdd-in-the-agent-loop.html)).
+- Not adopted after measuring it: one cycle per task instead of per case
+  (the task's whole list written as tests, watched failing, then the code).
+  A fresh pair of runs on Story 1 of the same feature, Spec Kit 1.1.0,
+  2026-10-05, both from one shared tasks.md and differing only in the
+  implement fragment, one run each. Per-task cost 20% less ($4.26 against
+  $5.33, 50 turns against 78), and the end state was the same: 45 of 45 on a
+  held-out black-box suite written from the spec, and 25 of 27 wrong versions
+  caught from a fixed catalog applied blind. But the cycle's own checks went
+  quiet. Its stubs returned sentinels, so every test failed trivially and a
+  deliberate break was needed once, against 40 first-run passes broken on
+  purpose per case. It found no cases during implementation, against four.
+  The story review then closed 9 test gaps, against 5. The same end quality
+  rested on one layer instead of two, and 20% of the cost does not pay for
+  losing one.
 
