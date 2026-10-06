@@ -95,6 +95,25 @@ story, the feature directory, and this brief:
   serve the previous version (Python's bytecode is, to the second — delete every `__pycache__`
   in the copy, `find . -name __pycache__ -prune -exec rm -rf {} +`, and run
   with `PYTHONDONTWRITEBYTECODE=1` from then on).
+- Bound every run of a wrong version: one can loop or grow without end, and
+  stopping only the process you started leaves its children running. A
+  tool's timeout that moves the command to the background,
+  `subprocess.run(timeout=...)` and a kill by name each stop one process, not
+  the tree. Start the suite in a process group of its own with a deadline a
+  few times its normal duration, and kill the group when it passes; in bash:
+
+  ```bash
+  set -m
+  <suite command> & pid=$!
+  (sleep <deadline in seconds>; kill -- -$pid) 2>/dev/null & watchdog=$!
+  wait $pid; status=$?
+  kill -- -$watchdog 2>/dev/null
+  ```
+
+  A run stopped by its deadline did not pass, so the wrong version is caught;
+  report it anyway, because a test that hangs where it should fail needs a
+  timeout of its own. Before reporting, `pgrep -lf <copy path>` lists
+  nothing.
 - Read the story's code as its next maintainer would, for what each cycle's
   refactor step should have removed: duplication, a special case the
   behaviour does not need, a name that does not say what it holds, a

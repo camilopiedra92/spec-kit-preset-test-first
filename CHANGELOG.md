@@ -6,6 +6,20 @@ All notable changes to this preset are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.5.1] - 2026-10-06
+
+### Fixed
+
+- Story review: every run of a wrong version is bounded by a deadline that
+  kills the suite's whole process group, and the reviewer confirms nothing
+  started in the scratch copy is still running before reporting. A wrong
+  version that looped in the CLI under test ran for 13 hours after its review
+  ended, reaching 232 GB of virtual memory and 67 GB of swap: the Bash tool's
+  timeout moved the run to the background instead of stopping it, and the
+  reviewer's `subprocess.run(timeout=...)` and `pkill` stopped one process,
+  not its children. A run stopped by its deadline counts as caught and is
+  reported, since the test should fail on its own instead of hanging.
+
 ## [1.5.0] - 2026-10-05
 
 ### Added
@@ -160,7 +174,8 @@ All notable changes to this preset are documented here. The format follows
 - `tests/compose.sh` and CI composing the preset against the pinned and the
   latest Spec Kit release.
 
-[Unreleased]: https://github.com/camilopiedra92/spec-kit-preset-test-first/compare/v1.5.0...HEAD
+[Unreleased]: https://github.com/camilopiedra92/spec-kit-preset-test-first/compare/v1.5.1...HEAD
+[1.5.1]: https://github.com/camilopiedra92/spec-kit-preset-test-first/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/camilopiedra92/spec-kit-preset-test-first/compare/v1.4.1...v1.5.0
 [1.4.1]: https://github.com/camilopiedra92/spec-kit-preset-test-first/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/camilopiedra92/spec-kit-preset-test-first/compare/v1.3.0...v1.4.0
