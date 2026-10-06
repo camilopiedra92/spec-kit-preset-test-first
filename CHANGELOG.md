@@ -6,6 +6,37 @@ All notable changes to this preset are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-10-06
+
+### Added
+
+- `speckit-tasks`: the suite fails instead of hanging. Every test runs under
+  a time limit, the framework's own where it has one (Jest's and Vitest's
+  5 seconds), otherwise set by a setup task (pytest-timeout's `timeout`, or
+  code the project writes, which then carries a test list); a test that
+  starts a process passes it a timeout too.
+- `speckit-implement`: before the first task, the limit is confirmed, and a
+  setup task added and taken first when there is none, so a tasks.md from
+  an earlier version gets one too. A synchronous loop in JavaScript cannot
+  be stopped per test; the Stop gate's deadline and the review's runner
+  bound it.
+
+### Changed
+
+- Stop gate: the hook runs the suite through `run-bounded.sh` with
+  `DEADLINE=540`, so a suite that does not finish is stopped with its whole
+  process group and blocks the turn saying so, instead of holding the stop
+  until Claude Code's 600-second hook timeout with no observed guarantee for
+  its children. The suite's output goes to a file, so a process that left
+  the group (setsid), which the runner cannot reach, does not hold the stop
+  past the deadline. The installer refuses when the runner is missing or
+  not committed, since other clones would not have it; a hook whose runner
+  was later removed, or that cannot create the file, blocks saying so
+  rather than calling the suite red or letting the turn through. A gate
+  installed by an earlier version is not rewritten: to move one over,
+  remove the hook file and its entry under `hooks.Stop`, then let
+  `/speckit-implement` install it again.
+
 ## [1.5.1] - 2026-10-06
 
 ### Fixed
@@ -185,7 +216,8 @@ All notable changes to this preset are documented here. The format follows
 - `tests/compose.sh` and CI composing the preset against the pinned and the
   latest Spec Kit release.
 
-[Unreleased]: https://github.com/camilopiedra92/spec-kit-preset-test-first/compare/v1.5.1...HEAD
+[Unreleased]: https://github.com/camilopiedra92/spec-kit-preset-test-first/compare/v1.6.0...HEAD
+[1.6.0]: https://github.com/camilopiedra92/spec-kit-preset-test-first/compare/v1.5.1...v1.6.0
 [1.5.1]: https://github.com/camilopiedra92/spec-kit-preset-test-first/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/camilopiedra92/spec-kit-preset-test-first/compare/v1.4.1...v1.5.0
 [1.4.1]: https://github.com/camilopiedra92/spec-kit-preset-test-first/compare/v1.4.0...v1.4.1

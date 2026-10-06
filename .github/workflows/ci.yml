@@ -31,6 +31,9 @@ env:
 jobs:
   compose:
     runs-on: ubuntu-latest
+    # The tests run suites built to hang; one that stops honouring its
+    # deadline should fail the job, not hold it for GitHub's six hours.
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
