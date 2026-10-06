@@ -92,9 +92,13 @@ review found and what it did not fix.
 ## Stop gate
 
 Instructions stop holding once this run ends; a Stop hook does not. Where
-`.specify/` sits at the root of the git repository, install the gate the first
-time a run of the whole suite you saw is green and
-`.claude/hooks/stop-gate.sh` does not exist, before going on, from that root:
+`.specify/` sits at the root of the git repository and the project has no
+gate of its own, install the gate the first time a run of the whole suite you
+saw is green and `.claude/hooks/stop-gate.sh` does not exist, before going on,
+from that root. A gate of its own is a `hooks.Stop` entry in
+`.claude/settings.json` whose command — read the script it runs, not only the
+entry — runs the suite, or a fast subset of it, and exits 2 when it is red; a
+Stop hook that runs tests only to notify or log is not one.
 
 ```bash
 bash .specify/presets/test-first/scripts/bash/install-stop-gate.sh <test command>

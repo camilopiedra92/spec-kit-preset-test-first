@@ -6,6 +6,21 @@ All notable changes to this preset are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-10-05
+
+### Fixed
+
+- Stop gate: a project with a gate of its own — a Stop hook whose command
+  or script runs the suite, or a subset, and exits 2 when it is red — no longer gets a
+  second one. Found updating a project that had a hand-written gate under
+  another name, which the hook-path check could not see; the installer cannot
+  tell what another hook does, so the fragment reads each entry's script. A
+  Stop hook that runs tests only to notify or log does not count.
+- Installer: the gate's commit message showed the test command with its
+  quoting lost (`sh -c CI=1 npm test` for `sh -c 'CI=1 npm test'`), present
+  since `sdd-gate`. It now shows it quoted exactly as the hook's
+  `TEST_COMMAND` holds it, built once for both.
+
 ## [1.4.0] - 2026-10-05
 
 ### Added
@@ -111,7 +126,8 @@ All notable changes to this preset are documented here. The format follows
 - `tests/compose.sh` and CI composing the preset against the pinned and the
   latest Spec Kit release.
 
-[Unreleased]: https://github.com/camilopiedra92/spec-kit-preset-test-first/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/camilopiedra92/spec-kit-preset-test-first/compare/v1.4.1...HEAD
+[1.4.1]: https://github.com/camilopiedra92/spec-kit-preset-test-first/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/camilopiedra92/spec-kit-preset-test-first/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/camilopiedra92/spec-kit-preset-test-first/compare/v1.2.1...v1.3.0
 [1.2.1]: https://github.com/camilopiedra92/spec-kit-preset-test-first/compare/v1.2.0...v1.2.1
