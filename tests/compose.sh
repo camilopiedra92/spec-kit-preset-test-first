@@ -102,11 +102,15 @@ done
 # The implement fragment runs the installer by this path, so it must land
 # there as committed. Through `bash`, because installing from an archive drops
 # the executable bit (specify 1.1.0: 644 from a zip that stores 755).
+for script in install-stop-gate run-bounded; do
+  installed=.specify/presets/test-first/scripts/bash/$script.sh
+  cmp -s "$installed" "$PRESET/scripts/bash/$script.sh" ||
+    problem "$installed is not installed as committed"
+  # Joined into one line first, so rewrapping the fragment does not fail this.
+  tr -s ' \n' '  ' < "$skills/speckit-implement/SKILL.md" | grep -qF "bash $installed" ||
+    problem "speckit-implement does not run bash $installed"
+done
 gate=.specify/presets/test-first/scripts/bash/install-stop-gate.sh
-cmp -s "$gate" "$PRESET/scripts/bash/install-stop-gate.sh" ||
-  problem "$gate is not installed as committed"
-grep -qF "bash $gate" "$skills/speckit-implement/SKILL.md" ||
-  problem "speckit-implement does not run bash $gate"
 # The fragment decides by whether the hook exists, so it must look where the
 # installer writes; otherwise every task re-runs an installer that refuses.
 # Joined into one line first, so rewrapping the fragment does not fail this.

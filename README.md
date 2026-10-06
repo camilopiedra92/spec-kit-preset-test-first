@@ -9,7 +9,7 @@ turn on the test suite.
 | Skill | What the preset adds |
 |---|---|
 | `speckit-tasks` | Tests are required (overriding core's "Tests are OPTIONAL") for behaviour with logic of its own; one task per behaviour, carrying its test list — concrete cases, input and expected result, taken from the spec before any code exists, simplest first; no separate test tasks and no predicted failures; never `[P]`; tasks cite their `FR-`/`SC-` IDs |
-| `speckit-implement` | A test counts once it has failed from inside, not on an import or collection error, and one that passes on its first run is investigated; one red-green-refactor cycle per case of the task's list, each red run recorded under the case; a case's expected result is never changed to reach green — one believed wrong is stopped and reported as a spec gap; a case found mid-implementation joins the list instead of growing the current test; a task is marked done only on a green suite and no lint or type finding beyond a baseline taken before the first task; ignore files and tool config are touched only as far as the feature needs; each completed user story gets a review from a fresh context that tries wrong versions of the code against the tests and reads the code for what the refactor step should have removed; every test gap is closed with a test and every structural finding with a refactor; the first green suite installs the Stop gate (below) |
+| `speckit-implement` | A test counts once it has failed from inside, not on an import or collection error, and one that passes on its first run is investigated; one red-green-refactor cycle per case of the task's list, each red run recorded under the case; a case's expected result is never changed to reach green — one believed wrong is stopped and reported as a spec gap; a case found mid-implementation joins the list instead of growing the current test; a task is marked done only on a green suite and no lint or type finding beyond a baseline taken before the first task; ignore files and tool config are touched only as far as the feature needs; each completed user story gets a review from a fresh context that tries wrong versions of the code against the tests, each run under a deadline that kills its process group, and reads the code for what the refactor step should have removed; every test gap is closed with a test and every structural finding with a refactor; the first green suite installs the Stop gate (below) |
 
 ## Stop gate
 
@@ -61,7 +61,7 @@ overrides, but that is not tested.
 ## Install
 
 ```bash
-specify preset add --from https://github.com/camilopiedra92/spec-kit-preset-test-first/archive/refs/tags/v1.5.0.zip
+specify preset add --from https://github.com/camilopiedra92/spec-kit-preset-test-first/archive/refs/tags/v1.5.1.zip
 ```
 
 To move a project to a newer release:
@@ -77,12 +77,16 @@ environment does: `$(uv tool dir)/specify-cli/bin/python`.
 `tests/compose.sh` installs the preset from a tag-shaped archive into a scratch
 project with the real CLI and checks that each skill keeps its core body and
 description and ends with the fragment, and that core still carries the rule
-the fragments override or narrow, and that the gate installer lands where the
-implement fragment runs it. `tests/stop-gate.sh` runs the installer against a
-fake suite: what it refuses, that a refused or failed run leaves the repository
-as it was, what its commit holds, and how the hook it writes answers a green, a
-red and a second stop. CI runs both against the pinned Spec Kit release on
-every push and against the latest release weekly.
+the fragments override or narrow, and that the gate installer and the story
+review's runner land where the implement fragment runs them.
+`tests/stop-gate.sh` runs the installer against a fake suite: what it refuses,
+that a refused or failed run leaves the repository as it was, what its commit
+holds, and how the hook it writes answers a green, a red and a second stop.
+`tests/run-bounded.sh` runs the runner against commands built to escape it — a
+hang, a leader that exits 0 on SIGTERM, a child that ignores SIGTERM, a child
+left behind, a pipeline, the runner itself killed — and checks the exit code
+and that nothing survives. CI runs all three against the pinned Spec Kit
+release on every push and against the latest release weekly.
 
 With v1.0.0, in one pilot (Spec Kit 1.1.0, 2026-10-05), `/speckit-tasks`
 produced 61 tasks, 52 citing requirement IDs, against 29 and 5 without the

@@ -95,6 +95,21 @@ story, the feature directory, and this brief:
   serve the previous version (Python's bytecode is, to the second — delete every `__pycache__`
   in the copy, `find . -name __pycache__ -prune -exec rm -rf {} +`, and run
   with `PYTHONDONTWRITEBYTECODE=1` from then on).
+- Put every run of a wrong version through the preset's runner, from the
+  copy's root: `bash .specify/presets/test-first/scripts/bash/run-bounded.sh
+  <seconds> <suite command>`. The deadline is whole seconds, a few times the
+  suite's normal duration, and with 5 seconds added for the runner's grace
+  period it stays under your shell tool's own timeout, so the status comes
+  back to you; a pipeline goes in as one `bash -c '...'`
+  argument, and environment variables are exported before the call, not
+  written after the seconds. A wrong version can loop or grow without end,
+  and a tool's timeout, a `subprocess.run(timeout=...)` or a kill by name
+  stops one process and leaves its children running; the runner kills the
+  command's whole process group when it ends or its deadline passes. Exit
+  124 means the deadline fired: the wrong version is caught, but report it,
+  because a test that hangs where it should fail needs a timeout of its own.
+  Exit 2 with a usage line, or 127, means the call was wrong, not that the
+  suite caught anything.
 - Read the story's code as its next maintainer would, for what each cycle's
   refactor step should have removed: duplication, a special case the
   behaviour does not need, a name that does not say what it holds, a
