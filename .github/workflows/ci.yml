@@ -52,5 +52,6 @@ jobs:
           fi
           uv tool install specify-cli --from "git+https://github.com/github/spec-kit.git@$tag"
       - run: tests/compose.sh
-      # Needs no specify, so it says the same on both legs; it is cheap.
+      # These need no specify, so they say the same on both legs; they are cheap.
       - run: tests/stop-gate.sh
+      - run: tests/run-bounded.sh
