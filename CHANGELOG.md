@@ -27,7 +27,12 @@ All notable changes to this preset are documented here. The format follows
   `DEADLINE=540`, so a suite that does not finish is stopped with its whole
   process group and blocks the turn saying so, instead of holding the stop
   until Claude Code's 600-second hook timeout with no observed guarantee for
-  its children. The installer refuses when the runner is missing. A gate
+  its children. The suite's output goes to a file, so a process that left
+  the group (setsid), which the runner cannot reach, does not hold the stop
+  past the deadline. The installer refuses when the runner is missing or
+  not committed, since other clones would not have it; a hook whose runner
+  was later removed blocks saying so rather than calling the suite red. A
+  gate
   installed by an earlier version is not rewritten: to move one over, remove
   the hook file and its entry under `hooks.Stop`, then let
   `/speckit-implement` install it again.

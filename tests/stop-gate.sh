@@ -26,7 +26,11 @@ printf '%s|' "\$@" >> "$tmp/runs"
 echo >> "$tmp/runs"
 pwd -P > "$tmp/cwd"
 [ ! -e "$tmp/stage" ] || { echo x > snapshot.txt; git add snapshot.txt; }
-[ "\$(cat "$tmp/verdict")" != hang ] || exec sleep 9301
+if [ "\$(cat "$tmp/verdict")" = escape ]; then
+  # A child that leaves the suite's process group, still holding its output.
+  perl -MPOSIX -e 'fork and exit; POSIX::setsid(); sleep 9302'
+fi
+case "\$(cat "$tmp/verdict")" in hang | escape) exec sleep 9301 ;; esac
 echo "suite says \$(cat "$tmp/verdict")"
 [ "\$(cat "$tmp/verdict")" = green ]
 FAKE
@@ -40,6 +44,7 @@ FAKE
     git init -q "$repo"
     mkdir -p "$repo/$(dirname "$runner")"
     cp "$PRESET/scripts/bash/run-bounded.sh" "$repo/$runner"
+    git -C "$repo" add "$runner"
     if [ "${2:-}" != bare ]; then
       mkdir -p "$repo/.claude"
       echo '{"permissions": {"deny": ["Read(./.env)"]}}' > "$repo/.claude/settings.json"
@@ -86,9 +91,11 @@ FAKE
   }
 
   # The hook runs the suite through the runner, so without it the gate could
-  # not keep its deadline; refused before anything is written.
+  # not keep its deadline; refused before anything is written. Committed, or
+  # every other clone would get a gate whose runner is missing.
   fresh no-runner
-  rm "$repo/$runner"
+  git -C "$repo" rm -q "$runner"
+  git -C "$repo" -c user.name=t -c user.email=t@t commit -q -m "no runner"
   before=$(snapshot)
   if out=$(run); then
     echo "installed a gate with no runner: $out"
@@ -98,6 +105,13 @@ FAKE
     echo "refusing for a missing runner left something behind"
     return 1
   }
+  fresh untracked-runner
+  git -C "$repo" rm -q --cached "$runner"
+  git -C "$repo" -c user.name=t -c user.email=t@t commit -q -m "runner untracked"
+  if out=$(run); then
+    echo "installed a gate whose runner git does not track: $out"
+    return 1
+  fi
 
   # The happy path: one commit with the hook and the settings, keeping what
   # the settings already held, and nothing else -- not an untracked file, an
@@ -127,6 +141,15 @@ FAKE
     "$repo/.claude/settings.json" > /dev/null || {
     echo "settings.json is not the old one plus one Stop hook:"
     cat "$repo/.claude/settings.json"
+    return 1
+  }
+
+  # The deadline and the runner's 5-second grace fit inside the timeout
+  # Claude Code gives the hook, or it would be stopped first.
+  deadline=$(sed -n 's/^DEADLINE=//p' "$repo/.claude/hooks/stop-gate.sh")
+  hook_timeout=$(jq '.hooks.Stop[0].hooks[0].timeout' "$repo/.claude/settings.json")
+  [ -n "$deadline" ] && [ $((deadline + 5)) -lt "$hook_timeout" ] || {
+    echo "DEADLINE=$deadline plus the grace does not fit the hook's timeout of $hook_timeout"
     return 1
   }
 
@@ -209,13 +232,29 @@ FAKE
     return 1
   fi
 
+  # A process that left the suite's group keeps running, but it does not hold
+  # the stop past the deadline.
+  echo escape > "$tmp/verdict"
+  start=$SECONDS
+  stop false
+  pkill -KILL -f "sleep 930[12]"
+  [ "$rc" -eq 2 ] || {
+    echo "a suite with an escaped child did not block the stop (rc $rc)"
+    return 1
+  }
+  [ $((SECONDS - start)) -le 4 ] || {
+    echo "an escaped child held the stop for $((SECONDS - start))s on a 1s deadline"
+    return 1
+  }
+
   # Without the runner the gate blocks, naming it, instead of letting the turn
-  # through unchecked.
+  # through unchecked, and does not send Claude to fix code that is not wrong.
   echo green > "$tmp/verdict"
   mv "$repo/$runner" "$tmp/runner"
   stop false
   mv "$tmp/runner" "$repo/$runner"
-  if ! { [ "$rc" -eq 2 ] && grep -qF "run-bounded.sh" "$tmp/stderr"; }; then
+  if ! { [ "$rc" -eq 2 ] && grep -qF "run-bounded.sh" "$tmp/stderr" &&
+    ! grep -qF "is red" "$tmp/stderr"; }; then
     echo "a missing runner did not block the stop with its name (rc $rc): $(cat "$tmp/stderr")"
     return 1
   fi

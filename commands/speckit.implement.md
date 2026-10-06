@@ -7,7 +7,8 @@
 - Before the first task, also confirm every test runs under a time limit:
   the framework's default, or one a setup task set. If there is none and no
   task sets one, add that task at the start of the setup phase, with the
-  next free task ID, and take it first: code that loops would otherwise hang
+  next free task ID and, when the limit is code the project writes, a test
+  list, and take it first: code that loops would otherwise hang
   the suite, the Stop gate and CI instead of failing a test. A per-test
   limit cannot stop a synchronous loop in JavaScript, which never yields to
   the timer; the Stop gate's deadline and the review's runner bound that.
