@@ -175,15 +175,21 @@ suites in scratch repositories), `commands/` (fragments).
 code" and "test and code in one shell call"; the audit reports `red` and exits 0 for the first,
 `born-with-code` and exits 1 for the second.
 
-- [ ] T009 [US1] Parse one JUnit XML file into test outcomes in `scripts/python/audit.py`
+- [X] T009 [US1] Parse one JUnit XML file into test outcomes in `scripts/python/audit.py`
   (data-model "Run"; research R6; FR-008)
   - no file written → "no JUnit"
+    - red: `ModuleNotFoundError: No module named 'audit'`, then `assert {} is None` from the stub
   - `tests="0"` and no `testcase` → conclusive, no tests
+    - passed on its first run (the stub returned `{}`); returning `None` on purpose failed it, restored
   - one `testcase` without children → passed, id `classname::name`
+    - red: `assert {} == {'tests.test_…ne': 'passed'}`
   - a `failure` child → failed; an `error` child → failed; a `skipped` child → skipped
   - pytest's `<skipped type="pytest.xfail">` → skipped
+    - red (both, one test): every case read as `passed`
   - nested `testsuite` elements (Vitest, Jest) → every `testcase` found
+    - passed on its first run (`iter` walks every level); one level only on purpose failed it, restored
   - malformed XML → "no JUnit" (treated as a run that wrote none)
+    - red: `xml.etree.ElementTree.ParseError: unclosed token` escaped
 - [ ] T010 [US1] Run one test file in a scratch worktree in `scripts/python/audit.py`: one
   detached scratch worktree in a temporary directory, `git read-tree -u --reset <tree>`,
   `git clean -fdx`, the configured command through `sh -c` and
