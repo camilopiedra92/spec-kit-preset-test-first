@@ -557,6 +557,14 @@ and Antigravity showed nothing test-first-specific in searches (second-hand).
 
 ## L7. Measurements made in this session
 
+- **Whole hook cost** (T008, `tests/ledger.sh`, 2026-10-07): `python3 ledger.py` with the hook JSON
+  on stdin, after a one-file change, on a scratch repository of 1,001 tracked files and no untracked
+  ones; Python 3.14.7, git 2.55.0, macOS on Darwin arm64 (Mac16,8). First version (ten git
+  processes): median 99 ms of five. After cutting to eight git processes on a record and five on an
+  unchanged tree, and a `NamedTuple` instead of a dataclass (no `inspect` import): medians of 80–83
+  ms of eleven over three runs, single calls 58–110 ms at a load average of 3.2. Profile: Python
+  start 11 ms, imports 13 ms, snapshot (`add -A` + `write-tree`) 25 ms, each other git process
+  about 5 ms.
 - **Ledger snapshot cost**: temporary index copied from the worktree's, `git add -A`,
   `git write-tree`, on renta (860 tracked files): 0.04–0.05 s, three runs. Repeated on a fresh clone
   (861 files, git 2.55.0): 0.03–0.04 s seeded each time (three runs), 0.03 s with an index kept

@@ -7,11 +7,11 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
-from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import TypedDict
+from typing import NamedTuple, TypedDict
 
 CONFIG = Path(".specify") / "test-first.json"
 
@@ -24,8 +24,7 @@ class ConfigError(Exception):
     """The configuration file exists but is not valid."""
 
 
-@dataclass(frozen=True)
-class Config:
+class Config(NamedTuple):
     tests: tuple[str, ...]
     sources: tuple[str, ...]
     run: str
@@ -85,13 +84,14 @@ def is_mixed(config: Config, paths: list[str]) -> bool:
     return {"test", "source"} <= kinds
 
 
-def snapshot(worktree: Path) -> str:
+def snapshot(worktree: Path, index: Path | None = None) -> str:
     """The tree of the worktree's tracked and untracked-but-not-ignored files, as on disk.
 
     Built in a temporary index seeded from the worktree's own, in the system's temporary
     location, so the real index and the worktree are never touched (research R2).
     """
-    index = Path(_git(worktree, "rev-parse", "--path-format=absolute", "--git-path", "index"))
+    if index is None:
+        index = Path(_git(worktree, "rev-parse", "--path-format=absolute", "--git-path", "index"))
     with tempfile.TemporaryDirectory(prefix="test-first-") as scratch:
         temporary = Path(scratch) / "index"
         if index.exists():
@@ -115,6 +115,7 @@ def _git(
 
 
 REF = "refs/worktree/test-first/ledger"
+WORKTREE_AND_INDEX = ("--show-toplevel", "--git-path", "index")
 RACE_RETRIES = 5
 
 
@@ -131,14 +132,19 @@ class RecordError(Exception):
     """A record could not be appended."""
 
 
-def record(worktree: Path, call: Call) -> str | None:
-    """Append the worktree's state as a record; None when it equals the newest record's."""
-    tree = snapshot(worktree)
-    message = _message(worktree, call)
+def record(worktree: Path, call: Call, index: Path | None = None) -> str | None:
+    """Append the worktree's state as a record; None when it equals the newest record's.
+
+    Every git process costs milliseconds on every tool call, so the unchanged case -- most
+    calls -- stops after five, and a record takes eight (SC-003).
+    """
+    tree = snapshot(worktree, index)
+    message = None
     for _ in range(RACE_RETRIES):
-        newest = _newest(worktree)
-        if newest and _git(worktree, "rev-parse", f"{newest}^{{tree}}") == tree:
+        newest, newest_tree = _newest(worktree)
+        if newest_tree == tree:
             return None
+        message = message or _message(worktree, call)
         parent = ["-p", newest] if newest else []
         commit = _git(worktree, "commit-tree", tree, *parent, "-m", message)
         # Compare-and-swap: moves the ref only if it still points where it was read.
@@ -152,25 +158,77 @@ def record(worktree: Path, call: Call) -> str | None:
 
 
 def _message(worktree: Path, call: Call) -> str:
-    branch = subprocess.run(
-        ["git", "-C", str(worktree), "symbolic-ref", "--quiet", "--short", "HEAD"],
-        capture_output=True,
-        text=True,
-    ).stdout.strip()
+    # One process for both: the commit, then the branch's full name, or "HEAD" when detached.
+    head, symbolic = _git(worktree, "rev-parse", "HEAD", "--symbolic-full-name", "HEAD").split()
+    branch = symbolic.removeprefix("refs/heads/") if symbolic.startswith("refs/heads/") else None
     return json.dumps(
         {
             "time": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
             **call,
-            "branch": branch or None,
-            "head": _git(worktree, "rev-parse", "HEAD"),
+            "branch": branch,
+            "head": head,
         }
     )
 
 
-def _newest(worktree: Path) -> str | None:
+def _newest(worktree: Path) -> tuple[str | None, str | None]:
+    """The newest record and its tree, or (None, None) before the first record."""
     result = subprocess.run(
-        ["git", "-C", str(worktree), "rev-parse", "--verify", "--quiet", REF],
+        ["git", "-C", str(worktree), "log", "-1", "--format=%H %T", REF, "--"],
         capture_output=True,
         text=True,
     )
-    return result.stdout.strip() or None
+    if result.returncode != 0:
+        return None, None
+    commit, tree = result.stdout.split()
+    return commit, tree
+
+
+def post_tool_use(payload: dict[str, str]) -> tuple[int, str]:
+    """The PostToolUse hook: (exit status, stderr) for one call (contracts/ledger-hook.md)."""
+    located = _worktree(Path(payload["cwd"]))
+    if located is None:
+        return 0, ""
+    worktree, index = located
+    try:
+        load_config(worktree)
+    except NotInstalled:
+        return 0, ""
+    except ConfigError as error:
+        return 2, f"test-first ledger: no record of this call: {error}\n"
+    call: Call = {
+        "session": payload["session_id"],
+        "agent": payload.get("agent_id"),
+        "tool": payload["tool_name"],
+        "call": payload.get("tool_use_id"),
+    }
+    try:
+        record(worktree, call, index)
+    except subprocess.CalledProcessError as error:
+        return 2, f"test-first ledger: no record of this call: {error.stderr or error}\n"
+    except RecordError as error:
+        return 2, f"test-first ledger: no record of this call: {error}\n"
+    return 0, ""
+
+
+def _worktree(cwd: Path) -> tuple[Path, Path] | None:
+    """The worktree's root and its index file, or None outside a git worktree."""
+    result = subprocess.run(
+        ["git", "-C", str(cwd), "rev-parse", "--path-format=absolute", *WORKTREE_AND_INDEX],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        return None
+    root, index = result.stdout.splitlines()
+    return Path(root), Path(index)
+
+
+def main() -> int:
+    status, stderr = post_tool_use(json.load(sys.stdin))
+    sys.stderr.write(stderr)
+    return status
+
+
+if __name__ == "__main__":
+    sys.exit(main())

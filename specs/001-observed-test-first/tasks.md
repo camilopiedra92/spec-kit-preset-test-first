@@ -135,21 +135,33 @@ suites in scratch repositories), `commands/` (fragments).
     - passed on its first run (reachable from the ref); in a scratch repository, deleting the ref
       before `gc --prune=now` made the record's object unreadable (`cat-file: could not get object
       info`), which is what the test detects
-- [ ] T008 The `PostToolUse` entry point of `scripts/python/ledger.py`: read the hook JSON from
+- [X] T008 The `PostToolUse` entry point of `scripts/python/ledger.py`: read the hook JSON from
   stdin (`cwd`, `session_id`, `agent_id`, `tool_name`, `tool_use_id`), resolve the worktree of
   `cwd`, snapshot and append; exit 0 silently when not in a git worktree or not installed; exit 2
   with the error on stderr when recording fails (contracts/ledger-hook.md steps 1–3 and failures;
   FR-001; FR-004)
   - `cwd` outside any git repository → exit 0, no output
+    - red: `AttributeError: … no attribute 'post_tool_use'`, then `NotImplementedError` from the stub
   - a repository without `.specify/test-first.json` → exit 0, no output
+    - red: a record was made (`assert 'befc36d… refs/worktree/test-first/ledger' == ''`)
   - installed, a changed file → exit 0, one record with the input's session, tool and call
+    - red: `git log … refs/worktree/test-first/ledger` exit 128: nothing recorded
   - a subagent's input with `agent_id` → the record carries it
+    - passed on its first run; dropping `agent_id` on purpose failed it (`None == 'agent-7'`), restored
   - `cwd` in a subdirectory or a linked worktree → that worktree's ledger
+    - passed on its first run; resolving the main worktree on purpose failed it, restored
   - a malformed configuration → exit 2, stderr names it, no record
+    - red: `ConfigError` escaped the hook
   - git unable to write (objects directory read-only) → exit 2, stderr has git's error, worktree
     and real index unchanged
+    - red: `CalledProcessError` from `git add -A` escaped the hook
   - a source and a test written by one Bash heredoc → one record holding both
+    - red: `tests/ledger.sh` → `FAIL: the record lacks tests/test_b.py` (no script entry point yet)
   - one snapshot of a ~1,000-file scratch repository → under 100 ms, median of five (SC-003)
+    - red: `FAIL: a record took 149 ms` (the instrument counted a timer's own start-up; timed from
+      one process instead: 99 ms of five, too close); cutting git processes and the dataclass
+      import brought medians to 80–83 ms of eleven; a 50 ms pause on purpose failed it (145 ms),
+      restored. Enforced off CI, reported on CI: SC-003 is defined on the development machine
   - these cases end to end, with recorded hook inputs in scratch repositories, in `tests/ledger.sh`
     (quickstart step 2), added as a step of the CI `compose` job (T003)
 

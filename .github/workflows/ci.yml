@@ -68,3 +68,4 @@ jobs:
       # These need no specify, so they say the same on both legs; they are cheap.
       - run: tests/stop-gate.sh
       - run: tests/run-bounded.sh
+      - run: tests/ledger.sh
