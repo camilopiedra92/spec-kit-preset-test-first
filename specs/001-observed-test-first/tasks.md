@@ -722,7 +722,7 @@ gate still runs and an old `tasks.md` is read.
 
 ## Phase 8: Polish & cross-cutting
 
-- [ ] T031 README: the observed test-first section — what is recorded and audited, the
+- [X] T031 README: the observed test-first section — what is recorded and audited, the
   verdicts, the Stop behaviour; the evidence of each added, changed or removed rule with its
   sources and dated measurements and tool versions (research R0–R14, L7); the limits section
   required by FR-022 and constitution VI; the migration notes (FR-021; FR-023)
@@ -730,10 +730,10 @@ gate still runs and an old `tasks.md` is read.
     git has not rewritten since checkout — 232 ms per call on renta until any `git status` or
     commit (research L7, "Kept index") — and the Node recipe for `--run`, which links the real
     worktree's `node_modules` into the scratch worktree (tests/audit.sh, Vitest scenario)
-- [ ] T032 [P] Write `docs/decisions/0001-order-not-strength.md`,
+- [X] T032 [P] Write `docs/decisions/0001-order-not-strength.md`,
   `0002-runner-agnostic-through-junit.md`, `0003-gates-block-once-per-turn.md` in MADR's shape,
   each linking its research entry (plan, "Decisions that outlive the feature")
-- [ ] T033 Update `CLAUDE.md`: the commands (`uv run ruff check`, `uv run mypy`, `uv run pytest`,
+- [X] T033 Update `CLAUDE.md`: the commands (`uv run ruff check`, `uv run mypy`, `uv run pytest`,
   `tests/ledger.sh`, `tests/install-ledger.sh`, `tests/audit.sh`), `scripts/python/` and
   `docs/decisions/` in "Where things live", and a pointer to `docs/decisions/`
 - [ ] T034 Validate in renta (quickstart step 7): install with its configuration, one test-only

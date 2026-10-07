@@ -26,6 +26,11 @@ is committed: commit before running it.
 
 @.specify/memory/constitution.md
 
+## Decisions
+
+Before changing how the audit judges, which runners it supports, or how a Stop hook blocks, read
+`docs/decisions/`: each record says what was considered and why it lost.
+
 ## Where things live
 
 | Path | Holds |
@@ -33,6 +38,7 @@ is committed: commit before running it.
 | `commands/` | The fragments, one per core skill they append to |
 | `scripts/bash/` | What the fragments run, installed under `.specify/presets/test-first/` |
 | `scripts/python/` | The ledger hook, the audit and the installer, behind one entry point, `cli.py` |
+| `docs/decisions/` | Decisions later changes must not reopen without saying so (MADR), export-ignored |
 | `.specify/`, `.claude/`, `specs/` | This repository's own Spec Kit, export-ignored from the release |
 
 ---
