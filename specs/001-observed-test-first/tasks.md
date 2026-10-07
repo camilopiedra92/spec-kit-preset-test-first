@@ -840,6 +840,7 @@ gate still runs and an old `tasks.md` is read.
 
 - [X] T047 Turn a git failure while resolving the base (`merge-base` with no common ancestor, an unresolvable `--base`) into a refusal carrying git's message, so `audit` exits 2 and `audit --stop` blocks once, with unit cases for an orphan branch and a bad `--base` seen failing first (a traceback, exit 1, today) per FR-024 (partial)
   - red: all three failed (a bad `--base`, an orphan branch for the audit and for the Stop)
-- [ ] T048 Treat a memo entry that cannot be read as JSON as a miss — run again and rewrite it — instead of an uncaught `ValueError` that ends the Stop unblocked, with a unit case seen failing first per FR-024 (partial)
+- [X] T048 Treat a memo entry that cannot be read as JSON as a miss — run again and rewrite it — instead of an uncaught `ValueError` that ends the Stop unblocked, with a unit case seen failing first per FR-024 (partial)
+  - red: `JSONDecodeError: Expecting property name enclosed in double quotes`
 - [ ] T049 Run the installer's `git commit`, which runs the project's commit hooks, under `run-bounded.sh` with a deadline, a hook that outlives it being refused with everything put back, with a unit case seen failing first per Constitution IV (contradicts)
 - [ ] T050 Correct the README's scenario count for `tests/audit.sh` to what the suite holds (36 with real pytest, one with Vitest) per Constitution VI (contradicts)

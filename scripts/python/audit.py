@@ -16,7 +16,7 @@ import tempfile
 import time
 from collections import Counter
 from pathlib import Path
-from typing import NamedTuple
+from typing import Any, NamedTuple
 from xml.etree import ElementTree
 
 import ledger
@@ -121,10 +121,9 @@ class Replayer:
         entry = (
             self.memo / hashlib.sha256(f"{tree}\0{file}\0{self.config.run}".encode()).hexdigest()
         )
-        if entry.exists():
-            stored = json.loads(entry.read_text())
-            if not stored["timed_out"] or stored["deadline"] >= deadline:
-                return RunResult(stored["outcomes"], stored["timed_out"])
+        stored = _stored(entry)
+        if stored is not None and (not stored["timed_out"] or stored["deadline"] >= deadline):
+            return RunResult(stored["outcomes"], stored["timed_out"])
         if self.spent_at is not None and time.monotonic() >= self.spent_at:
             raise BudgetSpent("the Stop hook's budget ran out before this replay")
         result = self._replay(tree, file, deadline)
@@ -169,6 +168,18 @@ class Replayer:
             capture_output=True,
         ).returncode
         return RunResult(parse_junit(junit), timed_out=status == TIMED_OUT)
+
+
+def _stored(entry: Path) -> dict[str, Any] | None:
+    """A memo entry, or None when there is none or it cannot be read: entries are written
+    atomically, so only something outside the audit corrupts one, and the run is made again."""
+    try:
+        stored = json.loads(entry.read_text())
+    except (FileNotFoundError, ValueError):
+        return None
+    if not isinstance(stored, dict) or not {"outcomes", "timed_out", "deadline"} <= stored.keys():
+        return None
+    return stored
 
 
 def _alive(pid: int) -> bool:

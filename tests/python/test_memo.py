@@ -87,3 +87,22 @@ def test_a_deleted_memo_gives_the_same_results(repo: Path, tmp_path: Path) -> No
 
     assert again == first
     assert runs(counter) == 2
+
+
+def test_a_memo_entry_that_is_not_json_is_run_again_and_rewritten(
+    repo: Path, tmp_path: Path
+) -> None:
+    counter = tmp_path / "count"
+    tree = git(repo, "rev-parse", "HEAD^{tree}")
+    config = counting(counter)
+    with audit.Replayer(repo, config) as replayer:
+        replayer.run(tree, "tests/test_a.py", 30)
+    for entry in replayer.memo.iterdir():
+        entry.write_text("{truncated")  # corrupted outside the audit
+
+    with audit.Replayer(repo, config) as replayer:
+        result = replayer.run(tree, "tests/test_a.py", 30)
+        again = replayer.run(tree, "tests/test_a.py", 30)
+
+    assert result.outcomes == {"c::t": "passed"} == again.outcomes
+    assert runs(counter) == 2
