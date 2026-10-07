@@ -677,7 +677,10 @@ and Antigravity showed nothing test-first-specific in searches (second-hand).
   the origin). Run 2, same steps: `born-with-code` for both — the first test's file did not load
   until its code existed, which the session read as a false positive (fixed: the verdict says
   so and gives the redo with a stub). Run 3, a stub first, the test alone and red, then the
-  code, then a test and its code together: `red` and `born-with-code`, as designed. A record on
+  code, then a test and its code together: `red` and `born-with-code`, as designed. Run 4, after
+  the polish review: the session itself ran the installer (no `.claude/settings.json` before),
+  then a raising stub, the test alone and red, the code: every later call was recorded under its
+  own id and the audit gave `red`, exit 0 — Claude Code picked up the hooks committed mid-session. A record on
   that clone: median 92–94 ms of eleven calls once git had rewritten its index (Kept index,
   above).
 - **Racy git and the snapshot's index copy** (T006/T020, 2026-10-07, git 2.55.0, macOS): git

@@ -279,7 +279,10 @@ Python 3.14.7, macOS: the preset updated from 1.6.0, the ledger installed on a
 feature branch, then a session told to write a test against a stub in a call
 of its own, run it red, write the code, and then write a second test and its
 code in one shell command. The hook told Claude at that call; the Stop audit
-blocked the turn; the audit gave `red` and `born-with-code`. The two sessions
+blocked the turn; the audit gave `red` and `born-with-code`. A fourth session
+ran the installer itself, as `/speckit-implement` does, then a stub, the test
+and the code: Claude Code picked up the committed hooks within the session,
+recorded every later call, and the audit passed with `red`. The two sessions
 before it found two defects, fixed in this release: the ledger had no record
 before the first tool call, so the first test written was `unobserved`; and a
 test whose file could not import its code yet was `born-with-code` without
