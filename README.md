@@ -240,7 +240,7 @@ and that nothing survives.
 For the ledger: `tests/python/` holds the units (pytest, run on Python 3.11
 too, with ruff and mypy in strict mode); `tests/ledger.sh` runs the hook as
 Claude Code does and times it; `tests/audit.sh` builds ledgers call by call
-in scratch projects and runs the audit over 36 scenarios, all but one with real
+in scratch projects and runs the audit over 37 scenarios, all but one with real
 pytest — test first, code first in one call or one call apart, tests renamed,
 consolidated or edited until they pass, commits in their own call, rebases,
 a hang, a killed audit — and the other with Vitest; `tests/install-ledger.sh`

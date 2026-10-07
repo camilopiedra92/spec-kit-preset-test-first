@@ -842,5 +842,10 @@ gate still runs and an old `tasks.md` is read.
   - red: all three failed (a bad `--base`, an orphan branch for the audit and for the Stop)
 - [X] T048 Treat a memo entry that cannot be read as JSON as a miss — run again and rewrite it — instead of an uncaught `ValueError` that ends the Stop unblocked, with a unit case seen failing first per FR-024 (partial)
   - red: `JSONDecodeError: Expecting property name enclosed in double quotes`
-- [ ] T049 Run the installer's `git commit`, which runs the project's commit hooks, under `run-bounded.sh` with a deadline, a hook that outlives it being refused with everything put back, with a unit case seen failing first per Constitution IV (contradicts)
-- [ ] T050 Correct the README's scenario count for `tests/audit.sh` to what the suite holds (36 with real pytest, one with Vitest) per Constitution VI (contradicts)
+- [X] T049 Run the installer's `git commit`, which runs the project's commit hooks, under `run-bounded.sh` with a deadline, a hook that outlives it being refused with everything put back, with a unit case seen failing first per Constitution IV (contradicts)
+  - red: `assert 0 == 1` (the install waited out a 30-second hook and committed)
+  - found while doing it: terminated, `run-bounded.sh` sent its command SIGKILL at once, so git
+    left its `index.lock` and the installer's undo could not reset the index; the runner now
+    passes SIGTERM and the grace period on first, as its deadline does
+    - red: `runner terminated: the command got no SIGTERM to clean up with` (`tests/run-bounded.sh`)
+- [X] T050 Correct the README's scenario count for `tests/audit.sh` to what the suite holds (36 with real pytest, one with Vitest) per Constitution VI (contradicts)

@@ -142,6 +142,18 @@ for signal in TERM INT HUP QUIT; do
   sleep 1
   leftover 9106 && problem "runner killed by $signal: the command survived it"
 done
+# Terminated, it passes SIGTERM on before any SIGKILL, as its deadline does, so the command can
+# clean up: git removes its lock files on SIGTERM and cannot on SIGKILL.
+cleaned=$(mktemp -u)
+bash "$RUN" 30 sh -c "trap 'echo done > $cleaned; exit 0' TERM; sleep 9108 & wait" 2> /dev/null &
+runner=$!
+sleep 1
+kill -TERM "$runner"
+wait "$runner" 2> /dev/null
+sleep 1
+[ -e "$cleaned" ] || problem "runner terminated: the command got no SIGTERM to clean up with"
+rm -f "$cleaned"
+leftover 9108 && problem "runner terminated: the command survived it"
 set +m
 
 [ "$fail" -eq 0 ] && echo "ok: run-bounded"

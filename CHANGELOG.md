@@ -60,6 +60,10 @@ what was measured: README, "Why 2.0.0's rules, by source".
   `PostToolUse` entries as well as its `Stop` ones, and narrows core's
   "parallel tasks [P] can run together" for writing subagents.
 - The preset's and `speckit-implement`'s descriptions.
+- `run-bounded.sh`, terminated or interrupted itself, sends its command
+  SIGTERM and waits the grace period before SIGKILL, as its deadline does,
+  so the command can clean up (git removes its lock files); it used to send
+  SIGKILL at once.
 
 ### Removed
 

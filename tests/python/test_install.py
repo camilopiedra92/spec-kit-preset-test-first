@@ -365,3 +365,16 @@ def test_a_first_record_that_fails_after_the_commit_says_what_was_left(
     assert "committed" in err
     assert "first tool call" in err  # what the missing origin means
     assert git(project, "status", "--porcelain") == ""
+
+
+def test_a_commit_hook_that_outlives_the_deadline_is_refused_with_everything_put_back(
+    project: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    hook = project / ".git" / "hooks" / "pre-commit"
+    hook.write_text("#!/bin/sh\nsleep 30\n")
+    hook.chmod(0o755)
+    monkeypatch.setattr(install, "COMMIT_DEADLINE", 2)
+    started = time.monotonic()
+
+    assert "deadline" in refused(project, capsys)
+    assert time.monotonic() - started < 20

@@ -14,6 +14,9 @@ import ledger
 
 SETTINGS = Path(".claude/settings.json")
 CLI = '"$CLAUDE_PROJECT_DIR"/.specify/presets/test-first/scripts/python/cli.py'
+# Seconds the commit, with the project's commit hooks, gets before its process group is killed:
+# the hooks are commands this script does not control (constitution IV).
+COMMIT_DEADLINE = 300
 MESSAGE = "Record every Claude Code tool call and audit test-first at each stop"
 ENTRIES = {
     "PostToolUse": {
@@ -108,6 +111,8 @@ def _checked(root: Path, config: dict[str, Any]) -> dict[str, Any]:
         raise Refused("something is already staged, and it would land in this commit")
     for path in (SETTINGS, ledger.CONFIG):
         _committable(root, path)
+    if not audit.RUNNER.is_file():
+        raise Refused(f"{audit.RUNNER} is missing: reinstall the test-first preset")
     settings = _settings(root / SETTINGS)
     hooks = settings.setdefault("hooks", {})
     if _installed(hooks):
@@ -135,7 +140,10 @@ def _commit(root: Path, contents: dict[Path, dict[str, Any]]) -> None:
             (root / path).write_text(text + "\n")
         ledger.git(root, "add", "--", *paths)
         commit = subprocess.Popen(
-            ["git", "-C", str(root), "commit", "-q", "-m", MESSAGE, "--", *paths],
+            [
+                *("bash", str(audit.RUNNER), str(COMMIT_DEADLINE)),
+                *("git", "-C", str(root), "commit", "-q", "-m", MESSAGE, "--", *paths),
+            ],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -148,6 +156,11 @@ def _commit(root: Path, contents: dict[Path, dict[str, Any]]) -> None:
             commit.terminate()
             commit.wait()
             raise
+        if commit.returncode == audit.TIMED_OUT:
+            raise Refused(
+                f"the commit did not finish within its {COMMIT_DEADLINE}-second deadline: a "
+                "pre-commit or commit-msg hook that hangs"
+            )
         if commit.returncode != 0:
             output = (stderr + stdout).strip()
             raise Refused(f"the commit was refused (a pre-commit or commit-msg hook?): {output}")

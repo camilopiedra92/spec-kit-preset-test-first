@@ -56,20 +56,34 @@ kill_group() {
     tries=$((tries + 1))
   done
 }
+terminated=
 # shellcheck disable=SC2329  # invoked by the EXIT trap
 cleanup() {
   [ -z "$watchdog" ] || kill_group "$watchdog"
+  # Ended by a signal while the command runs: SIGTERM first and the grace period, as the
+  # deadline does, so the command can clean up (git removes its lock files on SIGTERM, and
+  # cannot on SIGKILL).
+  if [ -n "$terminated" ] && [ -n "$pid" ] && kill -TERM -- "-$pid" 2> /dev/null; then
+    local waited=0
+    while kill -0 -- "-$pid" 2> /dev/null && [ "$waited" -lt $((grace * 10)) ]; do
+      sleep 0.1
+      waited=$((waited + 1))
+    done
+  fi
   # After the leader is gone its group can still hold children; SIGKILL
   # because they had their chance at SIGTERM, or ended on time and are
   # leftovers.
   [ -z "$pid" ] || kill_group "$pid"
   rm -rf "$flags"
 }
-# Bash runs the EXIT trap when TERM, INT or HUP ends it, not QUIT, so QUIT is
-# turned into an exit. Nothing runs on KILL; the watchdog still enforces the
+# Each signal that ends the runner is turned into an exit, so the EXIT trap
+# runs (bash would skip it on QUIT) and knows it was a signal. Nothing runs on KILL; the watchdog still enforces the
 # deadline then.
 trap cleanup EXIT
-trap 'exit 131' QUIT
+trap 'terminated=1; exit 143' TERM
+trap 'terminated=1; exit 130' INT
+trap 'terminated=1; exit 129' HUP
+trap 'terminated=1; exit 131' QUIT
 
 # Job control gives each background job its own process group, led by the
 # job's first process, so $! names the group.
