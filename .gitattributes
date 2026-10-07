@@ -4,3 +4,4 @@ tests/ export-ignore
 .specify/ export-ignore
 .claude/ export-ignore
 specs/ export-ignore
+CLAUDE.md export-ignore
