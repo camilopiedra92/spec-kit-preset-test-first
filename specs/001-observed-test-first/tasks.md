@@ -817,7 +817,9 @@ gate still runs and an old `tasks.md` is read.
 
 - [X] T036 CRITICAL: export-ignore `.gitignore` in `.gitattributes` and add it to the `for own in …` list of `tests/compose.sh`, seeing compose fail first (the archive installs `.specify/presets/test-first/.gitignore`) per Constitution V (contradicts)
   - red: `the installed preset carries this repository's .gitignore`
-- [ ] T037 Catch `OSError` in `audit.main` and `audit._stop` like a git error — exit 2 with the message, the Stop blocking once — with unit cases for a read-only memo and a failing temporary directory, seen failing first (exit 1 and a traceback today) per FR-024 (partial)
+- [X] T037 Catch `OSError` in `audit.main` and `audit._stop` like a git error — exit 2 with the message, the Stop blocking once — with unit cases for a read-only memo and a failing temporary directory, seen failing first (exit 1 and a traceback today) per FR-024 (partial)
+  - red: all three failed (the Stop with a read-only memo and with no temporary directory, the
+    plain audit with no temporary directory)
 - [ ] T038 Add to the README's limits that once any Stop hook has blocked a turn its later stops skip the audit, and that a hook killed mid-run puts its call's changes under the next call's name per FR-022 (partial)
 - [ ] T039 Make the birth search, when every touching record is inconclusive, run the oldest touching record's previous as data-model.md says instead of the origin — or amend data-model.md to the origin, whichever the reasoning supports — with a unit case for the sequence that now gives `unobserved` per data-model "Finding a test's birth" (contradicts)
 - [ ] T040 Add end to end, or correct quickstart steps 2 and 5 and T008/T022 to say the units cover them: an unchanged tree adds no record, a linked worktree's own ledger, a subagent's id, branch and HEAD in a record (`tests/ledger.sh`); a turn ending on a red case is not blocked (`tests/audit.sh`) per quickstart steps 2 and 5 (partial)

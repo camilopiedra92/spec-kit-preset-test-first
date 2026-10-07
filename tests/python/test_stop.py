@@ -257,3 +257,34 @@ def test_a_stop_runs_each_replay_under_60_seconds_within_120_in_all(
     stop(repo, monkeypatch)
 
     assert seen == [(60, 120)]
+
+
+@pytest.mark.parametrize("where", ["memo", "temporary directory"])
+def test_a_file_system_error_at_a_stop_blocks_with_its_message(
+    where: str,
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    feature(repo).call({"tests/test_b.py": TEST_B, "src/b.py": "B\n"})
+    if where == "memo":
+        memo = Path(
+            git(repo, "rev-parse", "--path-format=absolute", "--git-path", "test-first/runs")
+        )
+        memo.mkdir(parents=True)
+        memo.chmod(0o500)  # read-only: no run can be stored
+    else:
+
+        def no_space(*args: object, **kwargs: object) -> str:
+            raise OSError(28, "No space left on device")
+
+        monkeypatch.setattr("tempfile.mkdtemp", no_space)
+
+    status = stop(repo, monkeypatch)
+    if where == "memo":
+        memo.chmod(0o700)
+
+    assert status == 2
+    err = capsys.readouterr().err
+    assert err.startswith("test-first audit:")
+    assert "Traceback" not in err

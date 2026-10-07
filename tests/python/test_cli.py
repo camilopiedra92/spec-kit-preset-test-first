@@ -153,3 +153,17 @@ def test_a_git_error_during_the_audit_exits_2_with_its_message(
     err = capsys.readouterr().err
     assert err.startswith("test-first audit:")
     assert "Traceback" not in err
+
+
+def test_a_file_system_error_during_the_audit_exits_2_with_its_message(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    feature(repo).call({"tests/test_b.py": TEST_B})
+
+    def no_space(*args: object, **kwargs: object) -> str:
+        raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr("tempfile.mkdtemp", no_space)
+
+    assert run(repo, monkeypatch) == 2
+    assert "No space left on device" in capsys.readouterr().err

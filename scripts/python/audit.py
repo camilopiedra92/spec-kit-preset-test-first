@@ -699,14 +699,14 @@ def main(argv: list[str]) -> int:
         return 2
     try:
         verdicts, history = _audit(worktree, config, "audit", args.deadline or 300, args.base, None)
-    except (subprocess.CalledProcessError, ledger.RecordError) as error:
-        print(f"test-first audit: {_git_error(error)}", file=sys.stderr)
+    except (subprocess.CalledProcessError, ledger.RecordError, OSError) as error:
+        print(f"test-first audit: {_error_message(error)}", file=sys.stderr)
         return 2
     print(render(verdicts, history))
     return exit_status(verdicts)
 
 
-def _git_error(error: Exception) -> str:
+def _error_message(error: Exception) -> str:
     if isinstance(error, subprocess.CalledProcessError):
         return f"git failed: {(error.stderr or str(error)).strip()}"
     return str(error)
@@ -732,9 +732,10 @@ def _stop(budget: int, deadline: int) -> int:
         verdicts, history = _audit(
             worktree, config, "Stop", deadline, None, budget, payload["session_id"]
         )
-    except (subprocess.CalledProcessError, ledger.RecordError) as error:
-        # An audit that cannot run blocks with its error, so the turn never ends unjudged.
-        print(f"test-first audit: {_git_error(error)}", file=sys.stderr)
+    except (subprocess.CalledProcessError, ledger.RecordError, OSError) as error:
+        # An audit that cannot run -- git failing, no space for a replay or the memo -- blocks
+        # with its error, so the turn never ends unjudged.
+        print(f"test-first audit: {_error_message(error)}", file=sys.stderr)
         return 2
     if not any(verdict.kind in FINAL_FAILING for _, verdict in verdicts):
         return 0
