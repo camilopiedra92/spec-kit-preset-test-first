@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import fnmatch
 import json
 from dataclasses import dataclass
 from pathlib import Path
@@ -57,3 +58,22 @@ def _run(raw: dict[str, object]) -> str:
         if placeholder not in run:
             raise ConfigError(f"{CONFIG}: run must contain {placeholder}")
     return run
+
+
+def classify(config: Config, path: str) -> str:
+    """Test, source or other, by the configured globs; a path matching both is a test."""
+    if _matches(path, config.tests):
+        return "test"
+    if _matches(path, config.sources):
+        return "source"
+    return "other"
+
+
+def _matches(path: str, globs: tuple[str, ...]) -> bool:
+    return any(fnmatch.fnmatchcase(path, glob) for glob in globs)
+
+
+def is_mixed(config: Config, paths: list[str]) -> bool:
+    """A change is mixed when it holds at least one test path and at least one source path."""
+    kinds = {classify(config, path) for path in paths}
+    return {"test", "source"} <= kinds

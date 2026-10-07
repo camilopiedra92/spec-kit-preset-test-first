@@ -72,14 +72,26 @@ suites in scratch repositories), `commands/` (fragments).
   - a JSON value that is not an object → error (found during implementation)
     - passed on its first run (the check was written ahead of its test); disabling the check on
       purpose failed it with `AttributeError: 'list' object has no attribute 'get'`, restored
-- [ ] T005 Classify paths in `scripts/python/ledger.py`: test / source / other, and mixed changes
+- [X] T005 Classify paths in `scripts/python/ledger.py`: test / source / other, and mixed changes
   (data-model "Configuration", "Change"; FR-005)
   - `tests/a.py` with `tests = ["tests/**"]` → test
+    - red: `AttributeError: … no attribute 'classify'`, then `assert '' == 'test'` from the stub
   - `tests/a/b/c.py` → test (`**` crosses directories)
+    - passed on its first run (`fnmatch`'s `*` crosses `/`); requiring equal slash counts on purpose
+      failed it (`assert 'other' == 'test'`), restored
   - `src/x.py` with `sources = ["src/**"]` → source
+    - red: `assert 'other' == 'source'`
   - a path matching both lists → test
+    - passed on its first run (tests were checked first); checking sources first on purpose failed
+      it (`assert 'source' == 'test'`), restored (a stale `.pyc` first served the broken version:
+      runs since use `PYTHONDONTWRITEBYTECODE=1`)
   - `README.md`, `specs/001/tasks.md` → other
+    - passed on its first run; returning `source` for unmatched paths on purpose failed it, restored
   - a change of one test and one source path → mixed; tests and other only → not mixed
+    - red: `AttributeError: … no attribute 'is_mixed'`, then `assert False` from the stub
+  - `stopped: possible spec gap` — whether `**/test_*.py` matches a root-level `test_x.py`
+    (found during implementation): plain `fnmatch` says no, gitignore-style globs say yes; the
+    data model says only "`fnmatch`, where `**` matches across directories"
 - [ ] T006 Snapshot the worktree as a tree in `scripts/python/ledger.py`: temporary index seeded
   from the worktree's own, `git add -A`, `git write-tree`; tracked and untracked-but-not-ignored
   files; the real index and the worktree never modified (research R2; FR-001; constitution IV)
