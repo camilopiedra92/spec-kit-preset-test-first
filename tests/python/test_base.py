@@ -115,3 +115,10 @@ def test_without_a_remote_the_configured_default_branch_comes_first(repo: Path) 
     commit(repo, "more.txt")
 
     assert audit.resolve_base(repo) == trunk
+
+
+def test_an_explicit_base_is_honoured_on_the_default_branch(repo: Path) -> None:
+    first = git(repo, "rev-parse", "HEAD")
+    commit(repo, "merged.txt")
+
+    assert audit.resolve_base(repo, override=first) == first

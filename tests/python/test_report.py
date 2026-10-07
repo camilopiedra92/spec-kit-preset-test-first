@@ -133,3 +133,20 @@ def test_a_file_whose_tests_cannot_be_known_is_itself_not_judged(repo: Path) -> 
 
     assert list(judged) == ["tests/test_b.py"]
     assert judged["tests/test_b.py"].name == "not-judged"
+
+
+def test_a_base_run_past_its_deadline_leaves_the_files_new_tests_not_judged(
+    repo: Path,
+) -> None:
+    (repo / "tests" / "test_b.py").write_text("def test_old(): pass\n# hang\n")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "base whose test file hangs")
+    git(repo, "checkout", "-q", "-b", "feat")
+    calls = Calls(repo)
+    calls.call({"README.md": "origin"})
+    calls.call({"tests/test_b.py": "def test_old(): pass\n" + TEST_B})
+
+    judged = report(repo, deadline=1)
+
+    assert judged["tests.test_b::test_b"].name == "not-judged"
+    assert "deadline" in judged["tests.test_b::test_b"].reason

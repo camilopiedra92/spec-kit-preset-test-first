@@ -139,6 +139,9 @@ class Replayer:
             # Every case failed: a load failure looks like this, so compare with the report of
             # the same file made unparseable, on the same tree.
             probe = self.run(load_probe(self.worktree, tree, file), file, deadline)
+            if probe.timed_out:
+                # Whether the file loaded cannot be told: the judgement waits on a longer run.
+                return Observation(outcomes, conclusive=False, timed_out=True)
             if probe.outcomes is not None and set(probe.outcomes) == set(outcomes):
                 return Observation(outcomes, conclusive=False, timed_out=False)
         return Observation(outcomes, conclusive=True, timed_out=False)
@@ -454,41 +457,51 @@ class Auditor:
 
     def report_file(self, file: str) -> list[tuple[str, Verdict]]:
         """The new tests of one file with their verdicts."""
-        last = len(self.history) - 1
-        unjudged = ""
+        held, unjudged = self.held_tests(file)
+        if held is None:
+            # No run says which tests the file holds: the file itself stands unjudged, so an
+            # audit that cannot see a file's tests cannot pass for lack of them.
+            return [(file, Verdict("not-judged", reason=unjudged))]
         try:
-            at_newest = self.observe(last, file)
+            at_base = self.observe_tree(self.base_tree(), file)
         except NotJudged as error:
-            unjudged, at_newest = str(error), Observation(None, conclusive=False, timed_out=True)
-        if not at_newest.conclusive:
-            unjudged = unjudged or (
-                f"{file} does not load at the newest record: make it load"
-                if at_newest.outcomes is not None
-                else f"the command wrote no JUnit for {file}: check `run` and the environment"
-            )
-            # Which tests the file holds, from its last run that said so.
-            j = self.conclusive_before(last, file)
-            known = self.observe(j, file) if j is not None else None
-            if known is None or not known.outcomes:
-                # No run says which tests the file holds now (an empty run before it was
-                # written says nothing either): the file itself stands unjudged, so an audit
-                # that cannot see a file's tests cannot pass for lack of them.
-                return [(file, Verdict("not-judged", reason=unjudged))]
-            at_newest = known
-        at_base = self.observe_tree(self.base_tree(), file)
+            at_base, unjudged = Observation({}, True, False), unjudged or str(error)
         if not at_base.conclusive:
             unjudged = unjudged or (
                 f"{file} does not load at the base: fix it on the default branch, or pass "
                 "--base a commit where it loads"
             )
-        new = [
-            test
-            for test in sorted(at_newest.outcomes or {})
-            if test not in (at_base.outcomes or {})
-        ]
+        new = [test for test in sorted(held) if test not in (at_base.outcomes or {})]
         if unjudged:
             return [(test, Verdict("not-judged", reason=unjudged)) for test in new]
         return [(test, self.judge(test, file)) for test in new]
+
+    def held_tests(self, file: str) -> tuple[dict[str, str] | None, str]:
+        """The tests the file holds at the newest record, and why they cannot be judged ("" when
+        they can). When the newest run cannot say, the last run that did, if any."""
+        last = len(self.history) - 1
+        try:
+            newest = self.observe(last, file)
+        except NotJudged as error:
+            return self.last_known(file, last), str(error)
+        if newest.conclusive:
+            return newest.outcomes or {}, ""
+        reason = (
+            f"{file} does not load at the newest record: make it load"
+            if newest.outcomes is not None
+            else f"the command wrote no JUnit for {file}: check `run` and the environment"
+        )
+        return self.last_known(file, last), reason
+
+    def last_known(self, file: str, last: int) -> dict[str, str] | None:
+        """The tests of the file's last conclusive run before `last` that reported any."""
+        try:
+            j = self.conclusive_before(last, file)
+            known = self.observe(j, file).outcomes if j is not None else None
+        except NotJudged:
+            return None
+        # An empty run from before the file was written says nothing about what it holds now.
+        return known or None
 
     def judge(self, test: str, file: str) -> Verdict:
         """The test's verdict, or not-judged when a run it depends on could not be made."""
@@ -659,7 +672,10 @@ class Auditor:
         """A run's observation; a run past its deadline makes the judgement impossible."""
         seen = self.replayer.observe(tree, file, self.deadline)
         if seen.timed_out:
-            raise NotJudged(f"a replay of {file} exceeded its {self.deadline}-second deadline")
+            raise NotJudged(
+                f"a replay of {file} exceeded its {self.deadline}-second deadline: "
+                "run the audit with a longer --deadline"
+            )
         return seen
 
 

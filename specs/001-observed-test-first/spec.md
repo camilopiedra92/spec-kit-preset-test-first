@@ -409,7 +409,8 @@ that the gate still runs and the composed skills read an old `tasks.md`.
   and MUST reuse the outcome of any replay already made on the same tree, file and command.
 - **FR-027**: The base MUST be the merge base with the remote-tracking default branch when the
   repository has an `origin` remote, resolved without network access, and the audit MUST refuse on
-  the default branch itself, so a local merge cannot empty the set of new tests.
+  the default branch itself unless `--base` names the base, so a local merge cannot empty the set
+  of new tests.
 - **FR-028**: Replays MUST take the test side and the rest of the tree as wholes — the test side
   from one record, everything else from another — so that a change outside the source and test
   file patterns cannot pass unjudged.

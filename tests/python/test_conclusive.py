@@ -97,3 +97,16 @@ def test_tests_that_all_fail_by_assertion_are_conclusive(repo: Path, tmp_path: P
         seen = replayer.observe(tree, "tests/test_a.py", deadline=30)
 
     assert seen == audit.Observation({"t::a": "failed"}, conclusive=True, timed_out=False)
+
+
+def test_a_load_probe_past_its_deadline_is_a_timed_out_observation(repo: Path) -> None:
+    from sequences import CONFIG
+
+    tree = commit_file(repo, "tests/test_a.py", "def test_a(): # expects src/none.py X\n")
+    probe_hangs = CONFIG._replace(run=CONFIG.run + " --hang-on-unloadable")
+
+    with audit.Replayer(repo, probe_hangs) as replayer:
+        seen = replayer.observe(tree, "tests/test_a.py", deadline=1)
+
+    assert seen.timed_out
+    assert not seen.conclusive

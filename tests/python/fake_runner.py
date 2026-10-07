@@ -14,7 +14,10 @@ that does not exist gives a report with no case, as pytest does.
 With `--root <dir>`, `# expects` paths resolve against <dir> instead of the working directory:
 an environment that imports the project's code from the real worktree (an editable install).
 
-Usage: python3 fake_runner.py <file> <junit> [--root <dir>]
+With `--hang-on-unloadable`, a file holding the load probe's content never finishes: a probe
+that runs past its deadline while the real run does not.
+
+Usage: python3 fake_runner.py <file> <junit> [--root <dir>] [--hang-on-unloadable]
 """
 
 import re
@@ -79,6 +82,9 @@ def _holds(path: Path, text: str) -> bool:
 
 if __name__ == "__main__":
     file, junit = Path(sys.argv[1]), Path(sys.argv[2])
+    text = file.read_text(errors="replace") if file.exists() else ""
+    if "--hang-on-unloadable" in sys.argv and "not code" in text:
+        time.sleep(3600)
     if file.exists() and "# hang" in file.read_text(errors="replace"):
         time.sleep(3600)
     if file.exists() and "# nojunit" in file.read_text(errors="replace"):

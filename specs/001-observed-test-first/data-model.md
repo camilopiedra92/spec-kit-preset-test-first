@@ -90,7 +90,10 @@ remote, the local branch named by `init.defaultBranch`, `main`, `master`. Remote
 a local merge into the default branch cannot move the base. The audit refuses when none resolves or
 HEAD is on the default branch itself — HEAD's branch has the default's short name (`main` for
 `origin/main`). No network is used to resolve it: only refs already in the repository are read.
-`--base <rev>` replaces the whole order.
+`--base <rev>` replaces the whole order, the refusal on the default branch included: the
+refusal guards the implicit base, which a local merge can empty, and an explicit base is the
+operator's choice (auditing a merged feature against its fork point). The Stop hook never passes
+one.
 
 ## Run (one replay)
 
