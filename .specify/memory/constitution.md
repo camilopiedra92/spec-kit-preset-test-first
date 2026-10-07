@@ -28,13 +28,15 @@ matrix); a reviewer checks that a change to `SPECKIT_PINNED` also changes `requi
 ### III. Every Rule Has Its Evidence
 
 A rule added to a fragment, changed or dropped carries its evidence in the README: a primary source
-(a paper, vendor documentation, a practitioner's canon) or a measured run of the preset, dated and
-with the Spec Kit version it ran on. An alternative that was measured or considered and not adopted
+(a paper, vendor documentation, a practitioner's canon) or a measured run, dated and with the
+version of every tool it ran on — Spec Kit, Claude Code, git, the test runner — that its result
+depends on. An alternative that was measured or considered and not adopted
 is recorded with the reason. A measurement states what was compared and how many runs, and is
 called directional when it is one run per arm.
 
 Rationale: the fragments are instructions to an agent; without evidence a rule cannot be weighed
-against its cost when the next version is decided. Check: a reviewer looks for the README entry
+against its cost when the next version is decided, and a measurement without its tools' versions
+cannot be repeated when one of them moves. Check: a reviewer looks for the README entry
 (the "Why this shape" sources or a release's measurement) of every changed rule, and for the
 CHANGELOG entry that describes it.
 
@@ -43,13 +45,21 @@ CHANGELOG entry that describes it.
 A script the preset ships refuses rather than guesses: a precondition it cannot verify stops it
 with a message, and a refused or failed run leaves the repository as it found it. Anything that
 runs a test suite or a command it does not control runs it under a deadline that kills the
-command's whole process group.
+command's whole process group. A script writes only inside the repository's git directories
+(per-worktree and common), a temporary directory it removes, and the one commit an installer
+makes; a run that is killed leaves nothing registered that the next run does not prune; and it
+opens no network connection of its own. What a command the project configures writes or fetches is
+the project's.
 
 Rationale: these scripts run inside other people's repositories and at the end of every agent
 turn; a guess there commits the wrong thing, and an unbounded child kept a wrong version running
-for hours (CHANGELOG 1.5.1). Check: `tests/stop-gate.sh` (refusals, an unchanged repository on
-refusal or failure, the hook's answers to a green, red and hung suite and a missing runner) and
-`tests/run-bounded.sh` (commands built to escape the deadline).
+for hours (CHANGELOG 1.5.1). The ledger stores worktree states, uncommitted work included, which
+must not leave the machine or outlive their repository by the preset's doing. Check:
+`tests/stop-gate.sh` (refusals, an unchanged repository on refusal or failure, the hook's answers
+to a green, red and hung suite and a missing runner), `tests/run-bounded.sh` (commands built to
+escape the deadline), `tests/ledger.sh`, `tests/install-ledger.sh` and `tests/audit.sh` (refusals,
+an unchanged worktree and index, no scratch worktree left registered after a killed audit), and the
+pytest units under `tests/python/`.
 
 ### V. Released by Tag
 
@@ -61,7 +71,23 @@ PATCH for a fix. What is not part of the preset is `export-ignore`.
 Rationale: the archive is the artifact; a file in the repository that is not export-ignored lands
 in every project that installs it. Check: `tests/compose.sh` builds the archive with `git archive`
 as GitHub does and fails if the installed preset carries this repository's `.specify/`, `.claude/`,
-`specs/` or `CLAUDE.md`; a reviewer checks that `preset.yml`, the CHANGELOG and the tag agree.
+`specs/`, `docs/`, `CLAUDE.md`, `pyproject.toml` or `uv.lock`; a reviewer checks that `preset.yml`,
+the CHANGELOG and the tag agree.
+
+### VI. Observed, Not Reported
+
+A check the preset ships judges what tools observed — the repository's states as git records them,
+a test runner's report — and never a file the agent writes as evidence of its own work. Each check
+states, where the project's owner reads it, what it does not check: its threat model and its
+limits.
+
+Rationale: an agent's report of its own red runs is the defect measured on preset 1.6.0 (27 of
+about 60 cases recorded as first-run passes, 11 runs from calls that wrote code and test together;
+`specs/001-observed-test-first/research.md`, L1), and every framework surveyed that "verifies"
+test-first verifies the agent's own report (L3). A check whose limits are unstated is trusted past
+them. Check: the tests of each shipped check build their inputs from recorded states and runner
+output only; a reviewer looks for a read of `tasks.md` or any other agent-written evidence under
+`scripts/`, and for the README section that states each check's limits.
 
 ## Governance
 
@@ -78,4 +104,4 @@ This constitution overrides any other practice in this repository where they con
 - Versioning of this file: MAJOR for a principle removed or redefined incompatibly, MINOR for a
   principle or section added or materially expanded, PATCH for wording.
 
-**Version**: 1.0.0 | **Ratified**: 2026-10-07 | **Last Amended**: 2026-10-07
+**Version**: 1.1.0 | **Ratified**: 2026-10-07 | **Last Amended**: 2026-10-07

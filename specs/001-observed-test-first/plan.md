@@ -75,9 +75,10 @@ the constitution amended as below.
 
 ## Constitution amendment (1.0.0 → 1.1.0)
 
-This feature's decisions bind every later change in three places the constitution does not yet
-cover, so the amendment lands inside the feature, as its first task, in a commit of its own whose
-message carries the impact report (Governance). Each change is judged against its sources, not
+This feature's decisions bind every later change in places the constitution did not cover, so the
+amendment was made inside the feature, before `/speckit-tasks`, in a commit of its own whose
+message carries the impact report (Governance): `/speckit-analyze` checks the plan against the
+constitution, and would otherwise check it against the principles this feature changes. Each change is judged against its sources, not
 kept because the text already says it:
 
 - **New principle VI. Observed, Not Reported** — a check the preset ships judges what tools
