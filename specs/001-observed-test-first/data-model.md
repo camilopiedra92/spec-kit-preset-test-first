@@ -210,7 +210,10 @@ not reported by the base's run of the same file. When that newest run is inconcl
 tests are taken from its last conclusive run and are `not-judged`, with the reason that the file
 does not load at the newest record — or, when the run wrote no JUnit at all, that the command wrote
 none (check `run` and the environment). When the base's run of the file is inconclusive, which of
-its tests are new cannot be told: they are `not-judged`, with that reason.
+its tests are new cannot be told: they are `not-judged`, with that reason. When no run of the file
+was ever conclusive, no run says which tests it holds: the file itself is reported `not-judged`,
+under its path in place of a test id, and counts as one new test, so an audit that cannot see a
+file's tests cannot pass for lack of them.
 
 An **accepted** verdict is `red`, `predates` or `refactored`. `never-run` does not fail the audit
 but is not accepted: a test that never ran replaces nothing. A test added to an unchanged test file

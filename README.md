@@ -38,13 +38,15 @@ observes instead:
 - **The verdicts.** `red`: it failed when written, and the tests written
   before the call that made it pass still pass against that call's code.
   `predates`: it passes against the base's code — the behaviour was there.
-  `refactored`: it replaced accepted tests in a call that changed no source.
+  `refactored`: it replaced accepted tests in a call that did not change
+  test-side paths together with anything else.
   These pass, as does `never-run` (only ever skipped), which is listed. These
   fail, each printed with its remedy: `born-with-code` (written in the call
   that wrote its code), `born-green` (passing from its first run),
   `rewritten-to-green` (changed in the call that turned it green),
   `still-red`, `unobserved` (no birth in this ledger), `not-judged` (with the
-  reason, such as a run that wrote no JUnit). The remedy for the first three is
+  reason, such as a run that wrote no JUnit; a test file that no run could
+  read is reported under its path). The remedy for the first three is
   the redo sequence: remove the test, revert its code, write the test again
   alone, see it fail, restore the code.
 - **The Stop hook.** The same audit runs at the end of every turn within a
@@ -122,6 +124,11 @@ What the audit does not check, and where it does not hold:
   test as it behaves on replay.
 - The audit's cost for compiled languages is not measured: every replay
   starts from a clean tree.
+- Once any Stop hook has blocked a turn — this one or another, such as the
+  Stop gate — the rest of that turn's stops skip the audit: a test born
+  after that block is shown at the next turn or the story's audit.
+- A hook killed mid-run leaves the call's changes to be recorded under the
+  next call's name.
 - The Stop hook shows a failing verdict once per turn; it does not prevent
   the turn from ending, judges nothing on the default branch or a detached
   HEAD, and leaves to a later turn the births its 120-second budget does not

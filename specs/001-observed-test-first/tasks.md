@@ -21,7 +21,8 @@ one at a time and adds the cases it finds.
 - **[Story]**: the user story (US1–US5)
 
 Paths: `scripts/python/` (the hook and the audit, standard library only, run as `python3 <path>`),
-`scripts/bash/` (installer, runner), `tests/python/` (pytest units), `tests/*.sh` (end-to-end
+`scripts/bash/` (the 1.x gate's installer, the deadline runner; the ledger's installer is in
+`scripts/python/`, research R16), `tests/python/` (pytest units), `tests/*.sh` (end-to-end
 suites in scratch repositories), `commands/` (fragments).
 
 ---
@@ -820,7 +821,7 @@ gate still runs and an old `tasks.md` is read.
 - [X] T037 Catch `OSError` in `audit.main` and `audit._stop` like a git error — exit 2 with the message, the Stop blocking once — with unit cases for a read-only memo and a failing temporary directory, seen failing first (exit 1 and a traceback today) per FR-024 (partial)
   - red: all three failed (the Stop with a read-only memo and with no temporary directory, the
     plain audit with no temporary directory)
-- [ ] T038 Add to the README's limits that once any Stop hook has blocked a turn its later stops skip the audit, and that a hook killed mid-run puts its call's changes under the next call's name per FR-022 (partial)
+- [X] T038 Add to the README's limits that once any Stop hook has blocked a turn its later stops skip the audit, and that a hook killed mid-run puts its call's changes under the next call's name per FR-022 (partial)
 - [X] T039 Make the birth search, when every touching record is inconclusive, run the oldest touching record's previous as data-model.md says instead of the origin — or amend data-model.md to the origin, whichever the reasoning supports — with a unit case for the sequence that now gives `unobserved` per data-model "Finding a test's birth" (contradicts)
   - the code follows the data model: the origin keeps no information the record before the oldest
     touching one lacks, and a load that code made possible is lost by running the origin
@@ -828,9 +829,9 @@ gate still runs and an old `tasks.md` is read.
 - [X] T040 Add end to end, or correct quickstart steps 2 and 5 and T008/T022 to say the units cover them: an unchanged tree adds no record, a linked worktree's own ledger, a subagent's id, branch and HEAD in a record (`tests/ledger.sh`); a turn ending on a red case is not blocked (`tests/audit.sh`) per quickstart steps 2 and 5 (partial)
   - added end to end; each passed on its first run (the units already pinned them): recording
     unchanged trees, dropping the agent id and blocking on `still-red`, on purpose, failed them
-- [ ] T041 Point the CHANGELOG 2.0.0 entry and constitution III's Check at the README's "Why 2.0.0's rules" / "Why 1.x's rules" sections (the "Why this shape" heading no longer exists; the constitution edit as a PATCH amendment) per Constitution III (contradicts)
-- [ ] T042 Correct tasks.md's `scripts/bash/` (installer, runner) line, make the R-ranges R0–R16 in plan.md and research.md, and move R16 above research.md's Landscape heading per research R16 (contradicts)
-- [ ] T043 Document the file-level `not-judged` entry (a test file whose runs never said which tests it holds) in data-model.md "Verdict", contracts/audit.md's output and the README per data-model "Verdict" (missing)
-- [ ] T044 Reword the README's `refactored` line to "a call that did not change test-side paths together with anything else" per FR-009 (contradicts)
+- [X] T041 Point the CHANGELOG 2.0.0 entry and constitution III's Check at the README's "Why 2.0.0's rules" / "Why 1.x's rules" sections (the "Why this shape" heading no longer exists; the constitution edit as a PATCH amendment) per Constitution III (contradicts)
+- [X] T042 Correct tasks.md's `scripts/bash/` (installer, runner) line, make the R-ranges R0–R16 in plan.md and research.md, and move R16 above research.md's Landscape heading per research R16 (contradicts)
+- [X] T043 Document the file-level `not-judged` entry (a test file whose runs never said which tests it holds) in data-model.md "Verdict", contracts/audit.md's output and the README per data-model "Verdict" (missing)
+- [X] T044 Reword the README's `refactored` line to "a call that did not change test-side paths together with anything else" per FR-009 (contradicts)
 - [X] T045 Remove the unused `WORKTREE_AND_INDEX` from `scripts/python/ledger.py` per plan: no code without a caller (unrequested)
 - [ ] T046 After the pull request merges on green, tag `v2.0.0` on the merged commit and check that `preset.yml`, the CHANGELOG and the tag agree per Constitution V (missing)

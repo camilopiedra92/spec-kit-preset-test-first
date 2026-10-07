@@ -441,12 +441,6 @@ on every tool call, against SC-003).
 
 ---
 
-# Landscape and evidence (2026-10-07)
-
-The research behind R0–R15, kept whole so a later session does not redo it. Sources were read on
-2026-10-07 unless dated otherwise. **Verified** = read in the primary source or measured here;
-**second-hand** = from search results or a summary, not opened.
-
 ## R16. The installer is Python, beside the hook and the audit
 
 **Decision**: `cli.py install --tests … --sources … --run …`, a module of the same package as the
@@ -465,6 +459,13 @@ is the standard library's, and the `jq` dependency goes with the bash. The `pyth
 `install-stop-gate.sh` and the plan's first choice — lost on the duplicated base, configuration and
 glob logic, and on the extra dependency. Calling Python from bash for those three checks — two
 languages for one installer, for no gain over writing it in the one that has them.
+
+
+# Landscape and evidence (2026-10-07)
+
+The research behind R0–R16, kept whole so a later session does not redo it. Sources were read on
+2026-10-07 unless dated otherwise. **Verified** = read in the primary source or measured here;
+**second-hand** = from search results or a summary, not opened.
 
 ## L1. What motivated the feature: the renta run on preset 1.6.0
 

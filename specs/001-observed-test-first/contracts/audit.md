@@ -26,7 +26,8 @@ python3 .specify/presets/test-first/scripts/python/cli.py audit --stop [--budget
   directory, removed with it. At start it prunes scratch worktrees an earlier audit left
   registered (killed or crashed), so the repository is left as found.
 
-Output, stdout: one line per new test, `<verdict> <test id> <record> <tool> <call>`, with `-` for
+Output, stdout: one line per new test, `<verdict> <test id> <record> <tool> <call>` — for a file no
+run could read, its path in place of the test id (data-model.md, Verdict) — with `-` for
 the three fields of `unobserved`, which rests on no record of its own, followed for
 `refactored` by the tests it replaced and for `born-green` by its reason; grouped by verdict, then
 a summary line `audit: <n> new tests: <count per verdict>; <pass|FAIL>`. Each failing verdict ends

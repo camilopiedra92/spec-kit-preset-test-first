@@ -13,7 +13,7 @@ own red runs; a hook records the worktree after every tool call and an audit
 replays the records. MAJOR because a project's workflow changes: the rules
 the implement skill gave the agent are replaced, and the next
 `/speckit-implement` commits two hook entries. Evidence for each rule, and
-what was measured: README, "Why this shape".
+what was measured: README, "Why 2.0.0's rules, by source".
 
 ### Added
 

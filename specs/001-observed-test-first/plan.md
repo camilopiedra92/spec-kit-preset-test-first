@@ -63,7 +63,7 @@ once per turn (FR-024); the audit reads nothing the agent writes as evidence (FR
 |---|---|---|
 | I. Append, Never Replace | Both fragments still append; the implement fragment names each core rule it overrides, and `tests/compose.sh` keeps grepping core for them | Pass |
 | II. Verified Against the Real CLI | `tests/compose.sh` checks the new scripts land where the fragment runs them; CI's pinned and latest legs are unchanged | Pass |
-| III. Every Rule Has Its Evidence | The README gains the source of each changed rule (research.md R0–R15), including the renta measurement, the runner measurements and the rules removed | Pass |
+| III. Every Rule Has Its Evidence | The README gains the source of each changed rule (research.md R0–R16), including the renta measurement, the runner measurements and the rules removed | Pass |
 | IV. Scripts Fail Closed and Bounded | The installer refuses like `install-stop-gate.sh` and leaves the repository unchanged; the hook reports failures instead of hiding them; every replay goes through `run-bounded.sh`; the Stop audit has a budget, and a birth it did not judge is never a pass; a pass against other code is accepted only after the no-sources run fails (FR-025) | Pass |
 | V. Released by Tag | 2.0.0 in `preset.yml`, CHANGELOG, tag; the new dev files (`pyproject.toml`, `uv.lock`) are export-ignored and `tests/compose.sh` checks it | Pass |
 
@@ -138,7 +138,7 @@ repository and lands as its own setup task, as the global rules ask of a missing
 ```text
 specs/001-observed-test-first/
 ├── plan.md              # This file
-├── research.md          # Decisions R0–R15 with alternatives; landscape L1–L9
+├── research.md          # Decisions R0–R16 with alternatives; landscape L1–L9
 ├── data-model.md        # Record, ledger, effective history, runs, lifecycle, verdicts
 ├── quickstart.md        # End-to-end validation
 ├── contracts/           # Configuration, hook, audit and installer interfaces
