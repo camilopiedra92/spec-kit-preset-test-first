@@ -37,7 +37,7 @@ called directional when it is one run per arm.
 Rationale: the fragments are instructions to an agent; without evidence a rule cannot be weighed
 against its cost when the next version is decided, and a measurement without its tools' versions
 cannot be repeated when one of them moves. Check: a reviewer looks for the README entry
-(the "Why this shape" sources or a release's measurement) of every changed rule, and for the
+(its "Why … rules, by source" section or a release's measurement) of every changed rule, and for the
 CHANGELOG entry that describes it.
 
 ### IV. Scripts Fail Closed and Bounded
@@ -71,7 +71,7 @@ PATCH for a fix. What is not part of the preset is `export-ignore`.
 Rationale: the archive is the artifact; a file in the repository that is not export-ignored lands
 in every project that installs it. Check: `tests/compose.sh` builds the archive with `git archive`
 as GitHub does and fails if the installed preset carries this repository's `.specify/`, `.claude/`,
-`specs/`, `docs/`, `CLAUDE.md`, `pyproject.toml` or `uv.lock`; a reviewer checks that `preset.yml`,
+`specs/`, `docs/`, `CLAUDE.md`, `pyproject.toml`, `uv.lock` or `.gitignore`; a reviewer checks that `preset.yml`,
 the CHANGELOG and the tag agree.
 
 ### VI. Observed, Not Reported
@@ -104,4 +104,4 @@ This constitution overrides any other practice in this repository where they con
 - Versioning of this file: MAJOR for a principle removed or redefined incompatibly, MINOR for a
   principle or section added or materially expanded, PATCH for wording.
 
-**Version**: 1.1.0 | **Ratified**: 2026-10-07 | **Last Amended**: 2026-10-07
+**Version**: 1.1.1 | **Ratified**: 2026-10-07 | **Last Amended**: 2026-10-07
