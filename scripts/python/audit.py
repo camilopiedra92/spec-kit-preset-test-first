@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import re
 import shlex
@@ -63,6 +65,9 @@ class Replayer:
         self.config = config
         self.temporary = Path()
         self.scratch = Path()
+        self.memo = Path(
+            _git(worktree, "rev-parse", "--path-format=absolute", "--git-path", "test-first/runs")
+        )
 
     def __enter__(self) -> Replayer:
         self._prune_abandoned()
@@ -97,6 +102,24 @@ class Replayer:
         shutil.rmtree(self.temporary, ignore_errors=True)
 
     def run(self, tree: str, file: str, deadline: int) -> RunResult:
+        """The file's outcomes at the tree, from the memo when this run was already made."""
+        entry = (
+            self.memo / hashlib.sha256(f"{tree}\0{file}\0{self.config.run}".encode()).hexdigest()
+        )
+        if entry.exists():
+            stored = json.loads(entry.read_text())
+            if not stored["timed_out"] or stored["deadline"] >= deadline:
+                return RunResult(stored["outcomes"], stored["timed_out"])
+        result = self._replay(tree, file, deadline)
+        # A run that wrote no JUnit may be the environment's fault, not the tree's: not kept.
+        if result.outcomes is not None or result.timed_out:
+            self.memo.mkdir(parents=True, exist_ok=True)
+            partial = entry.with_suffix(f".{os.getpid()}.tmp")
+            partial.write_text(json.dumps({**result._asdict(), "deadline": deadline}))
+            os.replace(partial, entry)  # atomic: a killed audit leaves no torn entry
+        return result
+
+    def _replay(self, tree: str, file: str, deadline: int) -> RunResult:
         _git(self.scratch, "read-tree", "-u", "--reset", tree)
         _git(self.scratch, "clean", "-fdxq")
         junit = self.temporary / "junit.xml"

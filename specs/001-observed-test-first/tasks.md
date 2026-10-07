@@ -213,15 +213,21 @@ code" and "test and code in one shell call"; the audit reports `red` and exits 0
   - a running audit's scratch worktree is left alone (found during implementation: a Stop audit
     beside a story-close audit)
     - passed on its first run; pruning regardless of the owner on purpose failed it, restored
-- [ ] T011 [US1] Memoize runs in `scripts/python/audit.py` under
+- [X] T011 [US1] Memoize runs in `scripts/python/audit.py` under
   `git rev-parse --git-path test-first/runs`, keyed by (tree id, file, hash of `run`) (data-model
   "Run", Memo; FR-026)
   - the same key twice → the command runs once
+    - red: `assert 2 == 1` (no memo)
   - a different `run` string → runs again
+    - passed on its first run; a key without the command on purpose failed it (`1 == 2`), restored
   - a run that wrote no JUnit → not stored; runs again next time
+    - passed on its first run; storing every run on purpose failed it (`1 == 2`), restored
   - a timed-out run stored with its deadline → not retried under the same or a shorter deadline;
     retried under a longer one
+    - passed on its first run; never retrying on purpose failed it (`assert not True`), restored
   - the memo directory deleted → the next audit gives the same verdicts
+    - passed on its first run, and nothing short of a nondeterministic run could break it: it
+      pins that the memo is only a cache (the run count shows the second audit really ran)
 - [ ] T012 [US1] Build the replay trees in `scripts/python/audit.py` with git plumbing, without
   touching the real index: before-version of *g*, base overlay of *r*, no-sources of *r*, and the
   load probe's tree (data-model "Run", variants; research R5; FR-028)
