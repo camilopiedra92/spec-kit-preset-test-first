@@ -190,19 +190,29 @@ code" and "test and code in one shell call"; the audit reports `red` and exits 0
     - passed on its first run (`iter` walks every level); one level only on purpose failed it, restored
   - malformed XML → "no JUnit" (treated as a run that wrote none)
     - red: `xml.etree.ElementTree.ParseError: unclosed token` escaped
-- [ ] T010 [US1] Run one test file in a scratch worktree in `scripts/python/audit.py`: one
+- [X] T010 [US1] Run one test file in a scratch worktree in `scripts/python/audit.py`: one
   detached scratch worktree in a temporary directory, `git read-tree -u --reset <tree>`,
   `git clean -fdx`, the configured command through `sh -c` and
   `scripts/bash/run-bounded.sh <deadline>`, `{file}`, `{junit}` and `{root}` substituted and
   shell-quoted; stale scratch worktrees of an earlier killed audit pruned at start; removed on exit
   (research R7; FR-011; constitution IV)
   - a passing test file → its outcomes; the command ran with the scratch worktree as cwd
+    - red: `AttributeError: … no attribute 'Replayer'`, then `assert None == {…}` from the stub
   - a file name with a space and a quote → substituted safely
+    - passed on its first run; substituting without `shlex.quote` on purpose failed it, restored
   - a command that hangs → stopped at the deadline with its process group; "timed out"
+    - passed on its first run (run-bounded.sh); a single-process `subprocess.run(timeout=…)` on
+      purpose failed it (`a child of the command outlived the deadline`), restored
   - an untracked cache from a previous run (`__pycache__`) → gone before the next run
+    - passed on its first run; dropping `git clean -fdx` on purpose failed it (`c::stale`), restored
   - `{root}` → the real worktree's absolute path
+    - passed on its first run; substituting the scratch path on purpose failed it, restored
   - after the audit, `git worktree list` shows only the real worktrees; after a killed audit and a
     rerun, the same
+    - red (killed): the dead audit's scratch worktree stayed registered
+  - a running audit's scratch worktree is left alone (found during implementation: a Stop audit
+    beside a story-close audit)
+    - passed on its first run; pruning regardless of the owner on purpose failed it, restored
 - [ ] T011 [US1] Memoize runs in `scripts/python/audit.py` under
   `git rev-parse --git-path test-first/runs`, keyed by (tree id, file, hash of `run`) (data-model
   "Run", Memo; FR-026)

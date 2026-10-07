@@ -33,7 +33,10 @@ def test_a_file_name_with_a_space_and_a_quote_reaches_the_command_whole(repo: Pa
     git(repo, "add", "-A")
     git(repo, "commit", "-q", "-m", "odd name")
     tree = git(repo, "rev-parse", "HEAD^{tree}")
-    run = 'test -f {file} && printf \'<testsuites><testcase classname="c" name="ok"/></testsuites>\' > {junit}'
+    run = (
+        "test -f {file} && "
+        'printf \'<testsuites><testcase classname="c" name="ok"/></testsuites>\' > {junit}'
+    )
 
     with audit.Replayer(repo, config(run)) as replayer:
         result = replayer.run(tree, odd, deadline=30)
@@ -77,7 +80,10 @@ def test_an_untracked_cache_from_one_run_is_gone_before_the_next(repo: Path) -> 
 
 def test_root_names_the_real_worktree(repo: Path) -> None:
     tree = git(repo, "rev-parse", "HEAD^{tree}")
-    run = 'printf \'<testsuites><testcase classname="c" name="%s"/></testsuites>\' {root} > {junit} # {file}'
+    run = (
+        'printf \'<testsuites><testcase classname="c" name="%s"/></testsuites>\' {root}'
+        " > {junit} # {file}"
+    )
 
     with audit.Replayer(repo, config(run)) as replayer:
         result = replayer.run(tree, "tests/test_a.py", deadline=30)
