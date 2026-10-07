@@ -73,9 +73,9 @@ change:
 ## Imported tests
 
 A test is **imported** when its birth record's `head` differs from its previous's `head`, and a run
-of its file on the tree of that `head` commit reports it: it arrived with commits this ledger did not
-see being written (a merge, a fast-forward, a pull, a cherry-pick). It is `unobserved`. Tests the
-agent wrote and then committed are never imported, because they appeared in an earlier record,
+of its file on the tree of that `head` commit reports it: it arrived with commits this ledger did
+not see being written (a merge, a fast-forward, a pull, a cherry-pick). It is `unobserved`. Tests
+the agent wrote and then committed are never imported, because they appeared in an earlier record,
 before the commit.
 
 ## Base
@@ -145,14 +145,14 @@ one whose birth is imported (above) is `unobserved`. The common case — a test 
 costs one run beyond the touching records', and a scan happens only for a test that appeared
 without its file changing.
 
-**Restored**: a test born at a record where its file's content is identical to the file's content
-at an earlier record of the effective history, at which the test had an accepted verdict (found by
-the same procedure, with that earlier record as the newest), keeps that verdict. A `git stash` and
-`git stash pop`, or undoing a rename, brings back what was already judged; the redo sequence is not
+**Restored**: a test born at a record where its file's content is identical to the file's content at
+an earlier record of the effective history, at which the test had an accepted verdict (found by the
+same procedure, with that earlier record as the newest), keeps that verdict. A `git stash` and `git
+stash pop`, or undoing a rename, brings back what was already judged; the redo sequence is not
 affected, since the verdict it replaces was not accepted. Limit (outside the threat model, research
-R0): the code beside the restored test is not compared, so an accepted test deleted with its code and written back identically next to
-different code keeps its verdict; the test was observed red once, and the mutation check measures
-it against the code it now covers.
+R0): the code beside the restored test is not compared, so an accepted test deleted with its code
+and written back identically next to different code keeps its verdict; the test was observed red
+once, and the mutation check measures it against the code it now covers.
 
 ## Test lifecycle (one test, forward from its birth)
 
@@ -203,9 +203,10 @@ does not load at the newest record — or, when the run wrote no JUnit at all, t
 none (check `run` and the environment). When the base's run of the file is inconclusive, which of
 its tests are new cannot be told: they are `not-judged`, with that reason.
 
-An **accepted** verdict is `red`, `predates` or `refactored`. `never-run` does not fail the audit but
-is not accepted: a test that never ran replaces nothing. A test added to an unchanged test file by a change elsewhere
-(a row in a case table outside the file) is not found: a stated limit (FR-022).
+An **accepted** verdict is `red`, `predates` or `refactored`. `never-run` does not fail the audit
+but is not accepted: a test that never ran replaces nothing. A test added to an unchanged test file
+by a change elsewhere (a row in a case table outside the file) is not found: a stated limit
+(FR-022).
 
 | Verdict | Condition | Fails the audit | Final before the end |
 |---|---|---|---|
@@ -228,16 +229,17 @@ Remedies, which the audit prints with each failing verdict:
 | Verdict | Remedy |
 |---|---|
 | `born-with-code`, `born-green` (step 4), `rewritten-to-green` | the redo sequence (below) |
-| `born-green` (step 1) | the configuration, in a commit of its own (FR-013): add the code's paths to `sources`, or make `run` use the scratch worktree's code |
+| `born-green` (step 1) | the configuration, committed on its own so the owner sees it: add the code's paths to `sources`, or make `run` use the scratch worktree's code |
 | `still-red` | write the code that makes it pass, in a call that changes no test-side path |
 | `unobserved` | the redo sequence, which gives the test a birth in this ledger |
 | `not-judged` | as its reason says: a longer `--deadline`; the redo sequence after changing shared test support in a call of its own; making the file load; fixing `run`; for a file that does not load at the base, fixing it on the default branch or passing `--base` a commit where it loads |
 
 The Stop hook blocks only on failing verdicts that are final before the end; the story-close audit
-fails on every failing verdict. A test written and committed in the same call is imported, since its record's HEAD already holds
-it: commits go in a call of their own. The remedy for `born-with-code`, `born-green` (step 4) and
-`rewritten-to-green` is the redo sequence: remove the test — its file, when it is the file's only
-test — revert the code it covers, write the test again in a call that changes nothing else, run it
-and see it fail, restore the code. Under a runner that reports a file without tests as a load
-failure (Vitest), an emptied file's runs are inconclusive and the removal is not observed — the
-earlier birth would stand — which is why the redo sequence removes the file itself.
+fails on every failing verdict. A test written and committed in the same call is imported, since its
+record's HEAD already holds it: commits go in a call of their own. The remedy for `born-with-code`,
+`born-green` (step 4) and `rewritten-to-green` is the redo sequence: remove the test — its file,
+when it is the file's only test — revert the code it covers, write the test again in a call that
+changes nothing else, run it and see it fail, restore the code. Under a runner that reports a file
+without tests as a load failure (Vitest), an emptied file's runs are inconclusive and the removal is
+not observed — the earlier birth would stand — which is why the redo sequence removes the file
+itself.

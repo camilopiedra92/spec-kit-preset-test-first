@@ -306,17 +306,18 @@ born-with-code test is blocked once, and the next stop passes.
 `speckit-implement` carries each instruction; installing from it records.
 
 - [ ] T023 [US3] `scripts/bash/install-ledger.sh`: write `.specify/test-first.json` and both hook
-  entries (`PostToolUse` matcher `*`; `Stop` with `timeout` 300, in seconds) into `.claude/settings.json`,
-  creating it when absent, keeping every other
-  entry, and commit exactly those two files as one commit; refuse with exit 1, the repository
-  unchanged, on each condition of contracts/install-ledger.md (FR-013; FR-014; constitution IV)
+  entries (`PostToolUse` matcher `*`; `Stop` with `timeout` 300, in seconds) into
+  `.claude/settings.json`, creating it when absent, keeping every other entry, and commit exactly
+  those two files as one commit; refuse with exit 1, the repository unchanged, on each condition of
+  contracts/install-ledger.md (FR-013; FR-014; constitution IV)
   - a clean repository with tracked tests → one commit, two files, both entries, config as given
   - an existing `hooks.Stop` entry (the 1.x Stop gate) → kept, the new one added beside it
   - not at the root with `.specify/` → refused
   - detached HEAD → refused; HEAD on the default branch → refused; no base resolves → refused
   - something staged → refused
   - no `.claude/settings.json` → created, in the commit
-  - `.claude/settings.json` uncommitted, ignored, not a regular file, or skip-worktree → refused
+  - `.claude/settings.json` untracked, tracked with uncommitted changes, ignored, not a regular
+    file, or skip-worktree → refused
   - a ledger entry already present → refused
   - `--run` without `{file}` or `{junit}` → refused; a missing flag → refused
   - test globs matching no tracked file → refused

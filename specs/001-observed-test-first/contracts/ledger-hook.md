@@ -19,8 +19,8 @@ Input: Claude Code's `PostToolUse` JSON on stdin; fields read: `cwd`, `session_i
 1. Resolve the git worktree of `cwd`. Not in a git worktree, or its root has no
    `.specify/test-first.json`: exit 0, no output.
 2. Snapshot the worktree (data-model.md, Record), with `branch` and `head`, through a temporary
-   index under `git rev-parse --git-path test-first/`, removed on exit; if the tree equals the
-   newest record's: exit 0.
+   index in the system's temporary location (never in the repository), removed on exit; if the
+   tree equals the newest record's: exit 0.
 3. Append a record and move `refs/worktree/test-first/ledger` atomically, retrying a lost race up to
    five times.
 4. If the change is mixed: exit 2; stderr names the test paths and the source paths, and says that
@@ -34,8 +34,9 @@ never modified.
 
 No `timeout` is set on this entry, so Claude Code's 600-second default applies; a snapshot takes
 tens of milliseconds (research L7). A hook killed mid-run leaves the ref at the old or the new
-record and at most unreachable objects, which `git gc` prunes, and its temporary index, which is
-named per process and replaced by the next run's; the next call's record then carries
+record and at most unreachable objects, which `git gc` prunes; its temporary index stays in the
+system's temporary location, outside the repository, for the system to clean; the next call's
+record then carries
 the killed call's changes under the next call's name, which fails closed.
 
 ## Stop: `audit.py --stop`
@@ -52,11 +53,12 @@ Input: Claude Code's `Stop` JSON on stdin; fields read: `cwd`, `session_id`, `st
    60-second deadline, so its worst case is the budget plus one run and its load probe (240 s),
    inside the entry's `timeout` of 300 seconds — set because Claude Code cancels a hook that reaches
    its timeout and discards its output, so a timed-out Stop audit would let the turn end without a
-   decision (research L7): no new run starts after the budget is spent, and a run already stopped by a
-   deadline at least that long is not retried; what is left is judged by a later turn or the
+   decision (research L7): no new run starts after the budget is spent, and a run already stopped by
+   a deadline at least that long is not retried; what is left is judged by a later turn or the
    story-close audit, from the memo.
 4. If any new test has a failing verdict that is final before the end (data-model.md): exit 2;
-   stderr lists those tests with their verdict, record and call, and the redo sequence.
+   stderr lists those tests with their verdict, record and call, and each one's remedy from
+   data-model.md's remedy table.
 5. Otherwise exit 0, with no output. Births the budget left unjudged are judged by a later turn or
    the story-close audit; nothing about them reaches Claude at this stop.
 

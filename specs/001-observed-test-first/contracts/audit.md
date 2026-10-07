@@ -14,14 +14,16 @@ python3 .specify/presets/test-first/scripts/python/audit.py --stop [--budget <se
   the newest record, so edits made between calls are judged.
 - Judges the current branch's effective history (data-model.md). Refuses, exit 2, on a detached
   HEAD, HEAD on the default branch, no ledger, no configuration or no base.
-- Reads, and nothing else: its arguments (and, under `--stop`, the hook JSON on stdin); the ledger
-  ref, `HEAD`, the default-branch refs, whether an `origin` remote exists, and
-  `init.defaultBranch`; the worktree registry, to prune its own scratch worktrees; record messages and the trees they
-  name, which it materializes for the configured command and never parses, except
-  `.specify/test-first.json`; the JUnit files its runs write; and the memo. It never reads a file of
-  a record as evidence — `tasks.md` included (FR-012). Writes only the memo,
-  a temporary directory removed on exit, and the scratch worktree's registration in the repository's
-  common git directory, removed with it. At start it prunes scratch worktrees an earlier audit left
+- Reads, and nothing else: its arguments (and, under `--stop`, the hook JSON on stdin); the
+  worktree, only to snapshot it as the hook does; the ledger ref, `HEAD`, the default-branch refs,
+  whether an `origin` remote exists, and `init.defaultBranch`; the worktree registry, to prune its
+  own scratch worktrees; record messages and the trees they name and the base commit's tree, which
+  it materializes for the configured command and never parses, except `.specify/test-first.json`;
+  the JUnit files its runs write; and the memo. It never reads a file of a record as evidence —
+  `tasks.md` included (FR-012). Writes only: the snapshot's record (git objects and the ledger
+  ref), as the hook does; the memo; a temporary directory in the system's temporary location,
+  removed on exit; and the scratch worktree's registration in the repository's common git
+  directory, removed with it. At start it prunes scratch worktrees an earlier audit left
   registered (killed or crashed), so the repository is left as found.
 
 Output, stdout: one line per new test, `<verdict> <test id> <record> <tool> <call>`, with `-` for
@@ -30,5 +32,5 @@ the three fields of `unobserved`, which rests on no record of its own, followed 
 a summary line `audit: <n> new tests: <count per verdict>; <pass|FAIL>`. Each failing verdict ends
 with its remedy, as data-model.md's remedy table gives it.
 
-Exit: 0 when every new test is `red`, `predates`, `refactored` or `never-run`; 1 otherwise; 2 on a usage or
-configuration error.
+Exit: 0 when every new test is `red`, `predates`, `refactored` or `never-run`; 1 otherwise; 2 on a
+usage or configuration error.

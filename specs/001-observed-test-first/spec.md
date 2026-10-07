@@ -20,17 +20,17 @@ was then justified by breaking the code on purpose, as the 1.6.0 fragment allows
 passes on its first run has not been watched failing. Break the code it pins on purpose..."). The
 red runs recorded in `tasks.md` are written by the same agent that writes the code.
 
-No spec-driven framework or agent tool surveyed on 2026-10-07 verifies the order from what
-happened: Spec Kit core, Kiro, BMAD, obra/superpowers, OpenSpec, Gemini Conductor and cc-sdd
-prompt for test-first, and the ones that check something check the agent's own report (pasted red
-output, supplied counts, a commit message); TDD Guard and its successor Probity judge each write
-with a language model. Fault detection is measured to depend on the test being written without the
-code in view (arXiv 2607.05139: 25% of faults found against 14% when written after faulty code);
-observed order is necessary for that, though not proof of it — a test can still be written after
-code drafted elsewhere. The mechanical check that a test encodes new behaviour is SWE-bench's FAIL_TO_PASS:
-the test fails before the change and passes after. This feature applies that check at the moment
-each test was written and at the call that made it pass. It checks order, not strength: whether a
-test's assertions tell right from wrong is measured by mutation testing at the story review.
+No spec-driven framework or agent tool surveyed on 2026-10-07 verifies the order from what happened:
+Spec Kit core, Kiro, BMAD, obra/superpowers, OpenSpec, Gemini Conductor and cc-sdd prompt for
+test-first, and the ones that check something check the agent's own report (pasted red output,
+supplied counts, a commit message); TDD Guard and its successor Probity judge each write with a
+language model. Fault detection is measured to depend on the test being written without the code in
+view (arXiv 2607.05139: 25% of faults found against 14% when written after faulty code); observed
+order is necessary for that, though not proof of it — a test can still be written after code drafted
+elsewhere. The mechanical check that a test encodes new behaviour is SWE-bench's FAIL_TO_PASS: the
+test fails before the change and passes after. This feature applies that check at the moment each
+test was written and at the call that made it pass. It checks order, not strength: whether a test's
+assertions tell right from wrong is measured by mutation testing at the story review.
 
 ## Clarifications
 
@@ -244,9 +244,9 @@ that the gate still runs and the composed skills read an old `tasks.md`.
   its records were lost): the audit reports it as unobserved and fails; it never assumes a red it
   did not see.
 - A test moved or renamed: refactored when its call changed only test-side paths and replaced at
-  least as many accepted tests as it adds passing ones; predating the feature when it also passes against the base; otherwise born
-  green, or born with its code when its call changed source. The fragment has tests renamed in
-  calls of their own.
+  least as many accepted tests as it adds passing ones; predating the feature when it also passes
+  against the base; otherwise born green, or born with its code when its call changed source. The
+  fragment has tests renamed in calls of their own.
 - A test id generated from code (a parametrized case named after an enum member) that changes
   because the code changed: refactored by the same count, within its file.
 - A test added to an unchanged test file by a change elsewhere (a row in a case table kept in
@@ -321,25 +321,26 @@ that the gate still runs and the composed skills read an old `tasks.md`.
 - **FR-007**: For each new test, the audit MUST find, along the current branch's own line of
   records, its birth (the record where it last appeared after being absent, as observed at the
   records that changed its file and, when it appeared without its file changing, at the records
-  between; a test that arrived with commits the ledger did not see written has none; a test
-  restored with its file exactly as when it was accepted keeps that verdict), the first record from there where it ran, and, when that run did not
-  pass, the first record where it passed; each by replaying its file at that record in an isolated
-  copy of the worktree. A run that writes no results, or reports exactly what the same command
-  reports for that file replaced by unparseable content, MUST NOT end a stretch.
+  between; a test that arrived with commits the ledger did not see written has none; a test restored
+  with its file exactly as when it was accepted keeps that verdict), the first record from there
+  where it ran, and, when that run did not pass, the first record where it passed; each by replaying
+  its file at that record in an isolated copy of the worktree. A run that writes no results, or
+  reports exactly what the same command reports for that file replaced by unparseable content, MUST
+  NOT end a stretch.
 - **FR-008**: A run's outcome for a test MUST be failed for a failure or an error, skipped, or
   passed; skipped runs MUST be passed over in finding the first run.
 - **FR-009**: The audit MUST report each new test as one of: red (its first run did not pass, and
-  the test side as it stood before the call that made it pass passes after that call); predates
-  the feature (its first run passed, it fails without any source file, and it passes against the
-  base's code); refactored (its first run passed, it fails without any source file, and its call —
-  not one that changed test-side paths and any other path together — replaced at least as many accepted tests of the
-  feature as it added passing ones; it lists them);
-  born with its code (its first run passed, and that call changed source); born green (its first
-  run passed otherwise, or it passes without any source file); rewritten to green (its test side
-  from before the call that made it pass fails after that call); still red; unobserved; not judged
-  (a replay exceeded its deadline; the order could not be told because the earlier test side does
-  not load; its file does not load, or its command wrote no JUnit, at the newest record; or the
-  base's run of its file was inconclusive); never run (only skipped so far).
+  the test side as it stood before the call that made it pass passes after that call); predates the
+  feature (its first run passed, it fails without any source file, and it passes against the base's
+  code); refactored (its first run passed, it fails without any source file, and its call — not one
+  that changed test-side paths and any other path together — replaced at least as many accepted
+  tests of the feature as it added passing ones; it lists them); born with its code (its first run
+  passed, and that call changed source); born green (its first run passed otherwise, or it passes
+  without any source file); rewritten to green (its test side from before the call that made it pass
+  fails after that call); still red; unobserved; not judged (a replay exceeded its deadline; the
+  order could not be told because the earlier test side does not load; its file does not load, or
+  its command wrote no JUnit, at the newest record; or the base's run of its file was inconclusive);
+  never run (only skipped so far).
 - **FR-010**: The audit MUST exit zero only when every new test is red, predates the feature, is
   refactored or never ran, and non-zero otherwise; it MUST list the tests that never ran.
 - **FR-011**: Every replay MUST run under a deadline that kills the command's whole process group.
@@ -347,14 +348,14 @@ that the gate still runs and the composed skills read an old `tasks.md`.
   the agent writes as evidence).
 - **FR-013**: The project's configuration — test file patterns, source file patterns, and the
   command that runs one given test file and writes JUnit XML to a given path — MUST be given at
-  install and committed in the repository, and changed only by a commit of its own.
+  install and committed in the repository.
 - **FR-014**: Installing the ledger MUST be one commit holding only the ledger's two hook entries
-  and the configuration — creating `.claude/settings.json` when it does not exist — and MUST
-  refuse, leaving the repository unchanged, on: not being at the repository root with `.specify/`;
-  a detached HEAD; no resolvable default branch; anything staged; a settings file that is
-  uncommitted, ignored, not a regular file or marked skip-worktree; an existing entry for the
-  ledger; HEAD on the default branch; an incomplete configuration; test patterns matching no tracked file; `jq` missing; a
-  commit hook rejecting the commit.
+  and the configuration — creating `.claude/settings.json` when it does not exist — and MUST refuse,
+  leaving the repository unchanged, on: not being at the repository root with `.specify/`; a
+  detached HEAD; no base resolving (data-model.md, Base); anything staged; a settings file that is
+  untracked, tracked with uncommitted changes, ignored, not a regular file or marked skip-worktree;
+  an existing entry for the ledger; HEAD on the default branch; an incomplete configuration; test
+  patterns matching no tracked file; `jq` missing; a commit hook rejecting the commit.
 - **FR-015**: The `speckit-implement` fragment MUST install the ledger before the first task when it
   is not installed, and MUST say so in the completion report when it cannot.
 - **FR-016**: The `speckit-implement` fragment MUST instruct that each case's test is written and
@@ -367,9 +368,9 @@ that the gate still runs and the composed skills read an old `tasks.md`.
 - **FR-018**: The `speckit-implement` fragment MUST run the audit at the close of each user story,
   before the independent review, give its report to the reviewer, and prescribe the remedy of each
   failing verdict as data-model.md lists it: the redo sequence for a test born with its code, born
-  green or rewritten to green; the configuration for one that passes without sources; the code,
-  in a call that changes no test-side path, for one still red; the redo sequence for one unobserved; and the
-  reason's remedy for one not judged.
+  green or rewritten to green; the configuration for one that passes without sources; the code, in a
+  call that changes no test-side path, for one still red; the redo sequence for one unobserved; and
+  the reason's remedy for one not judged.
 - **FR-019**: The story review MUST use the project's mutation check where the project's
   constitution or CI names one, and hand-written wrong versions otherwise.
 - **FR-020**: The `speckit-tasks` fragment MUST add a property case to the test list of a task that
@@ -390,7 +391,8 @@ that the gate still runs and the composed skills read an old `tasks.md`.
   worktree, an un-ignored secret included, locally, which `git push --mirror` would send, and no
   git-ignored file; that concurrent writers in one worktree are unsupported and fail closed; and
   that code drafted outside the worktree and brought in later is not distinguishable from code
-  written in place.
+  written in place; that a test that existed at the base and changed in the feature is not judged;
+  and that a test new in the feature but deleted before the audit is not judged.
 - **FR-023**: Each rule added to or removed from a fragment MUST carry its evidence in the README
   (constitution III), and every script MUST have a test suite run in CI (constitution IV).
 - **FR-024**: At the end of every turn — except on a detached HEAD, on the default branch, or when
@@ -406,8 +408,8 @@ that the gate still runs and the composed skills read an old `tasks.md`.
 - **FR-026**: Each audit MUST snapshot the worktree first when it differs from the newest record,
   and MUST reuse the outcome of any replay already made on the same tree, file and command.
 - **FR-027**: The base MUST be the merge base with the remote-tracking default branch when the
-  repository has an `origin` remote, resolved without network access, and the audit MUST refuse on the default branch itself, so a local merge cannot empty the
-  set of new tests.
+  repository has an `origin` remote, resolved without network access, and the audit MUST refuse on
+  the default branch itself, so a local merge cannot empty the set of new tests.
 - **FR-028**: Replays MUST take the test side and the rest of the tree as wholes — the test side
   from one record, everything else from another — so that a change outside the source and test
   file patterns cannot pass unjudged.
@@ -434,8 +436,9 @@ that the gate still runs and the composed skills read an old `tasks.md`.
   failure (code and test in one call),
   100% of those tests are reported as born with their code, and the audit fails.
 - **SC-002**: On the recorded sequences of quickstart step 4 marked SC-002: on a sequence that
-  follows the cycle (test alone, red, then code), 0 tests fail the audit; on one where code comes one call before its test, or the test is rewritten in the call
-  that turns it green, 100% of those tests fail it.
+  follows the cycle (test alone, red, then code), 0 tests fail the audit; on one where code comes
+  one call before its test, or the test is rewritten in the call that turns it green, 100% of those
+  tests fail it.
 - **SC-003**: Recording adds at most 100 ms per tool call — the median of five snapshots of a
   scratch repository of 1,000 tracked files and no untracked ones — with the machine's model and OS
   recorded beside the result.

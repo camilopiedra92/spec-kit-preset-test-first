@@ -6,8 +6,8 @@ each time after an independent review in a fresh context, and reviewed a third t
 revision added R0, R12 and R13 and the landscape in L3 and L9; the second made replays swap whole
 sides of the tree (R5), measured load failures per run (R6) and added R14; the third replaced the
 edge rules that kept opening holes — a driving-change check for renames, following merges, a
-bisection for births — with a count, `unobserved` and a forward scan (R13, R14, data-model.md). Each decision is judged on
-its sources, not on what this repository's constitution already says.
+bisection for births — with a count, `unobserved` and a forward scan (R13, R14, data-model.md). Each
+decision is judged on its sources, not on what this repository's constitution already says.
 
 ## R0. What the machine checks, and what it does not
 
@@ -26,7 +26,8 @@ tells the stub's value from the right one.
 **Threat model**: an agent that takes shortcuts, not one that forges evidence. The agent can write
 the ledger's ref and the hook settings; the audit does not defend against that, and the README says
 so. ImpossibleBench (arXiv 2510.20270) shows agents editing tests to pass, so the audit does detect
-the observable form of that: a test changed in the call that turned it green (R5, `rewritten-to-green`).
+the observable form of that: a test changed in the call that turned it green (R5,
+`rewritten-to-green`).
 
 ## R1. Observe the worktree's state, not the agent's commands
 
@@ -67,10 +68,10 @@ order — and concurrent writers are outside the supported workflow (FR-016).
 ## R2. The ledger is a chain of commits under a per-worktree ref
 
 **Decision**: each record is `git commit-tree <tree> -p <previous record>` with a JSON message
-naming the time, session, subagent, tool, call, branch and HEAD commit; `refs/worktree/test-first/ledger`
-points at the newest. The tree comes from a temporary index seeded from the worktree's own index,
-`git add -A`, `git write-tree`. A call that leaves the tree unchanged adds no record. The ref moves
-with `git update-ref <ref> <new> <old>`, retried on a race.
+naming the time, session, subagent, tool, call, branch and HEAD commit;
+`refs/worktree/test-first/ledger` points at the newest. The tree comes from a temporary index seeded
+from the worktree's own index, `git add -A`, `git write-tree`. A call that leaves the tree unchanged
+adds no record. The ref moves with `git update-ref <ref> <new> <old>`, retried on a race.
 
 **Rationale**: reachable objects survive `git gc`; `refs/worktree/` is per worktree by git's
 definition, so a linked worktree keeps its own ledger and removing the worktree removes it;
@@ -133,7 +134,7 @@ parse per call.
 did not pass and, at the record where it first passed, the test side as it stood just before that
 record passes against that record's code. A test whose first run passed is accepted only if its
 behaviour predates the feature (passes against the base's sources) or it replaced feature tests in
-a test-only call (`refactored`, R13); otherwise it fails the audit.
+a call that is not two-sided (`refactored`, R13); otherwise it fails the audit.
 
 "Did not pass" is any outcome but passed and skipped: a failure or an error. The audit does not
 try to tell an assertion failure from an exception (R0): measured on pytest 9.1.1 (2026-10-07), a
@@ -185,21 +186,21 @@ command reports on the same tree with that file replaced by unparseable bytes (t
 conclusive run. A run with no case at all is conclusive: the file has no tests.
 
 **Rationale**: the one result format pytest, Jest (jest-junit), Vitest and PHPUnit all write for a
-single test file (pytest's and Vitest's measured, Jest's and PHPUnit's not), so the audit stays language-agnostic. Go writes it through gotestsum, but its
-unit is the package, not the file, so Go is not supported. One file per run because a collection error in one
-file stops pytest from running the others (measured, pytest 9.1.1, without
-`--continue-on-collection-errors`), and a replay must not let one file hide another. Inconclusive
-runs are carried over so that a typo that breaks a file for one call does not end the stretch of
-records in which its tests exist, which would make them be born again later. Runners disagree on
-how a load failure looks (L7, measured 2026-10-07): pytest 9.1.1 reports one `<error>` case named
-after the module with an empty classname, the same for a syntax error and an import that does not
-resolve, and writes no case at all for a file without tests; Vitest 5.0.3 reports one `<failure>`
-case named after the file path for a syntax error, an unresolved import and a file without tests
-alike. A rule written from one runner misreads the other, so the shape is measured at the moment
-it matters, on the same tree and file, and only when a run's cases all failed. Measuring at each
-run also survives a runner upgrade that changes the shape. Because Vitest reports a file without
-tests like a file that cannot load, the redo sequence removes the file when the test it removes is
-the file's only one.
+single test file (pytest's and Vitest's measured, Jest's and PHPUnit's not), so the audit stays
+language-agnostic. Go writes it through gotestsum, but its unit is the package, not the file, so Go
+is not supported. One file per run because a collection error in one file stops pytest from running
+the others (measured, pytest 9.1.1, without `--continue-on-collection-errors`), and a replay must
+not let one file hide another. Inconclusive runs are carried over so that a typo that breaks a file
+for one call does not end the stretch of records in which its tests exist, which would make them be
+born again later. Runners disagree on how a load failure looks (L7, measured 2026-10-07): pytest
+9.1.1 reports one `<error>` case named after the module with an empty classname, the same for a
+syntax error and an import that does not resolve, and writes no case at all for a file without
+tests; Vitest 5.0.3 reports one `<failure>` case named after the file path for a syntax error, an
+unresolved import and a file without tests alike. A rule written from one runner misreads the other,
+so the shape is measured at the moment it matters, on the same tree and file, and only when a run's
+cases all failed. Measuring at each run also survives a runner upgrade that changes the shape.
+Because Vitest reports a file without tests like a file that cannot load, the redo sequence removes
+the file when the test it removes is the file's only one.
 
 **Alternatives considered**: parsing test sources (one parser per language); `pytest
 --collect-only` (pytest only); "inconclusive when every case erred" (the first version: pytest's
@@ -302,14 +303,14 @@ the global rules require of Python code.
 
 ## R12. One audit, two entry points, over the branch's own history
 
-**Decision**: the audit searches the branch's effective history (data-model.md) back from the
-newest record for each new test's birth, then forward from the birth, and every replay it runs is
-memoized by the tree it ran on, the file and the configured command. It runs at two points: a `Stop` hook at the end of every turn, within a
-time budget, which blocks the turn once when a test present in the newest record has a final
-failing verdict (born with its code, born green, rewritten to green); and at the close of each
-story, without a budget, for the full report the reviewer receives. Both snapshot the worktree
-first, so edits made between calls are judged too. The range is not a time: births are found from
-the records themselves, and the base only decides which tests are new.
+**Decision**: the audit searches the branch's effective history (data-model.md) back from the newest
+record for each new test's birth, then forward from the birth, and every replay it runs is memoized
+by the tree it ran on, the file and the configured command. It runs at two points: a `Stop` hook at
+the end of every turn, within a time budget, which blocks the turn once when a test present in the
+newest record has a final failing verdict (born with its code, born green, rewritten to green); and
+at the close of each story, without a budget, for the full report the reviewer receives. Both
+snapshot the worktree first, so edits made between calls are judged too. The range is not a time:
+births are found from the records themselves, and the base only decides which tests are new.
 
 **Rationale**: an audit the agent must remember to run is the prompted check every framework in L3
 already has. A Stop hook is the deterministic gate Claude Code's best practices name for an
@@ -319,15 +320,16 @@ does: ImpossibleBench found a way out (`flag_for_human_intervention`) cut cheati
 for GPT-5, and a gate with none is the pressure under which agents edit tests. So the Stop hook
 guarantees the agent is shown a failing verdict every turn, not that the turn cannot end with one;
 the story-close audit, which the fragment runs, is the full report. Every failing verdict that is
-final has a remedy: the redo sequence for a test written with or after its code, the
-configuration for one that passes without any source; so no exception list is needed. The
-memo makes the Stop run incremental without a second algorithm: a turn pays for replays of its own
-records, until the base moves (a rebase), after which base runs are made again. An environment
-change does not invalidate the memo (data-model.md, Memo). Searching back from the newest record bounds the work to each test's own history, so a
-long-lived ledger does not make older features' records replay. A run that wrote no JUnit is not
-memoized, since a broken installation rather than the tree may be the cause. The effective history follows the
-branch across `checkout -b`, renames, visits to other branches and rebases, which a clock-based range
-does not: rebasing onto a newer main moved the base's time past the feature's early records.
+final has a remedy: the redo sequence for a test written with or after its code, the configuration
+for one that passes without any source; so no exception list is needed. The memo makes the Stop run
+incremental without a second algorithm: a turn pays for replays of its own records, until the base
+moves (a rebase), after which base runs are made again. An environment change does not invalidate
+the memo (data-model.md, Memo). Searching back from the newest record bounds the work to each test's
+own history, so a long-lived ledger does not make older features' records replay. A run that wrote
+no JUnit is not memoized, since a broken installation rather than the tree may be the cause. The
+effective history follows the branch across `checkout -b`, renames, visits to other branches and
+rebases, which a clock-based range does not: rebasing onto a newer main moved the base's time past
+the feature's early records.
 
 **Alternatives considered**:
 - The story-close audit alone (the first version): prompted, so skippable.
@@ -344,10 +346,11 @@ does not: rebasing onto a newer main moved the base's time past the feature's ea
 
 **Decision**: a test whose first run passed is `refactored` — accepted, and listed with the tests it
 replaced — when it fails without the sources (R7), its record's change is not two-sided
-(data-model.md, Change: test-side paths and any other path), accepted tests of the feature disappeared at the same record (from a test file that record changed, or from its own file when the record changed no
-test-side path, as when an enum rename renames parametrized ids), and the tests whose first run
-passed at that record are no more than those that disappeared. When more appear, none is
-refactored, and the fragment tells the agent to split a rename from a new test.
+(data-model.md, Change: test-side paths and any other path), accepted tests of the feature
+disappeared at the same record (from a test file that record changed, or from its own file when the
+record changed no test-side path, as when an enum rename renames parametrized ids), and the tests
+whose first run passed at that record are no more than those that disappeared. When more appear,
+none is refactored, and the fragment tells the agent to split a rename from a new test.
 
 **Rationale**: the implement fragment's refactor step renames, moves and consolidates tests;
 identity by name made each of those a `born-green` failure in the first version. A count is
@@ -418,10 +421,10 @@ preset at 1.6.0 and Spec Kit 1.1.0. One feature: the numbers below are direction
 - Session transcript (Claude Code JSONL), analysed with a script that, for each Bash call running
   pytest, classified which files the same command wrote (test files `tests/…`, source `co/…`,
   detected by `cat >`, `p='…'` in `python3 - <<EOF`, `sed -i`, `printf >>`) and the run's outcome.
-  Of the runs that wrote files: 22 test-only green, 20 code-then-test red, 15 code-only red,
-  13 code-only green, **11 code-and-test (CT) green**, 9 test-only red, others below 5. Reading the
-  11 CT-green commands: production code and its test written in one shell command, then run green
-  — e.g. the `OneOf.nearest` tie rule with "a single option is its own nearest"; the DEFECT/KNOWLEDGE
+  Of the runs that wrote files: 22 test-only green, 20 code-then-test red, 15 code-only red, 13
+  code-only green, **11 code-and-test (CT) green**, 9 test-only red, others below 5. Reading the 11
+  CT-green commands: production code and its test written in one shell command, then run green —
+  e.g. the `OneOf.nearest` tie rule with "a single option is its own nearest"; the DEFECT/KNOWLEDGE
   "exactly one side" rule with three tests ("10 passed"), recorded in tasks.md as "passed on first
   run (the side-count rule)". Verified.
 - The 1.6.0 fragment allowed it: "A new test that passes on its first run has not been watched
@@ -558,8 +561,8 @@ and Antigravity showed nothing test-first-specific in searches (second-hand).
   `git write-tree`, on renta (860 tracked files): 0.04–0.05 s, three runs. Repeated on a fresh clone
   (861 files, git 2.55.0): 0.03–0.04 s seeded each time (three runs), 0.03 s with an index kept
   between calls after a 0.20 s first run (four runs).
-- **Per-worktree refs and push**: `git push <remote> main` sent only `refs/heads/main`;
-  `git push --mirror` also sent `refs/worktree/test-first/ledger` (git 2.55.0, scratch repositories).
+- **Per-worktree refs and push**: `git push <remote> main` sent only `refs/heads/main`; `git push
+  --mirror` also sent `refs/worktree/test-first/ledger` (git 2.55.0, scratch repositories).
 - **pytest 9.1.1 JUnit** (`--junitxml`, one scratch project): an assertion, a missing method, an
   exception inside the code under test, a stub raising `NotImplementedError`, a wrong keyword
   argument and an import inside the test body all give `<failure>` without a `type` attribute; a
@@ -589,10 +592,11 @@ and Antigravity showed nothing test-first-specific in searches (second-hand).
   cancels a `command`, `http`, or `mcp_tool` hook that reaches its `timeout`, discarding the hook's
   output, so on most events a timed-out hook renders no decision" (an earlier WebFetch summary had
   reported milliseconds, which is the Bash tool's `timeout`; corrected from the page's source,
-  `code.claude.com/docs/en/hooks.md`); the Stop input carries `stop_hook_active`, "`true` when Claude Code is
-  already continuing as a result of a stop hook"; "after stop hooks have continued the turn eight
-  times in a row, Claude Code overrides the next block and ends the turn", and "the count resets
-  each time Claude calls a tool". Read 2026-10-07 (code.claude.com/docs/en/hooks).
+  `code.claude.com/docs/en/hooks.md`); the Stop input carries `stop_hook_active`, "`true` when
+  Claude Code is already continuing as a result of a stop hook"; "after stop hooks have continued
+  the turn eight times in a row, Claude Code overrides the next block and ends the turn", and "The
+  count of consecutive continuations resets each time Claude calls a tool". Read 2026-10-07
+  (code.claude.com/docs/en/hooks).
 - **renta mutation gate** (merged 2026-10-07, PR #59, `scripts/mutation_gate.py`): on renta main
   a7503cd, mutmut over all of `co/` with the 40 runnable `tests/co` files: 3,589 mutants, 2,653
   killed, 936 survived; of the survivors 593 message-only (AST rule), 322 behaviour, 21 not
@@ -626,8 +630,8 @@ Nothing found records the worktree per tool call and replays each test where it 
    its regression"; advisory first, "precision measured on >= 10 recent merged PRs" before
    blocking; "an ImportError/AttributeError counts as 'fails on base'". Our `predates` check, per
    pull request, blind to order. Verified (issue text; the PR's code not read).
-2. **SWE-bench / SWT-bench / TDD-Bench Verified harnesses**: a harness, not the agent, runs each test
-   before and after a known fix — the criterion R5 applies, offline, against a golden patch.
+2. **SWE-bench / SWT-bench / TDD-Bench Verified harnesses**: a harness, not the agent, runs each
+   test before and after a known fix — the criterion R5 applies, offline, against a golden patch.
 3. **truenorth-mcp `tdd_cycle`**: the only shipped agent tool found that runs the red itself;
    agent-chosen command, any non-zero exit, live rather than replayed (L3).
 4. **GSD's MVP+TDD gate** and **Taskmaster's autopilot**: history or state checks over what the
