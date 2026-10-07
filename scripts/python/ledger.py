@@ -119,18 +119,12 @@ def _wildmatch(glob: str) -> re.Pattern[str]:
     return re.compile("".join(out))
 
 
-def snapshot(worktree: Path, index: Path | None = None) -> str:
-    """The tree of the worktree's tracked and untracked-but-not-ignored files, as on disk."""
-    if index is None:
-        index = Path(git(worktree, "rev-parse", "--path-format=absolute", "--git-path", "index"))
-    return _snapshot(worktree, index, None, None)[0]
-
-
 def _snapshot(
-    worktree: Path, index: Path, previous: str | None, config: Config | None
+    worktree: Path, index: Path, previous: str | None, config: Config
 ) -> tuple[str, list[str]]:
-    """The worktree's tree and, given the previous record's tree and the configuration, the
-    paths of a mixed change against it ([] when the change is not mixed).
+    """The tree of the worktree's tracked and untracked-but-not-ignored files, as on disk, and
+    the paths of a mixed change against the previous record's tree ([] when the change is not
+    mixed, or there is no previous record).
 
     Built in an index of the ledger's own, kept in the worktree's git directory between calls
     and seeded once from the worktree's index, which is never touched (research R2). Kept, git's
@@ -157,7 +151,7 @@ def _snapshot(
         git(worktree, "add", "-A", env=env)
         tree = git(worktree, "write-tree", env=env)
         mixed: list[str] = []
-        if previous is not None and config is not None and previous != tree:
+        if previous is not None and previous != tree:
             # One process, pathspec-limited so git skips every directory the globs exclude.
             diff = ["diff-index", "--cached", previous]
             mixed = _mixed(config, _changed(worktree, diff, config.tests + config.sources, env))
@@ -281,16 +275,16 @@ def locate(cwd: Path) -> Location | None:
     return Location(Path(root), Path(index), branch, None)
 
 
-def record(worktree: Path, call: Call) -> str | None:
+def record(worktree: Path, call: Call, config: Config) -> str | None:
     """Append the worktree's state as a record; None when it equals the newest record's."""
     where = locate(worktree)
     assert where is not None, f"{worktree} is a git worktree"
-    return _record(where, call, None)[0]
+    return _record(where, call, config)[0]
 
 
-def _record(where: Location, call: Call, config: Config | None) -> tuple[str | None, list[str]]:
-    """The new record (None when the worktree is unchanged) and, given the configuration, the
-    paths of a mixed change it made.
+def _record(where: Location, call: Call, config: Config) -> tuple[str | None, list[str]]:
+    """The new record (None when the worktree is unchanged) and the paths of a mixed change it
+    made.
 
     Every git process costs milliseconds on every tool call (SC-003): with `locate`'s one, an
     unchanged worktree takes four -- cat-file for the newest record and its tree, add,
@@ -315,7 +309,7 @@ def _record(where: Location, call: Call, config: Config | None) -> tuple[str | N
             # Another hook moved the ledger: append on top of its record, and judge this
             # call's change against that record (rare, so the plain tree diff is fine here).
             newest, newest_tree = _state(worktree)
-            if config is not None and newest_tree is not None and newest_tree != tree:
+            if newest_tree is not None and newest_tree != tree:
                 mixed = _mixed_between(worktree, config, newest_tree, tree)
             continue
         return commit, mixed

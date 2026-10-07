@@ -6,6 +6,7 @@ import pytest
 
 import ledger
 from helpers import git
+from sequences import CONFIG
 
 
 def payload(cwd: Path, **extra: str) -> dict[str, str]:
@@ -234,18 +235,21 @@ def test_after_a_lost_race_the_change_is_against_the_record_that_won(
     ledger.post_tool_use(payload(repo))  # R0, the origin
     origin = git(repo, "rev-parse", ledger.REF)
     (repo / "tests" / "test_b.py").write_text("def test_b(): pass\n")
-    test_only = ledger.snapshot(repo)  # what another hook records first: the test alone
+    # What another hook records first, the test alone; held back until this call's update-ref.
+    other = ledger.record(
+        repo, {"session": "s", "agent": None, "tool": "Bash", "call": "x"}, CONFIG
+    )
+    git(repo, "update-ref", ledger.REF, origin)
     (repo / "src" / "b.py").write_text("B = 1\n")  # this call's own write: the code
     real_git = ledger.git
-    raced: list[str] = []
+    raced: list[bool] = []
 
     def racing_git(
         worktree: Path, *args: str, env: dict[str, str] | None = None, input: str | None = None
     ) -> str:
         if args[0] == "update-ref" and not raced:
-            other = real_git(worktree, "commit-tree", test_only, "-p", origin, "-m", "{}")
-            real_git(worktree, "update-ref", ledger.REF, other)
-            raced.append(other)
+            real_git(worktree, "update-ref", ledger.REF, str(other))
+            raced.append(True)
         return real_git(worktree, *args, env=env, input=input)
 
     monkeypatch.setattr(ledger, "git", racing_git)

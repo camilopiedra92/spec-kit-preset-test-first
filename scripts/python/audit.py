@@ -751,7 +751,7 @@ def _audit(
 ) -> tuple[list[tuple[str, Verdict]], dict[str, Record]]:
     # Edits made between calls are judged too: the worktree as it is now is a record.
     call: ledger.Call = {"session": session or tool, "agent": None, "tool": tool, "call": None}
-    ledger.record(worktree, call)
+    ledger.record(worktree, call, config)
     with Replayer(worktree, config, budget) as replayer:
         auditor = Auditor(worktree, config, replayer, deadline, base)
         verdicts = auditor.report()

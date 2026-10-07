@@ -3,6 +3,7 @@ from pathlib import Path
 import audit
 import ledger
 from helpers import git
+from sequences import snapshot
 
 CONFIG = ledger.Config(tests=("tests/**",), sources=("src/**",), run="x {file} {junit}")
 
@@ -14,7 +15,7 @@ def tree_of(repo: Path, files: dict[str, str]) -> str:
     for path, content in files.items():
         (repo / path).parent.mkdir(parents=True, exist_ok=True)
         (repo / path).write_text(content)
-    return ledger.snapshot(repo)
+    return snapshot(repo)
 
 
 def contents(repo: Path, tree: str) -> dict[str, str]:

@@ -18,6 +18,13 @@ CONFIG = ledger.Config(
 LEAKING = CONFIG._replace(run=CONFIG.run + " --root {root}")
 
 
+def snapshot(repo: Path) -> str:
+    """The worktree's tree as the ledger snapshots it: recorded, then read from the ledger."""
+    call: ledger.Call = {"session": "s", "agent": None, "tool": "Bash", "call": None}
+    ledger.record(repo, call, CONFIG)
+    return git(repo, "rev-parse", f"{ledger.REF}^{{tree}}")
+
+
 class Calls:
     """Applies one tool call's writes to the worktree and records it in the ledger."""
 
@@ -45,6 +52,6 @@ class Calls:
             "tool": "Bash",
             "call": f"c{self.count}",
         }
-        made = ledger.record(self.repo, call)
+        made = ledger.record(self.repo, call, CONFIG)
         assert made is not None, "a call in a sequence must change the worktree"
         return made

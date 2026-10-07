@@ -6,6 +6,7 @@ import pytest
 
 import ledger
 from helpers import git
+from sequences import CONFIG
 
 CALL: ledger.Call = {"session": "s1", "agent": None, "tool": "Bash", "call": "toolu_1"}
 
@@ -15,7 +16,7 @@ def chain(repo: Path) -> list[str]:
 
 
 def test_the_first_record_of_a_worktree_has_no_parent(repo: Path) -> None:
-    record = ledger.record(repo, CALL)
+    record = ledger.record(repo, CALL, CONFIG)
     assert record is not None
 
     assert chain(repo) == [record]
@@ -23,17 +24,17 @@ def test_the_first_record_of_a_worktree_has_no_parent(repo: Path) -> None:
 
 
 def test_an_unchanged_tree_adds_no_record(repo: Path) -> None:
-    first = ledger.record(repo, CALL)
+    first = ledger.record(repo, CALL, CONFIG)
 
-    assert ledger.record(repo, CALL) is None
+    assert ledger.record(repo, CALL, CONFIG) is None
     assert chain(repo) == [first]
 
 
 def test_a_changed_tree_is_recorded_on_top_of_the_previous(repo: Path) -> None:
-    first = ledger.record(repo, CALL)
+    first = ledger.record(repo, CALL, CONFIG)
     (repo / "src" / "a.py").write_text("A = 2\n")
 
-    second = ledger.record(repo, CALL)
+    second = ledger.record(repo, CALL, CONFIG)
 
     assert chain(repo) == [second, first]
     assert git(repo, "rev-parse", f"{second}^") == first
@@ -45,7 +46,7 @@ def message(repo: Path, record: str) -> dict[str, object]:
 
 
 def test_the_message_names_the_call_its_time_branch_and_head(repo: Path) -> None:
-    record = ledger.record(repo, CALL)
+    record = ledger.record(repo, CALL, CONFIG)
     assert record is not None
 
     fields = message(repo, record)
@@ -63,7 +64,7 @@ def test_the_message_names_the_call_its_time_branch_and_head(repo: Path) -> None
 
 def test_a_detached_head_records_no_branch(repo: Path) -> None:
     git(repo, "checkout", "-q", "--detach")
-    record = ledger.record(repo, CALL)
+    record = ledger.record(repo, CALL, CONFIG)
     assert record is not None
 
     assert message(repo, record)["branch"] is None
@@ -72,7 +73,7 @@ def test_a_detached_head_records_no_branch(repo: Path) -> None:
 def test_a_concurrent_record_is_kept_and_the_append_retried(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    first = ledger.record(repo, CALL)
+    first = ledger.record(repo, CALL, CONFIG)
     (repo / "src" / "a.py").write_text("A = 2\n")
     real_git = ledger.git
     raced: list[str] = []
@@ -91,7 +92,7 @@ def test_a_concurrent_record_is_kept_and_the_append_retried(
 
     monkeypatch.setattr(ledger, "git", racing_git)
 
-    mine = ledger.record(repo, CALL)
+    mine = ledger.record(repo, CALL, CONFIG)
 
     assert chain(repo) == [mine, raced[0], first]
 
@@ -99,7 +100,7 @@ def test_a_concurrent_record_is_kept_and_the_append_retried(
 def test_losing_every_race_is_an_error_not_a_lost_record(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    ledger.record(repo, CALL)
+    ledger.record(repo, CALL, CONFIG)
     (repo / "src" / "a.py").write_text("A = 2\n")
     real_git = ledger.git
 
@@ -116,25 +117,25 @@ def test_losing_every_race_is_an_error_not_a_lost_record(
     monkeypatch.setattr(ledger, "git", always_racing)
 
     with pytest.raises(ledger.RecordError, match="5 attempts"):
-        ledger.record(repo, CALL)
+        ledger.record(repo, CALL, CONFIG)
 
 
 def test_a_linked_worktree_keeps_its_own_ledger(repo: Path, tmp_path: Path) -> None:
-    main_record = ledger.record(repo, CALL)
+    main_record = ledger.record(repo, CALL, CONFIG)
     linked = tmp_path / "linked"
     git(repo, "worktree", "add", "-q", "-b", "other", str(linked))
     (linked / "src" / "a.py").write_text("A = 9\n")
 
-    linked_record = ledger.record(linked, CALL)
+    linked_record = ledger.record(linked, CALL, CONFIG)
 
     assert chain(repo) == [main_record]
     assert chain(linked) == [linked_record]
 
 
 def test_records_survive_garbage_collection(repo: Path) -> None:
-    first = ledger.record(repo, CALL)
+    first = ledger.record(repo, CALL, CONFIG)
     (repo / "src" / "a.py").write_text("A = 2\n")
-    second = ledger.record(repo, CALL)
+    second = ledger.record(repo, CALL, CONFIG)
 
     git(repo, "gc", "-q", "--prune=now")
 
@@ -143,11 +144,11 @@ def test_records_survive_garbage_collection(repo: Path) -> None:
 
 
 def test_a_held_lock_is_reported_as_such_not_as_a_lost_race(repo: Path) -> None:
-    ledger.record(repo, CALL)
+    ledger.record(repo, CALL, CONFIG)
     lock = repo / ".git" / "refs" / "worktree" / "test-first" / "ledger.lock"
     lock.parent.mkdir(parents=True, exist_ok=True)
     lock.write_text("held\n")
     (repo / "src" / "a.py").write_text("A = 2\n")
 
     with pytest.raises(ledger.RecordError, match="lock"):
-        ledger.record(repo, CALL)
+        ledger.record(repo, CALL, CONFIG)
