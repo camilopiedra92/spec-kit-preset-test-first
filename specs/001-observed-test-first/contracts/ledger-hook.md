@@ -53,8 +53,10 @@ Input: Claude Code's `Stop` JSON on stdin; fields read: `cwd`, `session_id`, `st
    block is shown at the next turn, or by the story-close audit.
 2. Snapshot the worktree as a record (`tool` = `Stop`) if it changed.
 3. Run the audit (audit.md) within a budget of `--budget` seconds (default 120), each run under a
-   60-second deadline, so its worst case is the budget plus one run and its load probe (240 s),
-   inside the entry's `timeout` of 300 seconds — set because Claude Code cancels a hook that reaches
+   60-second deadline. A load probe is a run like any other, so no run of either kind starts
+   after the budget: the worst case is the budget plus one run that started just before it ran
+   out, with `run-bounded.sh`'s 5-second grace (185 s), plus the snapshot's git calls, inside the
+   entry's `timeout` of 300 seconds — set because Claude Code cancels a hook that reaches
    its timeout and discards its output, so a timed-out Stop audit would let the turn end without a
    decision (research L7): no new run starts after the budget is spent, and a run already stopped by
    a deadline at least that long is not retried; what is left is judged by a later turn or the

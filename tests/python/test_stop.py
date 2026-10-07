@@ -153,3 +153,107 @@ def test_a_git_error_at_a_stop_blocks_with_its_message(
     err = capsys.readouterr().err
     assert "test-first audit:" in err
     assert "Traceback" not in err
+
+
+def test_a_turn_with_a_test_born_green_is_blocked(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    calls = feature(repo)
+    calls.call({"src/b.py": "B\n"})
+    calls.call({"tests/test_b.py": TEST_B})
+
+    assert stop(repo, monkeypatch) == 2
+    assert "born-green tests.test_b::test_b" in capsys.readouterr().err
+
+
+def test_a_turn_with_a_test_rewritten_to_green_is_blocked(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    calls = feature(repo)
+    calls.call({"tests/test_b.py": TEST_B})
+    calls.call({"tests/test_b.py": "def test_b(): # expects src/b.py C\n", "src/b.py": "C\n"})
+
+    assert stop(repo, monkeypatch) == 2
+    assert "rewritten-to-green tests.test_b::test_b" in capsys.readouterr().err
+
+
+def test_a_spent_budget_still_judges_from_runs_already_made(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls = feature(repo)
+    calls.call({"tests/test_b.py": TEST_B, "src/b.py": "B\n"})
+    assert stop(repo, monkeypatch) == 2  # makes the runs
+
+    assert stop(repo, monkeypatch, False, "--budget", "0") == 2
+
+
+def test_the_stop_lists_only_failing_tests_but_counts_every_new_one(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    calls = feature(repo)
+    calls.call({"tests/test_b.py": TEST_B})
+    calls.call({"src/b.py": "B\n"})  # test_b: red
+    calls.call({"tests/test_c.py": "def test_c(): # expects src/c.py C\n", "src/c.py": "C\n"})
+
+    assert stop(repo, monkeypatch) == 2
+    err = capsys.readouterr().err
+    assert "tests.test_b" not in err
+    assert err.splitlines()[-1] == "audit: 2 new tests: born-with-code 1, red 1; FAIL"
+
+
+def test_the_stop_records_the_worktree_under_its_session(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls = feature(repo)
+    calls.call({"tests/test_b.py": TEST_B})
+    (repo / "src" / "b.py").write_text("B\n")  # written outside any recorded call
+
+    stop(repo, monkeypatch)
+
+    message = json.loads(git(repo, "log", "-1", "--format=%B", "refs/worktree/test-first/ledger"))
+    assert (message["tool"], message["session"]) == ("Stop", "s")
+
+
+@pytest.mark.parametrize(
+    "where",
+    ["detached", "not installed", "no ledger", "not a git worktree"],
+)
+def test_where_there_is_nothing_to_judge_a_stop_goes_through(
+    where: str,
+    repo: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    cwd = repo
+    if where == "detached":
+        feature(repo).call({"tests/test_b.py": TEST_B, "src/b.py": "B\n"})
+        git(repo, "checkout", "-q", "--detach")
+    elif where == "no ledger":
+        feature(repo)
+        git(repo, "update-ref", "-d", "refs/worktree/test-first/ledger")
+    elif where == "not a git worktree":
+        cwd = tmp_path / "plain"
+        cwd.mkdir()
+    monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps({"cwd": str(cwd), "session_id": "s"})))
+    monkeypatch.chdir(cwd)
+
+    assert audit.main(["--stop"]) == 0
+    assert capsys.readouterr().err == ""
+
+
+def test_a_stop_runs_each_replay_under_60_seconds_within_120_in_all(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    feature(repo).call({"tests/test_b.py": TEST_B})
+    seen: list[tuple[int, int | None]] = []
+    real = audit._audit
+
+    def spy(*args: object, **kwargs: object):  # type: ignore[no-untyped-def]
+        seen.append((args[3], args[5]))  # type: ignore[arg-type]
+        return real(*args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(audit, "_audit", spy)
+    stop(repo, monkeypatch)
+
+    assert seen == [(60, 120)]

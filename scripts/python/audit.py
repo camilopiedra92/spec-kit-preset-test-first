@@ -721,21 +721,22 @@ def _stop(budget: int, deadline: int) -> int:
         return 0  # one block per turn: this stop continues one a Stop hook already blocked
     try:
         worktree, config = _preconditions(Path(payload["cwd"]), None)
+    except NothingToJudge:
+        return 0
     except Refusal as refusal:
-        if not refusal.blocks_a_stop:
-            return 0
         print(f"test-first audit: {refusal}", file=sys.stderr)
         return 2
     try:
-        verdicts, history = _audit(worktree, config, "Stop", deadline, None, budget)
+        verdicts, history = _audit(
+            worktree, config, "Stop", deadline, None, budget, payload["session_id"]
+        )
     except (subprocess.CalledProcessError, ledger.RecordError) as error:
         # An audit that cannot run blocks with its error, so the turn never ends unjudged.
         print(f"test-first audit: {_git_error(error)}", file=sys.stderr)
         return 2
-    failing = [(test, v) for test, v in verdicts if v.kind in FINAL_FAILING]
-    if not failing:
+    if not any(verdict.kind in FINAL_FAILING for _, verdict in verdicts):
         return 0
-    print(render(failing, history), file=sys.stderr)
+    print(render(verdicts, history, listed=FINAL_FAILING), file=sys.stderr)
     return 2
 
 
@@ -746,9 +747,10 @@ def _audit(
     deadline: int,
     base: str | None,
     budget: int | None,
+    session: str | None = None,
 ) -> tuple[list[tuple[str, Verdict]], dict[str, Record]]:
     # Edits made between calls are judged too: the worktree as it is now is a record.
-    call: ledger.Call = {"session": tool, "agent": None, "tool": tool, "call": None}
+    call: ledger.Call = {"session": session or tool, "agent": None, "tool": tool, "call": None}
     ledger.record(worktree, call)
     with Replayer(worktree, config, budget) as replayer:
         auditor = Auditor(worktree, config, replayer, deadline, base)
@@ -770,10 +772,15 @@ REMEDIES = {
 }
 
 
-def render(verdicts: list[tuple[str, Verdict]], records: dict[str, Record]) -> str:
-    """The report: one line per new test, grouped by verdict, then a summary (contracts)."""
+def render(
+    verdicts: list[tuple[str, Verdict]],
+    records: dict[str, Record],
+    listed: frozenset[str] | None = None,
+) -> str:
+    """The report: one line per new test, grouped by verdict, then a summary of every new test
+    (contracts); with `listed`, only tests with those verdicts get their line (the Stop's)."""
     lines = []
-    for kind in sorted({verdict.kind for _, verdict in verdicts}):
+    for kind in sorted({v.kind for _, v in verdicts if listed is None or v.kind in listed}):
         for test, verdict in verdicts:
             if verdict.kind != kind:
                 continue
@@ -794,32 +801,34 @@ def render(verdicts: list[tuple[str, Verdict]], records: dict[str, Record]) -> s
 
 
 class Refusal(Exception):
-    """The audit cannot run here; the message says why (exit 2). A Stop hook passes the
-    refusals that only mean there is nothing to judge, and blocks on the others (FR-024)."""
+    """The audit cannot run here; the message says why (exit 2). A Stop hook blocks on it."""
 
-    def __init__(self, message: str, blocks_a_stop: bool) -> None:
-        super().__init__(message)
-        self.blocks_a_stop = blocks_a_stop
+
+class NothingToJudge(Refusal):
+    """A refusal that only means there is nothing to judge here: a Stop hook lets the turn
+    end (FR-024)."""
 
 
 def _preconditions(cwd: Path, base: str | None) -> tuple[Path, ledger.Config]:
     root = _quiet_git(cwd, "rev-parse", "--show-toplevel")
     if not root:
-        raise Refusal("not inside a git worktree", blocks_a_stop=False)
+        raise NothingToJudge("not inside a git worktree")
     worktree = Path(root)
     try:
         config = ledger.load_config(worktree)
     except ledger.NotInstalled:
-        raise Refusal(f"not installed here: no {ledger.CONFIG}", blocks_a_stop=False) from None
+        raise NothingToJudge(f"not installed here: no {ledger.CONFIG}") from None
     except ledger.ConfigError as error:
-        raise Refusal(str(error), blocks_a_stop=True) from None
+        raise Refusal(str(error)) from None
     if not _quiet_git(worktree, "symbolic-ref", "--quiet", "HEAD"):
-        raise Refusal("HEAD is detached: check out the feature's branch", blocks_a_stop=False)
+        raise NothingToJudge("HEAD is detached: check out the feature's branch")
     if not _quiet_git(worktree, "rev-parse", "--verify", "--quiet", ledger.REF):
         message = f"no ledger in this worktree ({ledger.REF}): nothing was recorded"
-        raise Refusal(message, blocks_a_stop=False)
+        raise NothingToJudge(message)
     try:
         resolve_base(worktree, base)
     except BaseError as error:
-        raise Refusal(str(error), blocks_a_stop=not error.on_default_branch) from None
+        if error.on_default_branch:
+            raise NothingToJudge(str(error)) from None
+        raise Refusal(str(error)) from None
     return worktree, config

@@ -509,6 +509,31 @@ born-with-code test is blocked once, and the next stop passes.
       normalised (content unchanged)
     - cost: the first version took the hook to 97–104 ms (over SC-003); a diff-index from the
       snapshot's own index, limited by `:(glob)` pathspecs, brought it to 84–87 ms (research L7)
+  - found by the story 2 review: a reftable repository → the branch named, not `.invalid`
+    - red: the record named the branch `.invalid`, which the HEAD file holds under reftable;
+      the branch is now asked of git
+  - found by the story 2 review: an unborn branch → recorded with `head` null
+    - red: an assertion error on the missing HEAD
+  - found by the story 2 review: a held ref lock → reported as such, not as five lost races
+    - red: `Regex pattern did not match … kept moving: 5 attempts lost the race`
+  - found by the story 2 review: a wildcard-free glob (`tests`, `src`) → classified as the audit
+    classifies it, not as a directory prefix
+    - red: `assert (2, …) == (0, '')`
+  - found by the story 2 review: a path matching both globs → named once, as a test
+    - passed on its first run; listing every path in both groups, on purpose, failed it
+  - found by the story 2 review: a code-only call, then a test-only call → exit 0 (the change is
+    against the previous record, not HEAD)
+    - passed on its first run; diffing against HEAD, on purpose, failed it
+  - found by the story 2 review: a lost race → the change judged against the record that won
+    - red: `assert (2, …) == (0, '')`
+  - found by the story 2 review: a call whose record failed after its add → its change shown by
+    the next call
+    - passed on its first run; reading the change against the kept index, on purpose, failed it
+  - found by the story 2 review: a working copy left by a killed hook → pruned by the next call
+    - passed on its first run; skipping the prune, on purpose, failed it
+  - cost, after the review: an index kept between calls and one `diff-index` over both globs:
+    84–90 ms on the benchmark, 78–79 ms on a fresh clone of renta, where a copied index took
+    232 ms (research R2, "Kept index")
 - [X] T022 [US2] The `Stop` entry point `cli.py audit --stop` in `scripts/python/audit.py`: exit 0 when
   not installed, detached, on the default branch, or `stop_hook_active`; snapshot (`tool` =
   `Stop`); audit within `--budget` (default 120 s) with a 60 s deadline per run and no new run
@@ -536,6 +561,23 @@ born-with-code test is blocked once, and the next stop passes.
     - the end-to-end hang check could not see a survivor (its marker was in the test file, not
       on a command line); it now reads the replay's process id; a replay without the
       process-group kill, on purpose, failed it
+  - found by the story 2 review: a git error during the audit → exit 2 with git's message, no
+    traceback
+    - red: the error escaped as a traceback
+  - found by the story 2 review: born-green, rewritten-to-green → exit 2 naming the test
+    - passed on their first run; dropping each from the final set, on purpose, failed each
+  - found by the story 2 review: a spent budget → still judged from runs already made
+    - passed on its first run; ignoring the memo under a budget, on purpose, failed it
+  - found by the story 2 review: the block lists only failing tests, the summary counts every new
+    test
+    - red: `'audit: 1 new tests: born-with-code 1; FAIL' == 'audit: 2 new tests: …, red 1; FAIL'`
+  - found by the story 2 review: the Stop's record carries the payload's `session_id`
+    - red: `('Stop', 'Stop') == ('Stop', 's')`
+  - found by the story 2 review: detached, not installed, no ledger, not a git worktree → exit 0,
+    no output
+    - passed on their first run; making each refusal block, on purpose, failed each
+  - found by the story 2 review: defaults of 60 s per run and 120 s in all
+    - passed on its first run; a 300 s deadline and a 240 s budget, on purpose, each failed it
   - these cases end to end in `tests/audit.sh`, T021's in `tests/ledger.sh`
 
 ---
