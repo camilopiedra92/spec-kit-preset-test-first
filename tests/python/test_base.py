@@ -102,3 +102,16 @@ def test_the_base_comes_from_local_refs_without_fetching(repo: Path, tmp_path: P
 
     assert audit.resolve_base(repo) == main
     assert git(repo, "rev-parse", "origin/main") == main, "the audit fetched"
+
+
+def test_without_a_remote_the_configured_default_branch_comes_first(repo: Path) -> None:
+    git(repo, "branch", "-m", "trunk")
+    git(repo, "config", "init.defaultBranch", "trunk")
+    trunk = git(repo, "rev-parse", "trunk")
+    on_feature(repo)
+    # A main taken from the feature: its merge base with the feature is the feature's tip, so
+    # taking main instead of the configured default would give a different base.
+    git(repo, "branch", "main")
+    commit(repo, "more.txt")
+
+    assert audit.resolve_base(repo) == trunk

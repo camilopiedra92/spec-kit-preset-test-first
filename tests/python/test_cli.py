@@ -106,3 +106,18 @@ def test_a_tasks_file_claiming_red_runs_changes_nothing(
 
     assert run(repo, monkeypatch) == 1
     assert "born-with-code tests.test_b::test_b" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    ("name", "phrase"),
+    [
+        ("rewritten-to-green", "redo it"),
+        ("still-red", "write the code that makes it pass"),
+        ("unobserved", "gives it a birth in this ledger"),
+        ("born-green", "redo it"),
+    ],
+)
+def test_every_failing_verdict_without_a_reason_prints_its_remedy(name: str, phrase: str) -> None:
+    printed = audit.render([("t::x", audit.Verdict(name))], {})
+
+    assert phrase in printed

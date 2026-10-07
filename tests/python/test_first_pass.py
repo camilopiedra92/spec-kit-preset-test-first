@@ -179,3 +179,31 @@ def test_behaviour_first_written_in_a_template_outside_sources_is_born_green(
     calls.call({"tests/test_b.py": "def test_b(): # expects templates/page.html B\n"})
 
     assert verdict(repo).name == "born-green"
+
+
+def test_renaming_a_test_born_with_its_code_does_not_launder_it(repo: Path) -> None:
+    git(repo, "checkout", "-q", "-b", "feat")
+    calls = Calls(repo)
+    calls.call({"README.md": "origin"})
+    calls.call({"tests/test_b.py": "def test_old(): # expects src/b.py B\n", "src/b.py": "B\n"})
+    calls.call({"tests/test_b.py": TEST_B})
+
+    assert verdict(repo).name == "born-green"
+
+
+def test_a_rename_made_with_a_documentation_change_is_no_refactor(repo: Path) -> None:
+    calls = red_then_green_old(repo)
+    calls.call({"tests/test_b.py": TEST_B, "docs/notes.md": "renamed\n"})
+
+    assert verdict(repo).name == "born-green"
+
+
+def test_a_test_unskipped_beside_a_rename_is_not_counted_as_refactored(repo: Path) -> None:
+    git(repo, "checkout", "-q", "-b", "feat")
+    calls = Calls(repo)
+    calls.call({"README.md": "origin"})
+    calls.call({"tests/test_b.py": "def test_old(): # expects src/b.py B\ndef test_s(): # skip\n"})
+    calls.call({"src/b.py": "B\n"})
+    calls.call({"tests/test_b.py": TEST_B + "def test_s(): # expects src/b.py B\n"})
+
+    assert verdict(repo, test="tests.test_b::test_s").name == "born-green"

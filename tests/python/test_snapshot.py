@@ -67,3 +67,12 @@ def test_a_same_size_edit_in_the_index_writes_second_is_seen(repo: Path) -> None
     tree = ledger.snapshot(repo)
 
     assert git(repo, "show", f"{tree}:src/a.py") == "A = 2"
+
+
+def test_a_tracked_file_that_gitignore_matches_is_still_recorded(repo: Path) -> None:
+    (repo / "keep.log").write_text("tracked on purpose\n")
+    git(repo, "add", "keep.log")
+    git(repo, "commit", "-q", "-m", "track a log")
+    (repo / ".gitignore").write_text("*.log\n")
+
+    assert "keep.log" in paths(repo, ledger.snapshot(repo))
