@@ -415,10 +415,15 @@ class Auditor:
                 return self.born(test, file, t)
             # Reported at j as well: the touching records between are inconclusive, so the
             # walk goes on from the next one older than j.
-        origin = self.observe(0, file)
-        if origin.conclusive and test not in (origin.outcomes or {}):
-            return self.scan(test, file, 0)
-        return Birth(None)
+        # No touching record decided it: look before the oldest one (the origin when the file
+        # never changed). The file there is as at the origin, but the rest of the tree may have
+        # made it load.
+        before = self.conclusive_before(touching[0], file) if touching else 0
+        if before is None or not self.observe(before, file).conclusive:
+            return Birth(None)
+        if test not in (self.observe(before, file).outcomes or {}):
+            return self.scan(test, file, before)
+        return Birth(None)  # reported back to where its file was last unchanged: no birth seen
 
     def scan(self, test: str, file: str, absent_at: int) -> Birth:
         """The first record after `absent_at` whose conclusive run reports the test."""

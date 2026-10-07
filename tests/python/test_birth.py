@@ -141,3 +141,22 @@ def test_a_test_brought_by_a_merge_is_imported(repo: Path) -> None:
     calls.call({"src/c.py": "after the merge\n"})
 
     assert birth_of(repo, B, "tests/test_b.py") == audit.Birth(1, imported=True)
+
+
+def test_when_every_touching_run_is_inconclusive_the_search_starts_before_the_oldest_one(
+    repo: Path,
+) -> None:
+    """The file did not load at the origin; code made it load; then one call added a test and
+    broke the load again, and code fixed it: the test is born where it first ran."""
+    calls = Calls(repo)
+    calls.call({"tests/test_b.py": "# needs src/dep.py\ndef test_a(): pass\n"})  # the origin
+    calls.call({"src/dep.py": "dep\n"})  # loads: test_a only
+    calls.call(
+        {
+            "tests/test_b.py": "# needs src/dep.py\n# needs src/new.py\ndef test_a(): pass\n"
+            "def test_t(): pass\n"
+        }
+    )  # test_t added, and the file does not load
+    calls.call({"src/new.py": "new\n"})  # loads again, test_t with it
+
+    assert born_at(repo, "tests.test_b::test_t", "tests/test_b.py") == 3

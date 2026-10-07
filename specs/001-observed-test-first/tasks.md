@@ -821,7 +821,10 @@ gate still runs and an old `tasks.md` is read.
   - red: all three failed (the Stop with a read-only memo and with no temporary directory, the
     plain audit with no temporary directory)
 - [ ] T038 Add to the README's limits that once any Stop hook has blocked a turn its later stops skip the audit, and that a hook killed mid-run puts its call's changes under the next call's name per FR-022 (partial)
-- [ ] T039 Make the birth search, when every touching record is inconclusive, run the oldest touching record's previous as data-model.md says instead of the origin — or amend data-model.md to the origin, whichever the reasoning supports — with a unit case for the sequence that now gives `unobserved` per data-model "Finding a test's birth" (contradicts)
+- [X] T039 Make the birth search, when every touching record is inconclusive, run the oldest touching record's previous as data-model.md says instead of the origin — or amend data-model.md to the origin, whichever the reasoning supports — with a unit case for the sequence that now gives `unobserved` per data-model "Finding a test's birth" (contradicts)
+  - the code follows the data model: the origin keeps no information the record before the oldest
+    touching one lacks, and a load that code made possible is lost by running the origin
+  - red: `assert None == 3`
 - [ ] T040 Add end to end, or correct quickstart steps 2 and 5 and T008/T022 to say the units cover them: an unchanged tree adds no record, a linked worktree's own ledger, a subagent's id, branch and HEAD in a record (`tests/ledger.sh`); a turn ending on a red case is not blocked (`tests/audit.sh`) per quickstart steps 2 and 5 (partial)
 - [ ] T041 Point the CHANGELOG 2.0.0 entry and constitution III's Check at the README's "Why 2.0.0's rules" / "Why 1.x's rules" sections (the "Why this shape" heading no longer exists; the constitution edit as a PATCH amendment) per Constitution III (contradicts)
 - [ ] T042 Correct tasks.md's `scripts/bash/` (installer, runner) line, make the R-ranges R0–R16 in plan.md and research.md, and move R16 above research.md's Landscape heading per research R16 (contradicts)
