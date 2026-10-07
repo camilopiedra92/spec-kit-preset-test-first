@@ -55,6 +55,30 @@ grep -qx 'src/b.py' <<< "$files" || problem "the record lacks src/b.py"
 [ "$(git -C "$repo" rev-list --count refs/worktree/test-first/ledger 2> /dev/null)" = 1 ] ||
   problem "one call should add one record"
 
+# A call that changes nothing adds no record; a subagent's call is recorded with its id, and
+# every record names its branch and HEAD; a linked worktree keeps a ledger of its own.
+repo=$work/records
+scratch_repo "$repo"
+git -C "$repo" checkout -q -b feat
+echo 'B = 1' > "$repo/src/b.py"
+printf '{"cwd": "%s", "session_id": "s1", "agent_id": "agent-7", "tool_name": "Write", "tool_use_id": "t1"}' \
+  "$repo" | python3 "$HOOK" ledger 2> /dev/null
+hook_input "$repo" toolu_nothing | python3 "$HOOK" ledger 2> /dev/null
+[ "$(git -C "$repo" rev-list --count refs/worktree/test-first/ledger 2> /dev/null)" = 1 ] ||
+  problem "a call that changed nothing added a record"
+message=$(git -C "$repo" log -1 --format=%B refs/worktree/test-first/ledger 2> /dev/null)
+python3 - "$message" "$(git -C "$repo" rev-parse HEAD)" << 'PY' || problem "the record's message: $message"
+import json, sys
+record = json.loads(sys.argv[1])
+assert (record["agent"], record["branch"], record["head"]) == ("agent-7", "feat", sys.argv[2]), record
+PY
+git -C "$repo" worktree add -q -b other "$work/linked"
+echo 'C = 1' > "$work/linked/src/c.py"
+hook_input "$work/linked" toolu_linked | python3 "$HOOK" ledger 2> /dev/null
+[ "$(git -C "$work/linked" rev-list --count refs/worktree/test-first/ledger 2> /dev/null)" = 1 ] &&
+  [ "$(git -C "$repo" rev-list --count refs/worktree/test-first/ledger 2> /dev/null)" = 1 ] ||
+  problem "a linked worktree's call did not go to a ledger of its own"
+
 # The agent hears a call that changed tests and code together (FR-005, exit 2 shows stderr to
 # Claude), and nothing about one that changed only tests.
 repo=$work/told

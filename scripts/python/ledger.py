@@ -192,7 +192,6 @@ def git(
 
 
 REF = "refs/worktree/test-first/ledger"
-WORKTREE_AND_INDEX = ("--show-toplevel", "--git-path", "index")
 RACE_RETRIES = 5
 # update-ref's words for a ref that moved since it was read; anything else (a held lock, a full
 # disk) is not a race and is reported as it is.

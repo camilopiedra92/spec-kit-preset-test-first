@@ -825,10 +825,12 @@ gate still runs and an old `tasks.md` is read.
   - the code follows the data model: the origin keeps no information the record before the oldest
     touching one lacks, and a load that code made possible is lost by running the origin
   - red: `assert None == 3`
-- [ ] T040 Add end to end, or correct quickstart steps 2 and 5 and T008/T022 to say the units cover them: an unchanged tree adds no record, a linked worktree's own ledger, a subagent's id, branch and HEAD in a record (`tests/ledger.sh`); a turn ending on a red case is not blocked (`tests/audit.sh`) per quickstart steps 2 and 5 (partial)
+- [X] T040 Add end to end, or correct quickstart steps 2 and 5 and T008/T022 to say the units cover them: an unchanged tree adds no record, a linked worktree's own ledger, a subagent's id, branch and HEAD in a record (`tests/ledger.sh`); a turn ending on a red case is not blocked (`tests/audit.sh`) per quickstart steps 2 and 5 (partial)
+  - added end to end; each passed on its first run (the units already pinned them): recording
+    unchanged trees, dropping the agent id and blocking on `still-red`, on purpose, failed them
 - [ ] T041 Point the CHANGELOG 2.0.0 entry and constitution III's Check at the README's "Why 2.0.0's rules" / "Why 1.x's rules" sections (the "Why this shape" heading no longer exists; the constitution edit as a PATCH amendment) per Constitution III (contradicts)
 - [ ] T042 Correct tasks.md's `scripts/bash/` (installer, runner) line, make the R-ranges R0–R16 in plan.md and research.md, and move R16 above research.md's Landscape heading per research R16 (contradicts)
 - [ ] T043 Document the file-level `not-judged` entry (a test file whose runs never said which tests it holds) in data-model.md "Verdict", contracts/audit.md's output and the README per data-model "Verdict" (missing)
 - [ ] T044 Reword the README's `refactored` line to "a call that did not change test-side paths together with anything else" per FR-009 (contradicts)
-- [ ] T045 Remove the unused `WORKTREE_AND_INDEX` from `scripts/python/ledger.py` per plan: no code without a caller (unrequested)
+- [X] T045 Remove the unused `WORKTREE_AND_INDEX` from `scripts/python/ledger.py` per plan: no code without a caller (unrequested)
 - [ ] T046 After the pull request merges on green, tag `v2.0.0` on the merged commit and check that `preset.yml`, the CHANGELOG and the tag agree per Constitution V (missing)

@@ -418,6 +418,17 @@ echo "SC-004 Stop audit of one turn: $seconds s"
 printf '{"cwd": "%s", "session_id": "s", "stop_hook_active": true}' "$REPO" |
   python3 "$CLI" audit --stop > /dev/null 2>&1 || problem "$SCENARIO: the next stop was blocked"
 
+# A turn that ends on the case in progress -- its test written and red, its code not yet --
+# is not blocked: `still-red` can still change in a later call.
+SCENARIO="the Stop hook lets a turn end on a red case"
+project stop-red
+write src/b.py "$STUB_B" && record
+write tests/test_b.py "$TEST_B" && record
+out=$(printf '{"cwd": "%s", "session_id": "s", "stop_hook_active": false}' "$REPO" |
+  python3 "$CLI" audit --stop 2>&1)
+code=$?
+[ "$code" = 0 ] && [ -z "$out" ] || problem "$SCENARIO: exit $code: $out"
+
 # SC-004: a feature of 60 new tests in 20 files, each file written red with a stub and then
 # its code, audited from an empty memo and again with the memo warm. The cold figure is
 # reported; the warm one must stay within 2 minutes.
