@@ -1,7 +1,9 @@
 # Runs tests/compose.sh against the real specify CLI, pinned on every push and
 # pull request and weekly against upstream's latest release, and
 # tests/stop-gate.sh and tests/run-bounded.sh, which need no specify, alongside
-# it. The pinned run
+# it, with the Python scripts' lint, types and units. All in the one job the
+# ruleset requires (compose (pinned)), so none of them can be skipped by a
+# merge. The pinned run
 # says this commit works; the weekly one says upstream has not moved under it,
 # which is the only way a change to the core skills reaches this repo before it
 # reaches a project.
@@ -56,6 +58,13 @@ jobs:
           fi
           uv tool install specify-cli --from "git+https://github.com/github/spec-kit.git@$tag"
       - run: tests/compose.sh
+      # The preset's Python scripts run on other projects' python3, so the
+      # units also run on the oldest version they support.
+      - run: uv run ruff check
+      - run: uv run ruff format --check
+      - run: uv run mypy
+      - run: uv run pytest
+      - run: uv run --isolated --python 3.10 pytest
       # These need no specify, so they say the same on both legs; they are cheap.
       - run: tests/stop-gate.sh
       - run: tests/run-bounded.sh

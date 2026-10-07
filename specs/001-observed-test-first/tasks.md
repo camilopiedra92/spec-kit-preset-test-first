@@ -43,7 +43,7 @@ suites in scratch repositories), `commands/` (fragments).
       without its line → `FAIL: … carries this repository's docs`
   - the archive of HEAD with all three lines → no complaint about them
     - green: `ok: composes on specify 1.1.0` at cc4dc2b
-- [ ] T003 Run the Python checks and the new suites in CI as steps of the existing `compose` job in
+- [X] T003 Run the Python checks and the new suites in CI as steps of the existing `compose` job in
   `.github/workflows/ci.yml` — `uv run ruff check`, `uv run ruff format --check`, `uv run mypy`,
   `uv run pytest` (also under Python 3.10, `uv run --python 3.10 pytest`), `tests/ledger.sh`,
   `tests/install-ledger.sh`, `tests/audit.sh` — so the required `compose (pinned)` check covers
