@@ -245,16 +245,23 @@ code" and "test and code in one shell call"; the audit reports `red` and exits 0
   - paths with unusual characters (`año test.py`) are classified by their real name (found during
     implementation: `ls-tree` quotes them without `-z`)
     - red: the test path was taken from the rest side; NUL-separated, unquoted listing fixed it
-- [ ] T013 [US1] Decide whether a run is inconclusive in `scripts/python/audit.py`: no JUnit, or
+- [X] T013 [US1] Decide whether a run is inconclusive in `scripts/python/audit.py`: no JUnit, or
   every case failed and the load probe on the same tree and file reports exactly the same ids; the
   probe runs only when every case failed (data-model "Run"; research R6; FR-007)
   - a run with one passing case → conclusive, no probe
+    - red: `AttributeError: 'Replayer' object has no attribute 'observe'`, then `NotImplementedError`
   - zero cases → conclusive
+    - passed on its first run; probing an empty run on purpose (treating it as all-failed) failed
+      it, restored
   - pytest collection failure (`classname=""`, `name=<module>`, error) and a probe with the same
     case → inconclusive
+    - red: `assert not True` (every run was conclusive)
   - Vitest's file-named failure and a probe with the same case → inconclusive (skip when node is
     unavailable, and say so)
+    - unit with Vitest's measured shape: passed on its first run; recognising only pytest's shape
+      (empty classname) on purpose failed it, restored. The real Vitest run is in tests/audit.sh
   - every test genuinely failing by assertion → the probe reports a different id set → conclusive
+    - passed on its first run; ignoring the probe's ids on purpose failed it, restored
 - [ ] T014 [US1] Resolve the base in `scripts/python/audit.py`: merge base with the
   remote-tracking default (`origin/HEAD`, else `origin/main`, else `origin/master`); without an
   `origin` remote, the local `init.defaultBranch`, `main`, `master`; refuse when none resolves or

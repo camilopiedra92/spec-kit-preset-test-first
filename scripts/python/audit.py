@@ -53,6 +53,12 @@ class RunResult(NamedTuple):
     timed_out: bool
 
 
+class Observation(NamedTuple):
+    outcomes: dict[str, str] | None
+    conclusive: bool
+    timed_out: bool
+
+
 class Replayer:
     """Runs one test file at a given tree, in a scratch worktree of its own (research R7).
 
@@ -118,6 +124,20 @@ class Replayer:
             partial.write_text(json.dumps({**result._asdict(), "deadline": deadline}))
             os.replace(partial, entry)  # atomic: a killed audit leaves no torn entry
         return result
+
+    def observe(self, tree: str, file: str, deadline: int) -> Observation:
+        """The file's outcomes at the tree, and whether they say which tests exist (R6)."""
+        result = self.run(tree, file, deadline)
+        outcomes = result.outcomes
+        if outcomes is None:
+            return Observation(None, conclusive=False, timed_out=result.timed_out)
+        if outcomes and all(outcome == "failed" for outcome in outcomes.values()):
+            # Every case failed: a load failure looks like this, so compare with the report of
+            # the same file made unparseable, on the same tree.
+            probe = self.run(load_probe(self.worktree, tree, file), file, deadline)
+            if probe.outcomes is not None and set(probe.outcomes) == set(outcomes):
+                return Observation(outcomes, conclusive=False, timed_out=False)
+        return Observation(outcomes, conclusive=True, timed_out=False)
 
     def _replay(self, tree: str, file: str, deadline: int) -> RunResult:
         _git(self.scratch, "read-tree", "-u", "--reset", tree)
