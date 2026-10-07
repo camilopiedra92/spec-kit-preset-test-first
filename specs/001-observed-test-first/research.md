@@ -644,6 +644,15 @@ and Antigravity showed nothing test-first-specific in searches (second-hand).
   91 and 92 ms; renta after a `git status` 93 and 94 ms, after a commit (the installer's) 92 and
   91 ms, as a fresh clone 232 and 231 ms. A fresh clone stays over SC-003 until any git command
   rewrites its index (README, limits).
+- **Replay environments** (T024, 2026-10-07, macOS arm64): the scratch worktree holds only a
+  record's tracked files, so a run needs the project's installed environment from `{root}`. A uv
+  project (uv 0.12.4, `attrs` and `pytest` installed with `uv sync`), one test importing `attrs`,
+  run in a scratch worktree: `uv run --no-sync python -m pytest …` failed (`No module named
+  pytest`: uv made an empty `.venv` there); `UV_PROJECT_ENVIRONMENT={root}/.venv uv run --no-sync
+  python -m pytest …` passed. A pnpm project (Vitest 5.0.3, node 26.7.0, `is-odd` as a
+  dependency): `ln -s {root}/node_modules node_modules && node_modules/.bin/vitest run {file}
+  --reporter=junit --outputFile={junit}` resolved the dependency and passed; `tests/audit.sh`'s
+  Vitest scenario now runs this way, and without the link it reports `not-judged`. One run each.
 - **Audit cost, SC-004** (T020, `tests/audit.sh`, 2026-10-07): a feature of 60 new tests in 20
   pytest files, each written red against a stub then given its code (41 records), pytest 9.1.1 via
   `uv run --no-project --with pytest`, Python 3.12, git 2.55.0, macOS arm64 (Mac16,8). First

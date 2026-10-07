@@ -338,14 +338,21 @@ if command -v pnpm > /dev/null && command -v node > /dev/null; then
   SCENARIO="Vitest: a typo that breaks the file for one call"
   vitest=$work/vitest-install
   mkdir -p "$vitest" && echo '{"private": true}' > "$vitest/package.json"
-  if (cd "$vitest" && pnpm add -D vitest > /dev/null 2>&1); then
-    RUN="$vitest/node_modules/.bin/vitest run {file} --globals --reporter=junit --outputFile={junit}"
+  if (cd "$vitest" && pnpm add -D vitest > /dev/null 2>&1 && pnpm add is-odd > /dev/null 2>&1); then
+    # The project's dependencies, as `pnpm install` leaves them: ignored, at the root. The
+    # scratch worktree has none, so the run links the real worktree's in first (the
+    # README's recipe for Node); `git clean -fdx` removes the link before the next run.
+    RUN='ln -s {root}/node_modules node_modules && node_modules/.bin/vitest run {file} --reporter=junit --outputFile={junit}'
     project vitest
-    write tests/b.test.js 'import { value } from "../src/b.js";\ntest("b", () => expect(value()).toBe(2));\n'
+    ln -s "$vitest/node_modules" "$REPO/node_modules"
+    echo node_modules > "$REPO/.gitignore"
+    git -C "$REPO" add .gitignore && git -C "$REPO" commit -q -m ignore
+    T='import { test, expect } from "vitest";\nimport { value } from "../src/b.js";\n'
+    write tests/b.test.js "${T}test(\"b\", () => expect(value(3)).toBe(true));\n"
     write src/b.js 'export const value = () => null;\n' && record
-    write tests/b.test.js 'import { value } from "../src/b.js";\ntest("b", () => expect(value()).toBe(2)\n' && record
-    write tests/b.test.js 'import { value } from "../src/b.js";\ntest("b", () => expect(value()).toBe(2));\n' && record
-    write src/b.js 'export const value = () => 2;\n' && record
+    write tests/b.test.js "${T}test(\"b\", () => expect(value(3)).toBe(true)\n" && record
+    write tests/b.test.js "${T}test(\"b\", () => expect(value(3)).toBe(true));\n" && record
+    write src/b.js 'import isOdd from "is-odd";\nexport const value = (n) => isOdd(n);\n' && record
     expect 0 "red tests/b.test.js::b"
     RUN='uv run --quiet --no-project --with pytest python -m pytest -q -p no:cacheprovider --junitxml={junit} {file}'
   else

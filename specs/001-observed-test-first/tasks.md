@@ -653,7 +653,7 @@ born-with-code test is blocked once, and the next stop passes.
     installed scripts
     - red: `tests/install-ledger.sh`: "a refusal changed the repository" (an untracked
       `__pycache__/`); removing the fix on purpose fails it again
-- [ ] T024 [US3] Rewrite `commands/speckit.implement.md` — Test-first, Stop gate and Independent
+- [X] T024 [US3] Rewrite `commands/speckit.implement.md` — Test-first, Stop gate and Independent
   review sections — for observed evidence: install the ledger before the first task, deriving
   `--tests`, `--sources` and `--run` from the plan and saying so when it cannot (FR-015); each case
   written and run in a call that changes no source, the code in a later call, tests renamed or
@@ -664,7 +664,14 @@ born-with-code test is blocked once, and the next stop passes.
   where its constitution or CI names one, else hand-written wrong versions (FR-019); a `tasks.md`
   from 1.x read with its red bullets kept and not required of new cases (FR-021); each rule
   overridden in core named (constitution I)
-- [ ] T025 [US3] Extend `tests/compose.sh`: the composed `speckit-implement` names
+  - checked by T025's compose checks; red against the 1.x fragment: no `cli.py install`, no
+    `cli.py audit`, and "Record the red run" and "Break the code it pins on purpose" still there
+  - found during implementation: the `--run` examples measured in a scratch worktree — uv needs
+    `UV_PROJECT_ENVIRONMENT={root}/.venv` (without it: `No module named pytest`), Node needs the
+    real worktree's `node_modules` linked in (without it the Vitest scenario reports
+    `not-judged`); contracts/configuration.md's example corrected (research L7, "Replay
+    environments")
+- [X] T025 [US3] Extend `tests/compose.sh`: the composed `speckit-implement` names
   `cli.py install` and `cli.py audit` at their installed path and the four Python modules are
   installed;
   the overridden core rules are still in core; the composed skill no longer asks for recorded red
@@ -712,6 +719,10 @@ gate still runs and an old `tasks.md` is read.
   verdicts, the Stop behaviour; the evidence of each added, changed or removed rule with its
   sources and dated measurements and tool versions (research R0–R14, L7); the limits section
   required by FR-022 and constitution VI; the migration notes (FR-021; FR-023)
+  - found during implementation: the limits list carries the hook's cost on a clone whose index
+    git has not rewritten since checkout — 232 ms per call on renta until any `git status` or
+    commit (research L7, "Kept index") — and the Node recipe for `--run`, which links the real
+    worktree's `node_modules` into the scratch worktree (tests/audit.sh, Vitest scenario)
 - [ ] T032 [P] Write `docs/decisions/0001-order-not-strength.md`,
   `0002-runner-agnostic-through-junit.md`, `0003-gates-block-once-per-turn.md` in MADR's shape,
   each linking its research entry (plan, "Decisions that outlive the feature")

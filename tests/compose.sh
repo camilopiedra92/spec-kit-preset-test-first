@@ -127,6 +127,27 @@ hook=$(sed -n 's/^hook=//p' "$gate")
 tr -s ' \n' '  ' < "$skills/speckit-implement/SKILL.md" | grep -qF "\`$hook\` does not exist" ||
   problem "speckit-implement does not check for $hook, where the installer writes"
 
+# The ledger, the audit and the installer run as `python3 <installed path>/cli.py`,
+# by the fragment and by the hook entries the installer commits: the modules
+# must land beside it as committed.
+for module in cli ledger audit install; do
+  installed=.specify/presets/test-first/scripts/python/$module.py
+  cmp -s "$installed" "$PRESET/scripts/python/$module.py" ||
+    problem "$installed is not installed as committed"
+done
+cli=.specify/presets/test-first/scripts/python/cli.py
+for command in install audit; do
+  tr -s ' \n' '  ' < "$skills/speckit-implement/SKILL.md" | grep -qF "python3 $cli $command" ||
+    problem "speckit-implement does not run python3 $cli $command"
+done
+# 2.0.0 dropped the self-recorded evidence (FR-017): the ledger observes what
+# the agent used to report, and breaking the code on purpose is the redo
+# sequence now. Joined into one line first, as above.
+for gone in "Record the red run" "Break the code it pins on purpose"; do
+  ! tr -s ' \n' '  ' < "$skills/speckit-implement/SKILL.md" | grep -qF "$gone" ||
+    problem "speckit-implement still says: $gone"
+done
+
 specify version > version.txt 2>&1 || true
 [ "$fail" -eq 0 ] && echo "ok: composes on specify $(grep -m1 -oE '[0-9]+\.[0-9]+\.[0-9]+' version.txt)"
 exit "$fail"
