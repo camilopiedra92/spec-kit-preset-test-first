@@ -99,6 +99,14 @@ for s in tasks implement; do
     problem "speckit-$s description changed: $(description "$skill")"
 done
 
+# This repository is developed with Spec Kit itself; its own .specify/,
+# .claude/ and specs/ are export-ignore, or every project installing the
+# preset would get them under .specify/presets/test-first/.
+for own in .specify .claude specs; do
+  [ ! -e ".specify/presets/test-first/$own" ] ||
+    problem "the installed preset carries this repository's $own"
+done
+
 # The implement fragment runs the installer by this path, so it must land
 # there as committed. Through `bash`, because installing from an archive drops
 # the executable bit (specify 1.1.0: 644 from a zip that stores 755).
