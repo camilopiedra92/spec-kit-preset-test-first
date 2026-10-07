@@ -659,6 +659,16 @@ born-with-code test is blocked once, and the next stop passes.
     is `born-with-code` with a reason saying so and the redo with a stub — the agent in the
     session saw an import error, took it for red, and suspected a false positive
     - red: `assert 'did not load' in ''`
+  - found by the story 3 review: a glob git cannot use as a pathspec (`/src/**`, `../x/**`) →
+    refused naming it, instead of every later hook call failing
+    - red: both installed (`assert 0 == 1`)
+  - found by the story 3 review: a symlinked `.claude/` → refused before anything is written
+    - red: refused only after writing through the link, by git (`beyond a symbolic link`)
+  - found by the story 3 review: terminated during its commit (SIGTERM) → everything as before
+    - red: the two files left staged; removing the signal handler on purpose fails it again
+  - found by the story 3 review: a hook entry whose `command` is not a string → refused
+    - red: `TypeError` in `_installed`; a matcher that is not an object was already refused (the
+      case now pins it)
   - found during implementation (constitution IV): `cli.py` writes no `__pycache__` beside the
     installed scripts
     - red: `tests/install-ledger.sh`: "a refusal changed the repository" (an untracked
@@ -674,6 +684,14 @@ born-with-code test is blocked once, and the next stop passes.
   where its constitution or CI names one, else hand-written wrong versions (FR-019); a `tasks.md`
   from 1.x read with its red bullets kept and not required of new cases (FR-021); each rule
   overridden in core named (constitution I)
+  - found by the story 3 review: the uv recipe for a packaged project (src layout) → `red`, with
+    `PYTHONPATH=src` ahead of the editable install
+    - red: `born-green tests.test_f::test_f` without it (`tests/audit.sh`, packaged scenario)
+  - found by the story 3 review: renames in a call that changes only test-side paths, as the
+    audit's refactor rule judges; the narrowed core rule "parallel tasks [P] can run together"
+    named, and grepped in core with the "Tests" phase; compose checks the FR-016 and FR-018
+    instructions
+    - red: `speckit-implement no longer says: changes only test-side paths`, against HEAD
   - checked by T025's compose checks; red against the 1.x fragment: no `cli.py install`, no
     `cli.py audit`, and "Record the red run" and "Break the code it pins on purpose" still there
   - found during implementation: the `--run` examples measured in a scratch worktree — uv needs

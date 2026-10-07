@@ -65,14 +65,15 @@ through the project's mutation check where it has one.
 ```bash
 python3 .specify/presets/test-first/scripts/python/cli.py install \
   --tests 'tests/**' --sources 'src/**' \
-  --run 'UV_PROJECT_ENVIRONMENT={root}/.venv uv run --no-sync python -m pytest -q -p no:cacheprovider --junitxml={junit} {file}'
+  --run 'PYTHONPATH=src UV_PROJECT_ENVIRONMENT={root}/.venv uv run --no-sync python -m pytest -q -p no:cacheprovider --junitxml={junit} {file}'
 ```
 
 `--tests` is the whole test side — tests, helpers, fixtures; `--sources` the
 code; both are git globs. `--run` runs one test file, `{file}`, and writes
 JUnit XML to `{junit}`, inside a scratch worktree that holds only the
 record's files: `{root}`, the real worktree, is how it reaches the installed
-environment. For a Node project:
+environment, and `PYTHONPATH=src` keeps a packaged project's editable install
+from importing the real worktree's code instead of the record's. For a Node project:
 `ln -s {root}/node_modules node_modules && node_modules/.bin/vitest run {file} --reporter=junit --outputFile={junit}`.
 The installer commits the configuration and the two hook entries in
 `.claude/settings.json` as one commit, or refuses and leaves the repository

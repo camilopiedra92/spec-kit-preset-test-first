@@ -1,4 +1,7 @@
 import json
+import subprocess
+import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -256,6 +259,8 @@ def test_a_configuration_file_the_commit_cannot_take_whole_is_refused(
         '{"hooks": []}',
         '{"hooks": {"Stop": {}}}',
         '{"hooks": {"Stop": [{"hooks": ["x"]}]}}',
+        '{"hooks": {"Stop": ["x"]}}',
+        '{"hooks": {"Stop": [{"hooks": [{"type": "command", "command": 5}]}]}}',
     ],
 )
 def test_a_settings_file_that_is_not_a_settings_object_is_refused(
@@ -301,3 +306,47 @@ def test_the_install_starts_the_ledger_at_the_worktree_it_leaves(project: Path) 
         project, "rev-parse", "HEAD^{tree}"
     )
     assert json.loads(git(project, "log", "-1", "--format=%B", ledger.REF))["tool"] == "install"
+
+
+@pytest.mark.parametrize("glob", ["/src/**", "../elsewhere/**"])
+def test_a_glob_git_cannot_use_as_a_pathspec_is_refused(
+    glob: str, project: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    argv = ["--tests", "tests/**", "--sources", "src/**", glob, "--run", RUN]
+
+    assert glob in refused(project, capsys, argv)
+
+
+def test_a_symlinked_claude_directory_is_refused_before_anything_is_written(
+    project: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (project / ".claude").symlink_to(outside)
+    git(project, "add", ".claude")
+    git(project, "commit", "-q", "-m", "linked .claude")
+
+    assert "symlink" in refused(project, capsys)
+    assert list(outside.iterdir()) == []
+
+
+def test_an_installer_terminated_during_its_commit_leaves_everything_as_it_was(
+    project: Path,
+) -> None:
+    hook = project / ".git" / "hooks" / "pre-commit"
+    started = project.parent / "started"
+    hook.write_text(f"#!/bin/sh\ntouch {started}\nsleep 30\n")
+    hook.chmod(0o755)
+    before = state(project)
+    cli = Path(install.__file__).with_name("cli.py")
+    proc = subprocess.Popen(
+        [sys.executable, str(cli), "install", *ARGS], cwd=project, stderr=subprocess.PIPE
+    )
+    for _ in range(100):
+        if started.exists():
+            break
+        time.sleep(0.1)
+    proc.terminate()
+    proc.wait(timeout=10)
+
+    assert state(project) == before

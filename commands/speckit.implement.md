@@ -35,9 +35,10 @@ python3 .specify/presets/test-first/scripts/python/cli.py install \
   or any). Take both from the plan's project structure.
 - `--run`: a command that runs the one test file `{file}` and writes JUnit XML
   to `{junit}`. It runs in a scratch worktree holding only the record's
-  tracked files, so it reuses the real worktree's environment through
-  `{root}`: for pytest in a uv project
-  `UV_PROJECT_ENVIRONMENT={root}/.venv uv run --no-sync python -m pytest -q -p no:cacheprovider --junitxml={junit} {file}`;
+  files, so it reuses the real worktree's environment through `{root}`, and
+  must not import the real worktree's code: for pytest in a uv project
+  `PYTHONPATH=src UV_PROJECT_ENVIRONMENT={root}/.venv uv run --no-sync python -m pytest -q -p no:cacheprovider --junitxml={junit} {file}`
+  (`PYTHONPATH=src` puts the record's package ahead of the editable install);
   for Vitest
   `ln -s {root}/node_modules node_modules && node_modules/.bin/vitest run {file} --reporter=junit --outputFile={junit}`.
   Its exit status is ignored; only the JUnit file is read. A runner that
@@ -67,9 +68,10 @@ calls. A call is one tool use: one write, one edit, one shell command.
   no test-side path, and run the whole suite. A test changed in the same call
   as the code that makes it pass is the defect the audit exists to find.
 - A new test that passes on its first run either pins behaviour the feature
-  already had, which the audit accepts by itself, or was written after its
-  code. Do not break the code to show it can fail. If its code came earlier
-  in this run, take the redo sequence: remove the test — its file, when it is
+  already had before this feature, which the audit accepts by itself, or was
+  written after its code. Do not break the code to show it can fail. If its
+  code was written in this feature, in this session or an earlier one, take
+  the redo sequence: remove the test — its file, when it is
   the file's only test — revert the code it covers, write the test again in a
   call that changes nothing else, run it and see it fail, then restore the
   code.
@@ -84,13 +86,15 @@ calls. A call is one tool use: one write, one edit, one shell command.
   function now doing two things, and names that no longer say what they mean.
   Structure only, never behaviour; run the whole suite after each step. A
   test renamed, moved or consolidated (several cases into one parametrized
-  test) changes in calls that change no source file. If the cycle left
+  test) changes in a call that changes only test-side paths — not tasks.md,
+  not a file a run leaves behind. If the cycle left
   nothing to clean, move on.
 - Commit in a call of its own: a test written and committed in one call
   reaches the ledger already in HEAD, as if it came from elsewhere.
 - A subagent that writes code or tests works in this worktree, one at a time:
   a worktree of its own has a ledger of its own, removed with it, and two
-  writers at once land in one record.
+  writers at once land in one record. This narrows "parallel tasks [P] can
+  run together" above: tasks marked `[P]` still run one after another.
 - A case found while implementing — an edge case, a failure mode — does not go
   into the test in progress. Add it to the test list of the task whose
   behaviour it belongs to, marked as found during implementation, and take it
@@ -122,13 +126,17 @@ born (`unobserved`); for one born green because it passes without any
 source, the configuration, committed on its own; for `still-red`, the code
 that makes it pass, in a call that changes no test-side path; for
 `not-judged`, what its reason says. Apply them and run it again until it
-passes. Exit 2 is a refusal whose message says why. Give the last report to
+passes; a remedy outside this branch (a file that does not load on the
+default branch) goes in the completion report instead. Exit 2 is a refusal
+whose message says why. Give the last report to
 the reviewer. Without the ledger installed, say in the completion report
 that the story was not audited.
 
 The ledger's Stop hook runs the same audit at the end of every turn, within a
 budget, and blocks the turn once when a new test is born with its code, born
-green or rewritten to green: apply that test's remedy before going on.
+green or rewritten to green: apply that test's remedy before going on. It
+also blocks once when the audit cannot run (a configuration or git error),
+with the error.
 
 ## Project setup
 

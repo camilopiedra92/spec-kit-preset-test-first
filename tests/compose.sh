@@ -80,6 +80,10 @@ grep -qF 'Execute test tasks before their corresponding implementation tasks' co
   problem "core speckit-implement no longer orders test tasks first; revise the fragment"
 grep -qF 'Tests before code' core/implement.md ||
   problem "core speckit-implement no longer says 'Tests before code'; revise the fragment"
+grep -qF 'parallel tasks [P] can run together' core/implement.md ||
+  problem "core speckit-implement no longer runs [P] tasks together; revise the fragment"
+grep -qF 'Setup, Tests, Core' core/implement.md ||
+  problem "core speckit-implement no longer has a 'Tests' phase; revise the fragment"
 
 quiet specify preset add --from "http://127.0.0.1:$port/preset.zip"
 
@@ -139,6 +143,14 @@ cli=.specify/presets/test-first/scripts/python/cli.py
 for command in install audit; do
   tr -s ' \n' '  ' < "$skills/speckit-implement/SKILL.md" | grep -qF "python3 $cli $command" ||
     problem "speckit-implement does not run python3 $cli $command"
+done
+# The calls the ledger must be able to tell apart (FR-016) and the audit
+# before the review (FR-018). Joined into one line first, as above.
+for rule in "in a call that changes no source file" "in a later call that changes no test-side path" \
+  "changes only test-side paths" "Commit in a call of its own" "in this worktree, one at a time" \
+  "and before its review, run the audit"; do
+  tr -s ' \n' '  ' < "$skills/speckit-implement/SKILL.md" | grep -qF "$rule" ||
+    problem "speckit-implement no longer says: $rule"
 done
 # 2.0.0 dropped the self-recorded evidence (FR-017): the ledger observes what
 # the agent used to report, and breaking the code on purpose is the redo

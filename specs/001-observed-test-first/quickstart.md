@@ -6,9 +6,9 @@ Prerequisites: `git`, `python3`, `uv`, `specify` on PATH; run from the repositor
 2. The hook end to end: `tests/ledger.sh` — a mixed call is reported, a test-only call is silent,
    an unchanged tree adds no record, a linked worktree keeps its own ledger, a subagent's call is
    recorded with its id, each record names its branch and HEAD.
-3. The installer: `tests/install-ledger.sh` — each refusal leaves the repository unchanged; a
-   successful run is one commit of two files holding both hook entries; no base resolving (HEAD on
-   the default branch included) is a refusal.
+3. The installer: `tests/python/test_install.py` — each refusal leaves the repository unchanged;
+   `tests/install-ledger.sh` — through `cli.py`, a refusal on the default branch leaves it
+   unchanged, an install is one commit of two files, and both committed hook commands run.
 4. The audit: `tests/audit.sh` — over replayed sequences in a scratch pytest project:
    - test, then code → `red`, exit 0 (SC-002);
    - test and code in one call → `born-with-code`, exit 1 (SC-001);

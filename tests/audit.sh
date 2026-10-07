@@ -362,6 +362,31 @@ else
   echo "note: Vitest scenario skipped: no node or pnpm on PATH"
 fi
 
+# A packaged uv project (src layout): its .venv imports the package from the real worktree
+# through an editable install, so the fragment's recipe puts the scratch worktree's src first.
+SCENARIO="a packaged uv project, with the fragment's run recipe"
+pkg=$work/uvlib
+if (mkdir -p "$pkg" && cd "$pkg" && git init -q -b main && uv init -q --lib --name uvlib . &&
+  uv add -q --dev pytest) > /dev/null 2>&1; then
+  git -C "$pkg" config user.email t@example.com
+  git -C "$pkg" config user.name T
+  mkdir -p "$pkg/.specify" "$pkg/tests"
+  echo '.venv' >> "$pkg/.gitignore"
+  RUN_PKG='PYTHONPATH=src UV_PROJECT_ENVIRONMENT={root}/.venv uv run --no-sync python -m pytest -q -p no:cacheprovider --junitxml={junit} {file}'
+  jq -n --arg run "$RUN_PKG" '{tests: ["tests/**"], sources: ["src/**"], run: $run}' \
+    > "$pkg/.specify/test-first.json"
+  git -C "$pkg" add -A && git -C "$pkg" commit -q -m base && git -C "$pkg" checkout -q -b feat
+  REPO=$pkg
+  CALLS=0
+  record
+  write src/uvlib/f.py 'def f():\n    return None\n' && record
+  write tests/test_f.py 'from uvlib.f import f\n\ndef test_f():\n    assert f() == 2\n' && record
+  write src/uvlib/f.py 'def f():\n    return 2\n' && record
+  expect 0 "red tests.test_f::test_f"
+else
+  echo "note: $SCENARIO skipped: uv could not make the project"
+fi
+
 # The Stop hook (FR-024): one turn's test and code written together blocks the turn once, within
 # SC-004's 30 seconds; the next stop of that turn goes through.
 SCENARIO="the Stop hook blocks once on a test born with its code"

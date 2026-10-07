@@ -652,7 +652,12 @@ and Antigravity showed nothing test-first-specific in searches (second-hand).
   python -m pytest …` passed. A pnpm project (Vitest 5.0.3, node 26.7.0, `is-odd` as a
   dependency): `ln -s {root}/node_modules node_modules && node_modules/.bin/vitest run {file}
   --reporter=junit --outputFile={junit}` resolved the dependency and passed; `tests/audit.sh`'s
-  Vitest scenario now runs this way, and without the link it reports `not-judged`. One run each.
+  Vitest scenario now runs this way, and without the link it reports `not-judged`. One run each. A
+  packaged uv project (`uv init --lib`, story 3 review): its `.venv` holds an editable install
+  pointing at `{root}/src`, so a replay imported the real worktree's code and a test written red
+  came out `born-green`; `PYTHONPATH=src` ahead of it gives `red` (`tests/audit.sh`, packaged
+  scenario, which fails without it). A pnpm workspace whose packages are linked into
+  `node_modules` from the real worktree would leak the same way: not tested.
 - **Audit cost, SC-004** (T020, `tests/audit.sh`, 2026-10-07): a feature of 60 new tests in 20
   pytest files, each written red against a stub then given its code (41 records), pytest 9.1.1 via
   `uv run --no-project --with pytest`, Python 3.12, git 2.55.0, macOS arm64 (Mac16,8). First

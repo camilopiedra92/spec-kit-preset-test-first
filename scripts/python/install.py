@@ -3,6 +3,7 @@ configuration and the ledger's two hook entries."""
 
 import argparse
 import json
+import signal
 import subprocess
 import sys
 from pathlib import Path
@@ -38,6 +39,10 @@ class _Parser(argparse.ArgumentParser):
 
 
 def main(argv: list[str]) -> int:
+    # Terminated (an agent's command timing out) or hung up: exit through the commit's undo,
+    # which a signal's default action would skip. SIGKILL cannot be caught.
+    for signum in (signal.SIGTERM, signal.SIGHUP):
+        signal.signal(signum, _terminated)
     parser = _Parser(prog="cli.py install")
     parser.add_argument("--tests", nargs="+", required=True, help="globs of the test side")
     parser.add_argument("--sources", nargs="+", required=True, help="globs of the code")
@@ -68,12 +73,23 @@ def main(argv: list[str]) -> int:
     return 0
 
 
+def _terminated(signum: int, frame: object) -> None:
+    raise SystemExit(128 + signum)
+
+
 def _checked(root: Path, config: dict[str, Any]) -> dict[str, Any]:
     """Every refusal of the contract but the commit's own; the settings with both entries."""
     try:
         parsed = ledger.parse_config(config)
     except ledger.ConfigError as error:
         raise Refused(str(error)) from None
+    for glob in parsed.tests + parsed.sources:
+        # The hook hands each glob to git as a `:(glob)` pathspec: one git cannot use (outside
+        # the repository, magic of its own) would fail every call after this one.
+        try:
+            ledger.git(root, "ls-files", "--", f":(glob){glob}")
+        except subprocess.CalledProcessError as error:
+            raise Refused(f"git cannot use {glob} as a path glob: {error.stderr.strip()}") from None
     tracked = ledger.git(root, "ls-files", "-z").split("\0")
     # Matched as the hook and the audit match them (classify), so what is accepted here is
     # what they will see.
@@ -116,13 +132,22 @@ def _commit(root: Path, contents: dict[Path, dict[str, Any]]) -> None:
         for path, text in written.items():
             (root / path).write_text(text + "\n")
         ledger.git(root, "add", "--", *paths)
-        result = subprocess.run(
+        commit = subprocess.Popen(
             ["git", "-C", str(root), "commit", "-q", "-m", MESSAGE, "--", *paths],
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
         )
-        if result.returncode != 0:
-            output = (result.stderr + result.stdout).strip()
+        try:
+            stdout, stderr = commit.communicate()
+        except BaseException:
+            # Stopped by a signal: SIGTERM, not subprocess's SIGKILL, so git removes its lock
+            # files before the undo below needs the index.
+            commit.terminate()
+            commit.wait()
+            raise
+        if commit.returncode != 0:
+            output = (stderr + stdout).strip()
             raise Refused(f"the commit was refused (a pre-commit or commit-msg hook?): {output}")
         committed = True
     finally:
@@ -162,7 +187,10 @@ def _settings(path: Path) -> dict[str, Any]:
 
 
 def _objects(value: object) -> bool:
-    return isinstance(value, list) and all(isinstance(item, dict) for item in value)
+    """A list of objects, none with a `command` that is not a string."""
+    return isinstance(value, list) and all(
+        isinstance(item, dict) and isinstance(item.get("command", ""), str) for item in value
+    )
 
 
 def _installed(hooks: dict[str, Any]) -> bool:
@@ -178,6 +206,10 @@ def _installed(hooks: dict[str, Any]) -> bool:
 def _committable(root: Path, path: Path) -> None:
     """Refuse unless the commit can take `path` whole: absent, or a regular file committed as it
     is on disk, not ignored, and not hidden from git's diff."""
+    for parent in reversed(path.parents[:-1]):
+        if (root / parent).is_symlink():
+            # Written through, the file would land outside the repository.
+            raise Refused(f"{parent} is a symlink; {path} needs a directory of its own")
     if (root / path).is_symlink() or ((root / path).exists() and not (root / path).is_file()):
         raise Refused(f"{path} is not a regular file")
     if audit.quiet_git(root, "check-ignore", "--", str(path)):

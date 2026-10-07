@@ -4,7 +4,7 @@
 {
   "tests": ["tests/**"],
   "sources": ["src/**"],
-  "run": "UV_PROJECT_ENVIRONMENT={root}/.venv uv run --no-sync python -m pytest -q -p no:cacheprovider --junitxml={junit} {file}"
+  "run": "PYTHONPATH=src UV_PROJECT_ENVIRONMENT={root}/.venv uv run --no-sync python -m pytest -q -p no:cacheprovider --junitxml={junit} {file}"
 }
 ```
 
