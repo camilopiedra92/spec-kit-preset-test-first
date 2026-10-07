@@ -34,11 +34,15 @@ suites in scratch repositories), `commands/` (fragments).
   `target-version = "py310"`, pytest `timeout` set and `testpaths = ["tests/python"]`; `uv.lock`
   committed. The 3.10 floor because the scripts run on other projects' `python3` (plan, Technical
   Context; research R11; approved defaults in the global rules)
-- [ ] T002 Export-ignore `pyproject.toml`, `uv.lock` and `docs/` in `.gitattributes`, and make
+- [X] T002 Export-ignore `pyproject.toml`, `uv.lock` and `docs/` in `.gitattributes`, and make
   `tests/compose.sh` fail when the installed preset carries any of them (constitution V, 1.1.0)
   - an archive built from a commit that drops one of the three `.gitattributes` lines → compose.sh
     names that path and exits non-zero (break it on purpose, then restore)
+    - red: `tests/compose.sh` on a commit without the lines → `FAIL: the installed preset carries
+      this repository's pyproject.toml` and `… uv.lock`; on a probe commit adding `docs/probe.md`
+      without its line → `FAIL: … carries this repository's docs`
   - the archive of HEAD with all three lines → no complaint about them
+    - green: `ok: composes on specify 1.1.0` at cc4dc2b
 - [ ] T003 Run the Python checks and the new suites in CI as steps of the existing `compose` job in
   `.github/workflows/ci.yml` — `uv run ruff check`, `uv run ruff format --check`, `uv run mypy`,
   `uv run pytest` (also under Python 3.10, `uv run --python 3.10 pytest`), `tests/ledger.sh`,
