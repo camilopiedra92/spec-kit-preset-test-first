@@ -59,7 +59,8 @@ kill_group() {
 terminated=
 # shellcheck disable=SC2329  # invoked by the EXIT trap
 cleanup() {
-  [ -z "$watchdog" ] || kill_group "$watchdog"
+  # A second signal must not cut this short: the command's group is killed below.
+  trap '' TERM INT HUP QUIT
   # Ended by a signal while the command runs: SIGTERM first and the grace period, as the
   # deadline does, so the command can clean up (git removes its lock files on SIGTERM, and
   # cannot on SIGKILL).
@@ -74,11 +75,14 @@ cleanup() {
   # because they had their chance at SIGTERM, or ended on time and are
   # leftovers.
   [ -z "$pid" ] || kill_group "$pid"
+  # The watchdog last: until the group is gone it still holds the deadline,
+  # also when this runner is SIGKILLed during the grace period.
+  [ -z "$watchdog" ] || kill_group "$watchdog"
   rm -rf "$flags"
 }
 # Each signal that ends the runner is turned into an exit, so the EXIT trap
-# runs (bash would skip it on QUIT) and knows it was a signal. Nothing runs on KILL; the watchdog still enforces the
-# deadline then.
+# runs (bash would skip it on QUIT) and knows it was a signal. Nothing runs on
+# KILL: the watchdog, a group of its own, still enforces the deadline then.
 trap cleanup EXIT
 trap 'terminated=1; exit 143' TERM
 trap 'terminated=1; exit 130' INT

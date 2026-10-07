@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+import audit
 import install
 import ledger
 from helpers import git
@@ -378,3 +379,12 @@ def test_a_commit_hook_that_outlives_the_deadline_is_refused_with_everything_put
 
     assert "deadline" in refused(project, capsys)
     assert time.monotonic() - started < 20
+
+
+def test_without_the_preset_runner_the_install_refuses_naming_it(
+    project: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(audit, "RUNNER", project / "missing" / "run-bounded.sh")
+
+    # Refused as a precondition, before any write, not by the commit that needs the runner.
+    assert "run-bounded.sh is missing: reinstall the test-first preset" in refused(project, capsys)

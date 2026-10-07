@@ -87,8 +87,9 @@ as it was: off the feature's branch, with something staged, with a
 `settings.json` or configuration file it could not commit whole (untracked,
 changed, ignored, skip-worktree, a symlink or inside a symlinked directory,
 not a settings object), with a ledger entry already there, with globs git
-cannot use or that match no tracked test, when a commit hook rejects it, or
-when it is terminated during its commit.
+cannot use or that match no tracked test, without the preset's
+`run-bounded.sh`, when a commit hook rejects it or outlives the commit's
+300-second deadline, or when it is terminated during its commit.
 The audit by hand: `python3 .specify/presets/test-first/scripts/python/cli.py audit`.
 
 ### Limits

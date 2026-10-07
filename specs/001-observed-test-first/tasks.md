@@ -838,7 +838,7 @@ gate still runs and an old `tasks.md` is read.
 
 ## Phase 10: Convergence
 
-- [X] T047 Turn a git failure while resolving the base (`merge-base` with no common ancestor, an unresolvable `--base`) into a refusal carrying git's message, so `audit` exits 2 and `audit --stop` blocks once, with unit cases for an orphan branch and a bad `--base` seen failing first (a traceback, exit 1, today) per FR-024 (partial)
+- [X] T047 Turn a git failure while resolving the base (`merge-base` with no common ancestor, an unresolvable `--base`) into a refusal stating the reason in its own words (reworded by T053), so `audit` exits 2 and `audit --stop` blocks once, with unit cases for an orphan branch and a bad `--base` seen failing first (a traceback, exit 1, today) per FR-024 (partial)
   - red: all three failed (a bad `--base`, an orphan branch for the audit and for the Stop)
 - [X] T048 Treat a memo entry that cannot be read as JSON as a miss — run again and rewrite it — instead of an uncaught `ValueError` that ends the Stop unblocked, with a unit case seen failing first per FR-024 (partial)
   - red: `JSONDecodeError: Expecting property name enclosed in double quotes`
@@ -849,3 +849,15 @@ gate still runs and an old `tasks.md` is read.
     passes SIGTERM and the grace period on first, as its deadline does
     - red: `runner terminated: the command got no SIGTERM to clean up with` (`tests/run-bounded.sh`)
 - [X] T050 Correct the README's scenario count for `tests/audit.sh` to what the suite holds (36 with real pytest, one with Vitest) per Constitution VI (contradicts)
+
+## Phase 11: Convergence
+
+- [X] T051 Keep `run-bounded.sh`'s watchdog alive through the grace period of a terminated runner and ignore further signals while cleaning up, so a second signal or a SIGKILL during the grace cannot leave the command running past its bounds; add `tests/run-bounded.sh` cases seen red first — terminated then killed within the grace, and terminated twice, each with a command that ignores SIGTERM — and correct the comment that says the watchdog still enforces the deadline on KILL per Constitution IV (contradicts)
+  - red: `runner terminated, then TERM: the command outlived its bounds`, and the same for KILL,
+    once the polling stopped killing what it found (`leftover` kills; the first version passed
+    for that reason)
+- [X] T052 Add the installer's refusals for a commit hook that outlives its deadline and for a missing `run-bounded.sh` to contracts/install-ledger.md and the README, with a unit case for the missing runner seen red first per FR-014 (partial)
+  - passed on its first run (the check existed); removing it on purpose failed it once the case
+    pinned the precondition's own message — the commit's failure without the runner also names
+    `run-bounded.sh`
+- [X] T053 Reword T047 to say the refusal states the reason in its own words — git's messages for these two cases ("fatal: Needed a single revision", none for a merge-base without one) say less than the refusal does — per T047 (partial)

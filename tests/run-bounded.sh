@@ -154,6 +154,23 @@ sleep 1
 [ -e "$cleaned" ] || problem "runner terminated: the command got no SIGTERM to clean up with"
 rm -f "$cleaned"
 leftover 9108 && problem "runner terminated: the command survived it"
+
+# A second signal, or a SIGKILL, while it waits out the grace period must not leave a command
+# that ignores SIGTERM running past its bounds: the watchdog still holds the deadline.
+for second in TERM KILL; do
+  start=$SECONDS
+  bash "$RUN" 4 sh -c "trap '' TERM; sleep 9109; sleep 9109" 2> /dev/null &
+  runner=$!
+  sleep 1
+  kill -TERM "$runner"
+  sleep 1
+  kill -"$second" "$runner"
+  wait "$runner" 2> /dev/null
+  # The deadline (4 s) and the grace period (5 s), and a second to spare.
+  # pgrep only: `leftover` kills what it finds.
+  while pgrep -f "^sleep 9109" > /dev/null && [ $((SECONDS - start)) -lt 11 ]; do sleep 0.5; done
+  leftover 9109 && problem "runner terminated, then $second: the command outlived its bounds"
+done
 set +m
 
 [ "$fail" -eq 0 ] && echo "ok: run-bounded"
