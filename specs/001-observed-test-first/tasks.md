@@ -494,14 +494,21 @@ code" and "test and code in one shell call"; the audit reports `red` and exits 0
 and a source file returns the message; a test-only call returns none; ending the turn after a
 born-with-code test is blocked once, and the next stop passes.
 
-- [ ] T021 [US2] Report a mixed call in `scripts/python/ledger.py`: exit 2 with stderr naming the
+- [X] T021 [US2] Report a mixed call in `scripts/python/ledger.py`: exit 2 with stderr naming the
   test paths and the source paths, saying that a test added or changed with the code that
   satisfies it will fail the audit, and the redo sequence (research R4; contracts/ledger-hook.md
   step 4; FR-005)
   - a call changing `tests/t.py` and `src/x.py` → exit 2, both named
+    - red: `assert 0 == 2`
   - only tests, only sources, or neither → exit 0, no output
+    - passed on their first run; telling every changed call on purpose failed them, restored
   - tests and `README.md` → exit 0 (documentation is neither)
+    - same test as above (third parameter)
   - a symbol renamed across code and tests → exit 2, the message worded as conditional
+    - red: the first message had no condition; then the test compared exact line breaks,
+      normalised (content unchanged)
+    - cost: the first version took the hook to 97–104 ms (over SC-003); a diff-index from the
+      snapshot's own index, limited by `:(glob)` pathspecs, brought it to 84–87 ms (research L7)
 - [ ] T022 [US2] The `Stop` entry point `cli.py audit --stop` in `scripts/python/audit.py`: exit 0 when
   not installed, detached, on the default branch, or `stop_hook_active`; snapshot (`tool` =
   `Stop`); audit within `--budget` (default 120 s) with a 60 s deadline per run and no new run

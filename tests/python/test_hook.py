@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 import ledger
 from helpers import git
 
@@ -103,3 +105,55 @@ def test_a_git_failure_is_reported_and_the_repository_left_as_found(repo: Path) 
     assert "insufficient permission" in stderr or "Permission denied" in stderr
     assert git(repo, "status", "--porcelain") == status_before
     assert (repo / ".git" / "index").read_bytes() == index_before
+
+
+def test_a_call_changing_a_test_and_a_source_is_told_with_both_named(repo: Path) -> None:
+    install(repo)
+    ledger.post_tool_use(payload(repo))  # the origin
+    (repo / "tests" / "test_a.py").write_text("def test_a(): assert True\n")
+    (repo / "src" / "a.py").write_text("A = 2\n")
+
+    status, stderr = ledger.post_tool_use(payload(repo))
+
+    assert status == 2
+    assert "tests/test_a.py" in stderr
+    assert "src/a.py" in stderr
+
+
+@pytest.mark.parametrize(
+    "files",
+    [
+        {"tests/test_a.py": "def test_a(): assert True\n"},
+        {"src/a.py": "A = 2\n"},
+        {"tests/test_a.py": "def test_a(): assert True\n", "README.md": "docs\n"},
+    ],
+)
+def test_a_call_that_is_not_mixed_is_silent(repo: Path, files: dict[str, str]) -> None:
+    install(repo)
+    ledger.post_tool_use(payload(repo))  # the origin
+    for name, content in files.items():
+        (repo / name).write_text(content)
+
+    assert ledger.post_tool_use(payload(repo)) == (0, "")
+
+
+def test_an_unchanged_worktree_is_silent(repo: Path) -> None:
+    install(repo)
+    ledger.post_tool_use(payload(repo))
+
+    assert ledger.post_tool_use(payload(repo)) == (0, "")
+
+
+def test_the_message_is_conditional_and_names_the_redo(repo: Path) -> None:
+    install(repo)
+    ledger.post_tool_use(payload(repo))
+    (repo / "tests" / "test_a.py").write_text("def test_renamed(): pass\n")
+    (repo / "src" / "a.py").write_text("RENAMED = 1\n")
+
+    _, raw = ledger.post_tool_use(payload(repo))
+    stderr = " ".join(raw.lower().split())  # the content, not where its lines break
+
+    assert "if this call added or changed a test together with the code" in stderr
+    assert "the audit will fail" in stderr
+    assert "a rename or a formatter run" in stderr
+    assert "revert the code" in stderr

@@ -55,6 +55,22 @@ grep -qx 'src/b.py' <<< "$files" || problem "the record lacks src/b.py"
 [ "$(git -C "$repo" rev-list --count refs/worktree/test-first/ledger 2> /dev/null)" = 1 ] ||
   problem "one call should add one record"
 
+# The agent hears a call that changed tests and code together (FR-005, exit 2 shows stderr to
+# Claude), and nothing about one that changed only tests.
+repo=$work/told
+scratch_repo "$repo"
+hook_input "$repo" toolu_origin | python3 "$HOOK" ledger 2> /dev/null
+echo 'def test_c(): pass' > "$repo/tests/test_c.py"
+hook_input "$repo" toolu_tests | python3 "$HOOK" ledger 2> "$work/stderr"
+status=$?
+[ "$status" = 0 ] && [ ! -s "$work/stderr" ] || problem "a test-only call: exit $status: $(cat "$work/stderr")"
+echo 'def test_d(): pass' > "$repo/tests/test_d.py"
+echo 'D = 1' > "$repo/src/d.py"
+hook_input "$repo" toolu_mixed | python3 "$HOOK" ledger 2> "$work/stderr"
+status=$?
+[ "$status" = 2 ] && grep -q 'tests/test_d.py' "$work/stderr" && grep -q 'src/d.py' "$work/stderr" ||
+  problem "a mixed call: exit $status: $(cat "$work/stderr")"
+
 # SC-003: a record costs at most 100 ms per call -- the median of eleven calls of
 # the whole hook process, each after a change, on 1,000 tracked files and no
 # untracked ones. The machine is printed beside the result. SC-003 is defined on

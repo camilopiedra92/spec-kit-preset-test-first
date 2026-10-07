@@ -594,6 +594,16 @@ and Antigravity showed nothing test-first-specific in searches (second-hand).
   ms of eleven over three runs, single calls 58–110 ms at a load average of 3.2. Profile: Python
   start 11 ms, imports 13 ms, snapshot (`add -A` + `write-tree`) 25 ms, each other git process
   about 5 ms.
+- **The mixed-call message's cost** (T021, 2026-10-07, same machine, 1,001 tracked files, a call
+  that changed one source file): a `git diff-tree` of the record against its parent cost 19.6 ms
+  (the whole hook went to 97–104 ms, over SC-003), and limiting it with `:(glob)` pathspecs did
+  not help (19.1 ms); `diff-index --cached` against the previous tree, read from the snapshot's
+  own temporary index and limited to the test globs, 7.5 ms. With it, and the newest record, its
+  tree and HEAD read in one `cat-file --batch-check`: medians 84–87 ms of eleven, three runs;
+  against the hook before T021 alternated on the same repository, 86 against 76 ms (load
+  average 3.2). An index kept between calls was measured too: no faster for the snapshot
+  (28 against 25 ms), though `add -v` would print the change for free; not adopted, for the
+  state it keeps and the lock contention of concurrent hooks.
 - **Audit cost, SC-004** (T020, `tests/audit.sh`, 2026-10-07): a feature of 60 new tests in 20
   pytest files, each written red against a stub then given its code (41 records), pytest 9.1.1 via
   `uv run --no-project --with pytest`, Python 3.12, git 2.55.0, macOS arm64 (Mac16,8). First
