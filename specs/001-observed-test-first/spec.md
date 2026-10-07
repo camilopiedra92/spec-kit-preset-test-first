@@ -28,6 +28,16 @@ found against 14% when written after faulty code). The industry's mechanical che
 encodes new behaviour is SWE-bench's FAIL_TO_PASS: the test fails before the change and passes
 after. This feature applies that check at the moment each test was written.
 
+## Clarifications
+
+### Session 2026-10-07
+
+- Q: Should a new test that passes the moment it first appears, in a call that changed no source
+  file, fail the audit? → A: Yes, unless it also passes against the source at the base — then its
+  behaviour predates the feature (a moved or characterization test) and it is accepted as such.
+  Otherwise the code-first route stays open one call apart. The remedy is the redo sequence of
+  Story 1, which makes the machine observe what "break it on purpose" only narrated.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - A test written together with its code is caught (Priority: P1)
@@ -35,9 +45,10 @@ after. This feature applies that check at the moment each test was written.
 A project owner runs `/speckit-implement` with the preset. The agent writes code however it likes —
 the file-editing tool, a shell heredoc, a script, a subagent. At the close of each user story, an
 audit reads what the repository looked like after every tool call and, for every test that is new
-in the feature, replays that test as it was when it first appeared. A test that first appeared in
-the same tool call as a source change is reported as born with its code, and the audit fails. A
-test that first appeared alone and failed there is proven red. The owner and the story's reviewer
+in the feature, replays that test as it was when it first appeared. Every new test must have been
+seen failing there. A test that passed where it first appeared fails the audit — named as born with
+its code when that same call changed source — unless its behaviour predates the feature. A test
+that first appeared and failed there is proven red. The owner and the story's reviewer
 read the audit, not the agent's account of its own red runs.
 
 **Why this priority**: it is the defect observed. Without it every other part of the preset still
@@ -54,9 +65,12 @@ first is proven red, the second is born with its code and the audit exits non-ze
 2. **Given** a feature in which one shell call added a test and a source change, **When** the audit
    runs, **Then** the test is reported as born with its code, the call is named, and the audit
    fails.
-3. **Given** a test added alone that passes at once because an earlier cycle's code already covers
-   it, **When** the audit runs, **Then** it is reported as passed at birth for the reviewer to
-   judge, and on its own it does not fail the audit.
+3. **Given** a test added alone that passes at once because code written earlier in the feature
+   already covers it, **When** the audit runs, **Then** it is reported as passed at birth and the
+   audit fails.
+6. **Given** a test added alone that passes at once and also passes against the source at the
+   base (a moved or characterization test), **When** the audit runs, **Then** it is reported as
+   predating the feature and does not fail the audit.
 4. **Given** a test whose first run errors because the code it imports does not exist yet, and a
    later call adds a stub under which it fails, **When** the audit runs, **Then** it is classified
    by that first non-error outcome: failed, so proven red.
@@ -165,8 +179,8 @@ that the gate still runs and the composed skills read an old `tasks.md`.
 - A new test has no birth in the ledger (the ledger was installed after the test was written, or
   its records were lost): the audit reports it as unobserved and fails; it never assumes a red it
   did not see.
-- A test moved or renamed: it is new under its new name and is born in the call that moved it; if
-  that call changed no source, it is reported as passed at birth for the reviewer.
+- A test moved or renamed: it is new under its new name and is born in the call that moved it;
+  when it also passes against the base's source it is reported as predating the feature.
 - A test that existed at the base and is changed in the feature: it is not new and is not judged
   by birth; only tests absent at the base are.
 - A test new in the feature but deleted before the audit: not judged.
@@ -209,12 +223,13 @@ that the gate still runs and the composed skills read an old `tasks.md`.
   at that record in an isolated copy of the worktree.
 - **FR-008**: A test whose birth is an error MUST be classified by its first non-error outcome in
   later records; one that never reaches a non-error outcome MUST be reported as never run.
-- **FR-009**: The audit MUST report each new test as one of: failed at birth; born with its code
-  (its birth record's call also changed source files); passed at birth (a test-only call);
-  unobserved; never run; not judged (replay exceeded its deadline).
-- **FR-010**: The audit MUST exit non-zero when any new test is born with its code, unobserved,
-  never run or not judged, and zero otherwise; passed-at-birth tests MUST be listed and MUST NOT on
-  their own fail it.
+- **FR-009**: The audit MUST report each new test as one of: failed at birth; predates the
+  feature (passed at birth, and passes when its file at birth is run against the source at the
+  base); born with its code (passed at birth, and its birth record's call also changed source
+  files); passed at birth (a test-only call); unobserved; never run; not judged (a replay
+  exceeded its deadline).
+- **FR-010**: The audit MUST exit zero only when every new test failed at birth or predates the
+  feature, and non-zero otherwise.
 - **FR-011**: Every replay MUST run under a deadline that kills the command's whole process group.
 - **FR-012**: The audit MUST NOT read the agent's account of its runs (`tasks.md` or any other file
   the agent writes as evidence).
@@ -252,7 +267,7 @@ that the gate still runs and the composed skills read an old `tasks.md`.
   linked to the record before it.
 - **Ledger**: the ordered records of one worktree.
 - **Birth**: the record at which a test, absent in the record before, appears for the last time.
-- **Verdict**: an audit's judgement of one new test, one of the six in FR-009, with the record and
+- **Verdict**: an audit's judgement of one new test, one of the seven in FR-009, with the record and
   the call it rests on.
 - **Configuration**: the project's test patterns, source patterns and JUnit command.
 
@@ -262,8 +277,8 @@ that the gate still runs and the composed skills read an old `tasks.md`.
 
 - **SC-001**: On recorded sequences reproducing the observed failure (code and test in one call),
   100% of those tests are reported as born with their code, and the audit fails.
-- **SC-002**: On a sequence that follows the cycle (test alone, red, then code), 0 tests are
-  reported as born with their code.
+- **SC-002**: On a sequence that follows the cycle (test alone, red, then code), 0 tests fail the
+  audit; on one where code comes one call before its test, 100% of those tests fail it.
 - **SC-003**: Recording adds at most 100 ms per tool call on a repository of about 1,000 tracked
   files, measured on the development machine.
 - **SC-004**: An audit of a feature with 60 new tests in 20 test files completes within 10 minutes
