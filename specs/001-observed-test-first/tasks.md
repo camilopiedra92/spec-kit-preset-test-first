@@ -690,12 +690,14 @@ born-with-code test is blocked once, and the next stop passes.
 
 **Independent test**: the composed `speckit-tasks` carries the instruction.
 
-- [ ] T027 [US4] Add to `commands/speckit.tasks.md`: when the spec states an invariant over a
+- [X] T027 [US4] Add to `commands/speckit.tasks.md`: when the spec states an invariant over a
   domain (an amount conserved, an order preserved, a bound), the implementing task's test list
   includes a property case over generated inputs naming the invariant, and only then (FR-020;
   research R9)
-- [ ] T028 [US4] Extend `tests/compose.sh`: the composed `speckit-tasks` carries the property-case
+- [X] T028 [US4] Extend `tests/compose.sh`: the composed `speckit-tasks` carries the property-case
   instruction
+  - red: `speckit-tasks does not add a property case for a stated invariant`, against the
+    fragment before T027
 
 ---
 

@@ -148,6 +148,11 @@ for gone in "Record the red run" "Break the code it pins on purpose"; do
     problem "speckit-implement still says: $gone"
 done
 
+# A stated invariant gets a property case (FR-020), and only a stated one.
+# Joined into one line first, so rewrapping the fragment does not fail this.
+tr -s ' \n' '  ' < "$skills/speckit-tasks/SKILL.md" | grep -qF "property case" ||
+  problem "speckit-tasks does not add a property case for a stated invariant"
+
 # Each script the fragments or the installed hooks run is declared in
 # preset.yml, which is what makes `specify preset info` list it.
 specify preset info test-first > info.txt 2>&1 || problem "specify preset info failed: $(cat info.txt)"
