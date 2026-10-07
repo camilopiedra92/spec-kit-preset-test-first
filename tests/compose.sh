@@ -101,8 +101,9 @@ done
 
 # This repository is developed with Spec Kit itself; its own .specify/, CLAUDE.md,
 # .claude/ and specs/ are export-ignore, or every project installing the
-# preset would get them under .specify/presets/test-first/.
-for own in .specify .claude specs CLAUDE.md; do
+# preset would get them under .specify/presets/test-first/. So are its Python
+# dev tooling (pyproject.toml, uv.lock) and its decision records (docs/).
+for own in .specify .claude specs CLAUDE.md pyproject.toml uv.lock docs; do
   [ ! -e ".specify/presets/test-first/$own" ] ||
     problem "the installed preset carries this repository's $own"
 done
