@@ -257,6 +257,19 @@ wording then allowed and v1.5.0 now rules out. In a copy
 with one deliberately broken format string (16 tests red), a turn asked only to
 reply "done" was blocked by the gate and ended with the code fixed.
 
+Validated in a clone of renta (861 files) on 2026-10-07, with Claude Code
+2.1.293 in `claude -p` sessions, Spec Kit 1.1.0, git 2.55.0, pytest 9.1.1 on
+Python 3.14.7, macOS: the preset updated from 1.6.0, the ledger installed on a
+feature branch, then a session told to write a test against a stub in a call
+of its own, run it red, write the code, and then write a second test and its
+code in one shell command. The hook told Claude at that call; the Stop audit
+blocked the turn; the audit gave `red` and `born-with-code`. The two sessions
+before it found two defects, fixed in this release: the ledger had no record
+before the first tool call, so the first test written was `unobserved`; and a
+test whose file could not import its code yet was `born-with-code` without
+saying why, which the session read as a false positive. One run each,
+about $0.44 per session.
+
 Why 2.0.0's rules, by source (searched and measured 2026-10-07; research.md
 of feature 001 holds each decision with what was considered and why it
 lost):

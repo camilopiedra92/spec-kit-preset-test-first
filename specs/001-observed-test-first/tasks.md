@@ -746,7 +746,7 @@ gate still runs and an old `tasks.md` is read.
 - [X] T033 Update `CLAUDE.md`: the commands (`uv run ruff check`, `uv run mypy`, `uv run pytest`,
   `tests/ledger.sh`, `tests/install-ledger.sh`, `tests/audit.sh`), `scripts/python/` and
   `docs/decisions/` in "Where things live", and a pointer to `docs/decisions/`
-- [ ] T034 Validate in renta (quickstart step 7): install with its configuration, one test-only
+- [X] T034 Validate in renta (quickstart step 7): install with its configuration, one test-only
   call and one mixed call, end the turn, run the audit; record the verdicts and a timed snapshot
   with the versions of Claude Code, git and pytest, dated, in the README (SC-003; SC-006;
   constitution III)
