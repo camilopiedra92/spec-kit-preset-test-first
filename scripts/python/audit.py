@@ -565,6 +565,8 @@ class Auditor:
         if replaced:
             return Verdict("refactored", record, replaced=replaced)
         if any(ledger.classify(self.config, path) == "source" for path in changed):
+            if self._blob(r1 - 1, file) and not self.observe(r1 - 1, file).conclusive:
+                return Verdict("born-with-code", record, NEVER_LOADED)
             return Verdict("born-with-code", record)
         return Verdict("born-green", record)
 
@@ -762,6 +764,14 @@ REDO = (
     "redo it: remove the test -- its file, when it is the file's only test -- revert the code "
     "it covers, write the test again in a call that changes nothing else, run it and see it "
     "fail, then restore the code"
+)
+# A test whose file did not load until its code existed (an import of a module not written yet)
+# never ran before that code: the failure the agent saw was the import's, not the test's.
+NEVER_LOADED = (
+    "its file did not load before this call (it imports code that did not exist yet), so the "
+    "test never ran before its code. Redo it with a stub: remove the test, revert the code, "
+    "write a stub of the code in a call of its own, write the test in another call and see it "
+    "fail, then write the code"
 )
 REMEDIES = {
     "born-with-code": REDO,

@@ -238,6 +238,7 @@ Remedies, which the audit prints with each failing verdict:
 | Verdict | Remedy |
 |---|---|
 | `born-with-code`, `born-green` (step 4), `rewritten-to-green` | the redo sequence (below) |
+| `born-with-code` whose file did not load at the record before (it imported code not yet written) | the redo sequence with a stub: the code stubbed in a call of its own before the test is written again |
 | `born-green` (step 1) | the configuration, committed on its own so the owner sees it: add the code's paths to `sources`, or make `run` use the scratch worktree's code |
 | `still-red` | write the code that makes it pass, in a call that changes no test-side path |
 | `unobserved` | the redo sequence, which gives the test a birth in this ledger |

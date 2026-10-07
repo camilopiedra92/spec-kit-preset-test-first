@@ -207,3 +207,19 @@ def test_a_test_unskipped_beside_a_rename_is_not_counted_as_refactored(repo: Pat
     calls.call({"tests/test_b.py": TEST_B + "def test_s(): # expects src/b.py B\n"})
 
     assert verdict(repo, test="tests.test_b::test_s").kind == "born-green"
+
+
+def test_a_test_whose_file_did_not_load_until_its_code_says_so_and_how_to_redo_it(
+    repo: Path,
+) -> None:
+    git(repo, "checkout", "-q", "-b", "feat")
+    calls = Calls(repo)
+    calls.call({"README.md": "origin"})
+    calls.call({"tests/test_b.py": "# needs src/b.py\n" + TEST_B})  # its import is missing
+    record = calls.call({"src/b.py": "B\n"})
+
+    judged = verdict(repo)
+
+    assert (judged.kind, judged.record) == ("born-with-code", record)
+    assert "did not load" in judged.reason
+    assert "stub" in judged.reason

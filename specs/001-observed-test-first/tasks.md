@@ -655,6 +655,10 @@ born-with-code test is blocked once, and the next stop passes.
     - red: `CalledProcessError` from `git rev-list refs/worktree/test-first/ledger` (no ledger);
       `tests/install-ledger.sh` without its earlier workaround (an origin call) fails when the
       origin record is removed on purpose
+  - found by T034's validation in renta: a test whose file did not load until its code existed
+    is `born-with-code` with a reason saying so and the redo with a stub — the agent in the
+    session saw an import error, took it for red, and suspected a false positive
+    - red: `assert 'did not load' in ''`
   - found during implementation (constitution IV): `cli.py` writes no `__pycache__` beside the
     installed scripts
     - red: `tests/install-ledger.sh`: "a refusal changed the repository" (an untracked
