@@ -148,6 +148,14 @@ for gone in "Record the red run" "Break the code it pins on purpose"; do
     problem "speckit-implement still says: $gone"
 done
 
+# Each script the fragments or the installed hooks run is declared in
+# preset.yml, which is what makes `specify preset info` list it.
+specify preset info test-first > info.txt 2>&1 || problem "specify preset info failed: $(cat info.txt)"
+for script in install-stop-gate run-bounded cli ledger audit install; do
+  grep -qE "^ +- $script \(script\):" info.txt ||
+    problem "specify preset info does not list the $script script"
+done
+
 specify version > version.txt 2>&1 || true
 [ "$fail" -eq 0 ] && echo "ok: composes on specify $(grep -m1 -oE '[0-9]+\.[0-9]+\.[0-9]+' version.txt)"
 exit "$fail"

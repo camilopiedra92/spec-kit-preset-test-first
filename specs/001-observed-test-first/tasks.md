@@ -676,8 +676,11 @@ born-with-code test is blocked once, and the next stop passes.
   installed;
   the overridden core rules are still in core; the composed skill no longer asks for recorded red
   runs nor offers breaking the code on purpose (constitution I, II)
-- [ ] T026 [US3] Declare the new scripts in `preset.yml` (`cli`, `ledger`, `audit`, `install`) and
+- [X] T026 [US3] Declare the new scripts in `preset.yml` (`cli`, `ledger`, `audit`, `install`) and
   check in `tests/compose.sh` that `specify preset info` lists them
+  - red: `specify preset info does not list the … script` for the four, and for `run-bounded`,
+    which 1.x ran from the fragment without declaring it; both now declared, and the implement
+    template's description, which still said "each red run recorded", rewritten
 
 ---
 
