@@ -28,7 +28,7 @@ suites in scratch repositories), `commands/` (fragments).
 
 ## Phase 1: Setup
 
-- [ ] T001 Add the Python toolchain as its own change: `pyproject.toml` with a uv dev group
+- [X] T001 Add the Python toolchain as its own change: `pyproject.toml` with a uv dev group
   (ruff, mypy, pytest, pytest-timeout), `[tool.uv] package = false`, `requires-python = ">=3.10"`,
   mypy strict with `python_version = "3.10"` over `scripts/python` and `tests/python`, ruff
   `target-version = "py310"`, pytest `timeout` set and `testpaths = ["tests/python"]`; `uv.lock`

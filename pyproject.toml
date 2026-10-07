@@ -1,0 +1,40 @@
+# Development tooling for this repository's Python scripts (scripts/python),
+# which the preset installs into projects and runs with their own python3 —
+# hence the 3.10 floor and no runtime dependencies. Not a package: nothing
+# here is built or published, and the file is export-ignored.
+[project]
+name = "spec-kit-preset-test-first"
+version = "0"
+requires-python = ">=3.10"
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+files = ["scripts/python", "tests/python"]
+# The scripts run as `python3 <path>`, not as a package; the tests import them
+# by module name from that directory.
+mypy_path = "scripts/python"
+explicit_package_bases = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests/python"]
+pythonpath = ["scripts/python"]
+timeout = 60
+
+[dependency-groups]
+dev = [
+    "mypy>=2.4.0",
+    "pytest>=9.1.1",
+    "pytest-timeout>=2.4.0",
+    "ruff>=0.16.10",
+]
