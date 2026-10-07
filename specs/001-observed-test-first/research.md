@@ -403,11 +403,29 @@ not make.
 - Record the base when the branch's line starts: survives a missing remote, but is wrong after a
   legitimate rebase onto a newer default branch.
 
+## R15. Glob semantics: git's
+
+**Decision**: the `tests` and `sources` globs follow git's wildmatch semantics, as in a `:(glob)`
+pathspec: `*` and `?` stay within a path segment, `**/` matches zero or more directories, a
+trailing `/**` matches everything inside. Implemented as a translation to a regular expression
+(the scripts' Python 3.10 floor has no wildmatch: `PurePath.full_match` arrives in 3.13), and
+checked against `git ls-files ':(glob)…'` in the units, so git decides what a glob means.
+
+**Rationale**: the preset is built on git — records are trees, the installer checks the globs
+against tracked files — so a glob must mean what it means to git, and to `.gitignore`, whose
+semantics users already know. Found during T005: under `fnmatch`, `**/test_*.py` did not match a
+root-level `test_x.py`, and `*` crossed `/`, so `src/*.py` matched `src/a/b.py`.
+
+**Alternatives considered**: `fnmatch` (the first version: both surprises above); `glob.translate`
+(Python 3.13+, above the floor); a pathspec library (a runtime dependency the scripts do not
+otherwise need); asking git for every classification (`git ls-files` per path: a process per path
+on every tool call, against SC-003).
+
 ---
 
 # Landscape and evidence (2026-10-07)
 
-The research behind R0–R14, kept whole so a later session does not redo it. Sources were read on
+The research behind R0–R15, kept whole so a later session does not redo it. Sources were read on
 2026-10-07 unless dated otherwise. **Verified** = read in the primary source or measured here;
 **second-hand** = from search results or a summary, not opened.
 

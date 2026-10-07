@@ -8,8 +8,12 @@
 | `sources` | list of globs | Non-empty; a path matching both `tests` and `sources` counts as a test |
 | `run` | string | Contains `{file}` and `{junit}`; may contain `{root}` |
 
-Glob semantics: `fnmatch` on the repository-relative POSIX path, where `**` matches across
-directories (`tests/**` matches `tests/a/b.py`).
+Glob semantics: git's (wildmatch, as in a `:(glob)` pathspec), on the repository-relative POSIX
+path: `*` and `?` do not cross `/`; `**/` matches zero or more directories (`**/test_*.py`
+matches `test_x.py` and `a/b/test_x.py`); a trailing `/**` matches everything inside
+(`tests/**` matches `tests/a/b.py`); `[...]` is a character class. The installer checks the
+globs with git itself (`git ls-files ':(glob)<glob>'`), so a glob means the same to both
+(research R15).
 
 Two partitions of a tree's paths, used for different things:
 

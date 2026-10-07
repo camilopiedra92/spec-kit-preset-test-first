@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-import fnmatch
+import functools
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -75,7 +76,48 @@ def classify(config: Config, path: str) -> str:
 
 
 def _matches(path: str, globs: tuple[str, ...]) -> bool:
-    return any(fnmatch.fnmatchcase(path, glob) for glob in globs)
+    return any(_wildmatch(glob).fullmatch(path) for glob in globs)
+
+
+@functools.cache
+def _wildmatch(glob: str) -> re.Pattern[str]:
+    """git's glob semantics (wildmatch, as in a `:(glob)` pathspec) as a regular expression.
+
+    `*` and `?` stay within a segment; `**/` is zero or more directories; a trailing `/**` is
+    everything inside; any other run of asterisks is a plain `*` (research R15).
+    """
+    out, i = [], 0
+    while i < len(glob):
+        if glob.startswith("**", i):
+            starts_segment = i == 0 or glob[i - 1] == "/"
+            if starts_segment and glob.startswith("**/", i):
+                out.append("(?:.*/)?")
+                i += 3
+                continue
+            if starts_segment and i + 2 == len(glob):
+                out.append(".*")
+                i += 2
+                continue
+            while i < len(glob) and glob[i] == "*":
+                i += 1
+            out.append("[^/]*")
+            continue
+        char = glob[i]
+        if char == "*":
+            out.append("[^/]*")
+        elif char == "?":
+            out.append("[^/]")
+        elif char == "[" and "]" in glob[i + 2 :]:
+            end = glob.index("]", i + 2)
+            body = glob[i + 1 : end]
+            if body.startswith("!"):
+                body = "^" + body[1:]
+            out.append("[" + body.replace("\\", "\\\\") + "]")
+            i = end
+        else:
+            out.append(re.escape(char))
+        i += 1
+    return re.compile("".join(out))
 
 
 def is_mixed(config: Config, paths: list[str]) -> bool:

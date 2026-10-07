@@ -89,9 +89,13 @@ suites in scratch repositories), `commands/` (fragments).
     - passed on its first run; returning `source` for unmatched paths on purpose failed it, restored
   - a change of one test and one source path → mixed; tests and other only → not mixed
     - red: `AttributeError: … no attribute 'is_mixed'`, then `assert False` from the stub
-  - `stopped: possible spec gap` — whether `**/test_*.py` matches a root-level `test_x.py`
-    (found during implementation): plain `fnmatch` says no, gitignore-style globs say yes; the
-    data model says only "`fnmatch`, where `**` matches across directories"
+  - whether `**/test_*.py` matches a root-level `test_x.py` (found during implementation; was
+    `stopped: possible spec gap`, decided by the owner on 2026-10-07: git's semantics, research
+    R15 and data-model "Configuration")
+    - red: `assert 'other' == 'test'` under `fnmatch`; a wildmatch translation fixed it. Written
+      whole in that step, so the next cases passed on their first run: `*` within a segment, and
+      every glob of a table matching exactly what `git ls-files ':(glob)…'` matches. Going back to
+      `fnmatch` on purpose failed all three; `**/` requiring a directory failed two; restored
 - [X] T006 Snapshot the worktree as a tree in `scripts/python/ledger.py`: temporary index seeded
   from the worktree's own, `git add -A`, `git write-tree`; tracked and untracked-but-not-ignored
   files; the real index and the worktree never modified (research R2; FR-001; constitution IV)
