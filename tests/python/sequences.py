@@ -14,6 +14,10 @@ CONFIG = ledger.Config(
 )
 
 
+# A run whose code comes from the real worktree, not the replayed tree (an editable install).
+LEAKING = CONFIG._replace(run=CONFIG.run + " --root {root}")
+
+
 class Calls:
     """Applies one tool call's writes to the worktree and records it in the ledger."""
 

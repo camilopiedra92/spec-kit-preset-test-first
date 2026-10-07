@@ -9,7 +9,10 @@ whose path does not exist -- in the file itself or in a shared fixture it names 
 named after the module, with an empty classname, as pytest 9.1.1 reports it (research L7). A file
 that does not exist gives a report with no case, as pytest does.
 
-Usage: python3 fake_runner.py <file> <junit>
+With `--root <dir>`, `# expects` paths resolve against <dir> instead of the working directory:
+an environment that imports the project's code from the real worktree (an editable install).
+
+Usage: python3 fake_runner.py <file> <junit> [--root <dir>]
 """
 
 import re
@@ -50,7 +53,11 @@ def _exists(path: str) -> bool:
     return Path(path).exists()
 
 
+CODE_ROOT = Path(sys.argv[sys.argv.index("--root") + 1]) if "--root" in sys.argv else Path()
+
+
 def _holds(path: Path, text: str) -> bool:
+    path = CODE_ROOT / path
     return path.exists() and text in path.read_text(errors="replace")
 
 

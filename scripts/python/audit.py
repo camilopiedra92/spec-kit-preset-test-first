@@ -346,16 +346,32 @@ class Lifecycle(NamedTuple):
     reason: str = ""
 
 
+class Verdict(NamedTuple):
+    """An audit's judgement of one test: its name, the record it rests on, and why."""
+
+    name: str
+    record: str | None = None
+    reason: str = ""
+    replaced: tuple[str, ...] = ()
+
+
 class Auditor:
     """Judges tests along the current branch's effective history (data-model.md)."""
 
     def __init__(
-        self, worktree: Path, config: ledger.Config, replayer: Replayer, deadline: int
+        self,
+        worktree: Path,
+        config: ledger.Config,
+        replayer: Replayer,
+        deadline: int,
+        base: str | None = None,
     ) -> None:
         self.worktree = worktree
         self.config = config
         self.replayer = replayer
         self.deadline = deadline
+        self.base_override = base
+        self._base_tree: str | None = None
         branch = _git(worktree, "symbolic-ref", "--quiet", "--short", "HEAD")
         self.history = effective_history(load_records(worktree), branch)
 
@@ -407,6 +423,44 @@ class Auditor:
             if test in (seen.outcomes or {}):
                 return Birth(b, imported=True)
         return Birth(b)
+
+    def verdict(self, test: str, file: str) -> Verdict:
+        """The test's verdict along the history (data-model.md, Verdict)."""
+        birth = self.birth(test, file)
+        if birth.at is None or birth.imported:
+            return Verdict("unobserved")
+        life = self.follow(test, file, birth.at)
+        if life.state != "first-pass" or life.at is None:
+            record = self.history[life.at].commit if life.at is not None else None
+            return Verdict(life.state, record, life.reason)
+        return self.judge_first_pass(test, file, life.at)
+
+    def judge_first_pass(self, test: str, file: str, r1: int) -> Verdict:
+        """A test whose first run, at r1, passed (data-model.md, Judged at first run)."""
+        record = self.history[r1].commit
+        tree = self.history[r1].tree
+        bare = without_sources(self.worktree, self.config, tree)
+        if (self.observe_tree(bare, file).outcomes or {}).get(test) == "passed":
+            return Verdict(
+                "born-green",
+                record,
+                "it passes without any source file: the run command reaches code outside the "
+                "scratch worktree (make `run` use it), or the test exercises code outside "
+                "`sources` (add its paths to `sources`, committed on its own)",
+            )
+        on_base = compose(self.worktree, self.config, tests_from=tree, rest_from=self.base_tree())
+        if (self.observe_tree(on_base, file).outcomes or {}).get(test) == "passed":
+            return Verdict("predates", record)
+        changed = self.change(r1)
+        if any(ledger.classify(self.config, path) == "source" for path in changed):
+            return Verdict("born-with-code", record)
+        return Verdict("born-green", record)
+
+    def base_tree(self) -> str:
+        if self._base_tree is None:
+            base = resolve_base(self.worktree, self.base_override)
+            self._base_tree = _git(self.worktree, "rev-parse", f"{base}^{{tree}}")
+        return self._base_tree
 
     def follow(self, test: str, file: str, born: int) -> Lifecycle:
         """Forward from the birth: its first run, and when that failed, its green check."""
