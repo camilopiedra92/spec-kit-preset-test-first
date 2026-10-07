@@ -23,12 +23,12 @@ strict = true
 files = ["scripts/python", "tests/python"]
 # The scripts run as `python3 <path>`, not as a package; the tests import them
 # by module name from that directory.
-mypy_path = "scripts/python"
+mypy_path = "scripts/python:tests/python"
 explicit_package_bases = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests/python"]
-pythonpath = ["scripts/python"]
+pythonpath = ["scripts/python", "tests/python"]
 timeout = 60
 
 [dependency-groups]

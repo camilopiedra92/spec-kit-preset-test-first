@@ -1,13 +1,7 @@
-import subprocess
 from pathlib import Path
 
 import pytest
-
-
-def git(repo: Path, *args: str) -> str:
-    return subprocess.run(
-        ["git", "-C", str(repo), *args], check=True, capture_output=True, text=True
-    ).stdout.strip()
+from helpers import git
 
 
 @pytest.fixture
