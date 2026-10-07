@@ -262,18 +262,29 @@ code" and "test and code in one shell call"; the audit reports `red` and exits 0
       (empty classname) on purpose failed it, restored. The real Vitest run is in tests/audit.sh
   - every test genuinely failing by assertion → the probe reports a different id set → conclusive
     - passed on its first run; ignoring the probe's ids on purpose failed it, restored
-- [ ] T014 [US1] Resolve the base in `scripts/python/audit.py`: merge base with the
+- [X] T014 [US1] Resolve the base in `scripts/python/audit.py`: merge base with the
   remote-tracking default (`origin/HEAD`, else `origin/main`, else `origin/master`); without an
   `origin` remote, the local `init.defaultBranch`, `main`, `master`; refuse when none resolves or
   HEAD is on the default branch; no network (data-model "Base"; research R14; FR-027)
   - `origin/HEAD` → `origin/main` → its merge base with HEAD
+    - red: `AttributeError: … no attribute 'resolve_base'`, then `assert '' == '8399dd6…'`
   - `origin` without `origin/HEAD` but with `origin/main` → that
+    - first passed for the wrong reason: git 2.55 creates `origin/HEAD` on fetch
+      (`followRemoteHEAD`); with it deleted, red: `merge-base HEAD ''` exit 128
   - no remote, local `main` → its merge base
+    - red: `StopIteration` (only remote-tracking candidates)
   - a local merge into `main` after the branch's commits → base unchanged when `origin/main` exists
+    - passed on its first run; preferring local `main` on purpose failed it, restored
   - HEAD on `main` → refusal naming it
+    - red: `AttributeError: … 'BaseError'`, then `DID NOT RAISE BaseError`
   - nothing resolves → refusal naming what was tried
+    - red: `AttributeError: … 'BaseError'`, then `StopIteration`
   - `--base <rev>` → that commit
+    - first passed by coincidence (`HEAD~1` was the merge base); made distinguishable, red:
+      `assert '7c2c5c4…' == '8df27c4…'`
   - an `origin` whose URL is unreachable → the base resolves from local refs; no fetch is made
+    - rewritten to detect a fetch (a remote whose main moved on, and `origin/main` checked);
+      passed on its first run; a `git fetch` on purpose failed it (`the audit fetched`), restored
 - [ ] T015 [US1] Compute the effective history of the current branch from the ledger in
   `scripts/python/audit.py`, and each record's previous and change (data-model "Effective
   history")

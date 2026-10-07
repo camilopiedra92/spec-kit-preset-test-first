@@ -2,8 +2,9 @@ import json
 import subprocess
 from pathlib import Path
 
-import ledger
 import pytest
+
+import ledger
 from helpers import git
 
 CALL: ledger.Call = {"session": "s1", "agent": None, "tool": "Bash", "call": "toolu_1"}

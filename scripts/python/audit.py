@@ -248,3 +248,37 @@ def _git_input(worktree: Path, data: str, *args: str) -> str:
     return subprocess.run(
         ["git", "-C", str(worktree), *args], input=data, capture_output=True, text=True, check=True
     ).stdout.strip()
+
+
+class BaseError(Exception):
+    """No base to judge new tests against."""
+
+
+def resolve_base(worktree: Path, override: str | None = None) -> str:
+    """The commit new tests are new against (data-model.md, Base)."""
+    if override is not None:
+        return _git(worktree, "rev-parse", "--verify", f"{override}^{{commit}}")
+    if "origin" in _quiet_git(worktree, "remote").split():
+        # Remote-tracking first: a local merge into the default branch cannot move these.
+        named = _quiet_git(worktree, "symbolic-ref", "--quiet", "refs/remotes/origin/HEAD")
+        candidates = [named.removeprefix("refs/remotes/"), "origin/main", "origin/master"]
+    else:
+        configured = _quiet_git(worktree, "config", "init.defaultBranch")
+        candidates = [configured, "main", "master"]
+    tried = [ref for ref in candidates if ref]
+    default = next(
+        (ref for ref in tried if _quiet_git(worktree, "rev-parse", "--verify", "--quiet", ref)),
+        None,
+    )
+    if default is None:
+        raise BaseError(f"no default branch to take the base from: tried {', '.join(tried)}")
+    branch = _quiet_git(worktree, "symbolic-ref", "--quiet", "--short", "HEAD")
+    if branch == default.removeprefix("origin/"):
+        raise BaseError(f"HEAD is on the default branch, {branch}: nothing is new against it")
+    return _git(worktree, "merge-base", "HEAD", default)
+
+
+def _quiet_git(worktree: Path, *args: str) -> str:
+    """git's output, or "" when the command fails (an absent ref, for instance)."""
+    result = subprocess.run(["git", "-C", str(worktree), *args], capture_output=True, text=True)
+    return result.stdout.strip() if result.returncode == 0 else ""

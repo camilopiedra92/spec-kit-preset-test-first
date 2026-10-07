@@ -1,8 +1,9 @@
 import json
 from pathlib import Path
 
-import ledger
 import pytest
+
+import ledger
 
 
 def write_config(root: Path, value: object) -> None:
