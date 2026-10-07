@@ -2,16 +2,29 @@
 
 ```bash
 python3 .specify/presets/test-first/scripts/python/audit.py [--base <rev>] [--deadline <seconds>]
+python3 .specify/presets/test-first/scripts/python/audit.py --stop [--budget <seconds>]   # the Stop hook
 ```
 
-- `--base`: default `git merge-base HEAD <default branch>` (the branch `origin/HEAD` names, else
-  `main`).
-- `--deadline`: per replay, whole seconds, default 300; passed to `run-bounded.sh`.
-- Reads only git objects, the ledger and `.specify/test-first.json`; writes only in a temporary
-  directory, removed on exit (its scratch worktree included).
+- `--base`: default as data-model.md, Base: the merge base with the remote-tracking default
+  branch, so a local merge into the default branch does not move it.
+- `--deadline`: per run, whole seconds, default 300 (60 under `--stop`); passed to
+  `run-bounded.sh`.
+- `--budget`: with `--stop` only, see [ledger-hook.md](ledger-hook.md).
+- Takes a snapshot first (a record with `tool` = `audit` or `Stop`) when the worktree differs from
+  the newest record, so edits made between calls are judged.
+- Judges the current branch's effective history (data-model.md). Refuses, exit 2, on a detached
+  HEAD, HEAD on the default branch, no ledger, no configuration or no base.
+- Reads git objects, the ledger, `.specify/test-first.json` and the run memo; writes only the memo,
+  a temporary directory removed on exit, and the scratch worktree's registration in the repository's
+  common git directory, removed with it. At start it prunes scratch worktrees an earlier audit left
+  registered (killed or crashed), so the repository is left as found.
 
-Output, stdout: one line per new test, `<verdict> <test id> <record> <tool> <call>`, grouped by
-verdict, then a summary line `audit: <n> new tests: <count per verdict>; <pass|FAIL>`.
+Output, stdout: one line per new test, `<verdict> <test id> <record> <tool> <call>`, with `-` for
+the three fields of `unobserved`, which rests on no record of its own, followed for
+`refactored` by the tests it replaced and for `born-green` by its reason; grouped by verdict, then
+a summary line `audit: <n> new tests: <count per verdict>; <pass|FAIL>`. Each failing verdict ends
+with its remedy: the redo sequence for a final one, the reason's remedy for `not-judged` and for
+`born-green` without sources (data-model.md).
 
-Exit: 0 when every new test is `red` or `predates`; 1 otherwise; 2 on a usage or configuration
-error (no ledger, no configuration, no base).
+Exit: 0 when every new test is `red`, `predates`, `refactored` or `never-run`; 1 otherwise; 2 on a usage or
+configuration error.
