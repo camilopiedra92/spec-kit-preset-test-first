@@ -161,6 +161,40 @@ for script in install-stop-gate run-bounded cli ledger audit install; do
     problem "specify preset info does not list the $script script"
 done
 
+# A project on 1.6.0 updates to this version and keeps working (FR-021,
+# SC-005): its Stop gate, committed by 1.6.0's installer, still blocks a red
+# turn and lets a green one end, and the composed skill still reads a tasks.md
+# written under 1.x.
+quiet git -C "$PRESET" archive --format=zip --prefix=spec-kit-preset-test-first/ \
+  -o "$work/www/v1.6.0.zip" v1.6.0
+mkdir "$work/migrate"
+(
+  cd "$work/migrate"
+  quiet git init -q
+  quiet git config user.email t@example.com
+  quiet git config user.name T
+  quiet specify init --here --force --integration claude --ignore-agent-tools
+  quiet specify preset add --from "http://127.0.0.1:$port/v1.6.0.zip"
+  echo green > verdict
+  quiet git add -A
+  quiet git commit -q -m "a project on 1.6.0"
+  quiet bash .specify/presets/test-first/scripts/bash/install-stop-gate.sh sh -c 'grep -q green verdict'
+  quiet specify preset update test-first --from "http://127.0.0.1:$port/preset.zip"
+  cmp -s .specify/presets/test-first/preset.yml "$PRESET/preset.yml" ||
+    problem "the update did not install this version's preset.yml"
+  stop() {
+    echo '{"stop_hook_active": false}' | CLAUDE_PROJECT_DIR=$PWD .claude/hooks/stop-gate.sh > /dev/null 2>&1
+  }
+  stop || problem "after the update, the 1.6.0 gate blocks a green turn (exit $?)"
+  echo red > verdict
+  stop
+  [ $? -eq 2 ] || problem "after the update, the 1.6.0 gate lets a red turn end"
+  tr -s ' \n' '  ' < "$skills/speckit-implement/SKILL.md" |
+    grep -qF "A tasks.md from an earlier version of this preset" ||
+    problem "after the update, speckit-implement no longer reads a 1.x tasks.md"
+  [ "$fail" -eq 0 ]
+) || fail=1
+
 specify version > version.txt 2>&1 || true
 [ "$fail" -eq 0 ] && echo "ok: composes on specify $(grep -m1 -oE '[0-9]+\.[0-9]+\.[0-9]+' version.txt)"
 exit "$fail"

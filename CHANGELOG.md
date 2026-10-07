@@ -6,6 +6,63 @@ All notable changes to this preset are documented here. The format follows
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-10-07
+
+Test-first is observed, not reported: the agent no longer writes down its
+own red runs; a hook records the worktree after every tool call and an audit
+replays the records. MAJOR because a project's workflow changes: the rules
+the implement skill gave the agent are replaced, and the next
+`/speckit-implement` commits two hook entries. Evidence for each rule, and
+what was measured: README, "Why this shape".
+
+### Added
+
+- The ledger: a Claude Code `PostToolUse` hook (`cli.py ledger`) that
+  records the worktree as a git tree after every tool call, in a chain of
+  commits under `refs/worktree/test-first/ledger`, never touching the index
+  or the worktree; it tells Claude, by exit 2, when one call changed tests
+  and code together.
+- The audit (`cli.py audit`): replays each new test's file at its birth and
+  at its first pass, in a scratch worktree under a deadline, and gives each
+  new test a verdict — `red`, `predates`, `refactored`, `born-with-code`,
+  `born-green`, `rewritten-to-green`, `still-red`, `unobserved`,
+  `not-judged`, `never-run` — with the remedy for each failing one. It reads
+  per-test outcomes from JUnit XML, so it works with any runner that runs
+  one file and writes JUnit (pytest and Vitest measured).
+- The same audit as a `Stop` hook (`cli.py audit --stop`): within a
+  120-second budget, it blocks a turn once when a new test was born with its
+  code, born green or rewritten to green.
+- The installer (`cli.py install --tests … --sources … --run …`): one
+  commit of `.specify/test-first.json` and both hook entries, or a refusal
+  that leaves the repository as it was.
+- `speckit-implement`: installs the ledger before the first task, takes
+  each case in calls the ledger can tell apart (the test, then the code;
+  renames and commits in calls of their own; writing subagents in this
+  worktree, one at a time), and closes each story with the audit before the
+  independent review, which receives its report and uses the project's
+  mutation check where its constitution or CI names one.
+- `speckit-tasks`: a task implementing an invariant the spec states gets a
+  property case over generated inputs.
+- Requires `python3` 3.11 or newer on `PATH` for the hooks; the hooks say
+  so, rather than failing, on an older one.
+
+### Removed
+
+- `speckit-implement`: recording each red run in tasks.md, and accepting a
+  test that passed on its first run by breaking the code on purpose. The
+  ledger observes the first; the redo sequence the audit prescribes is the
+  second, observed.
+
+### Migration from 1.x
+
+1. `specify preset update test-first --from <the v2.0.0 archive URL>`, and
+   commit the updated `.specify/presets/test-first/`.
+2. Make sure `python3 --version` is 3.11 or newer where Claude Code runs.
+3. Nothing else: the next `/speckit-implement` on a feature branch installs
+   the ledger in a commit of its own. The 1.x Stop gate keeps running beside
+   the ledger's Stop hook, and a tasks.md written under 1.x keeps its red
+   bullets; new cases get none.
+
 ## [1.6.0] - 2026-10-06
 
 ### Added
@@ -216,7 +273,8 @@ All notable changes to this preset are documented here. The format follows
 - `tests/compose.sh` and CI composing the preset against the pinned and the
   latest Spec Kit release.
 
-[Unreleased]: https://github.com/camilopiedra92/spec-kit-preset-test-first/compare/v1.6.0...HEAD
+[Unreleased]: https://github.com/camilopiedra92/spec-kit-preset-test-first/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/camilopiedra92/spec-kit-preset-test-first/compare/v1.6.0...v2.0.0
 [1.6.0]: https://github.com/camilopiedra92/spec-kit-preset-test-first/compare/v1.5.1...v1.6.0
 [1.5.1]: https://github.com/camilopiedra92/spec-kit-preset-test-first/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/camilopiedra92/spec-kit-preset-test-first/compare/v1.4.1...v1.5.0

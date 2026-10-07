@@ -708,11 +708,13 @@ born-with-code test is blocked once, and the next stop passes.
 **Independent test**: install 1.6.0 into a scratch project, update to HEAD's archive; the Stop
 gate still runs and an old `tasks.md` is read.
 
-- [ ] T029 [US5] A migration check in `tests/compose.sh`: install the `v1.6.0` tag's archive with
+- [X] T029 [US5] A migration check in `tests/compose.sh`: install the `v1.6.0` tag's archive with
   the real CLI, install its Stop gate, update to HEAD's archive; the gate still runs from
   `.claude/hooks/stop-gate.sh` and the composed skills still carry the 1.x `tasks.md` reading rule
   (FR-021; SC-005)
-- [ ] T030 [US5] Set `version: "2.0.0"` and the new descriptions in `preset.yml`; write the
+  - red: `the update did not install this version`, before T030 set 2.0.0; the gate's and the
+    tasks.md checks passed against HEAD's fragment from the start
+- [X] T030 [US5] Set `version: "2.0.0"` and the new descriptions in `preset.yml`; write the
   CHANGELOG 2.0.0 entry (Keep a Changelog: Added, Changed, Removed — the recorded red runs and the
   break-on-purpose route — with the migration steps) (FR-021; constitution V)
 
