@@ -22,11 +22,10 @@ stated invariants. Released as 2.0.0. Decisions and their alternatives: [researc
 
 ## Technical Context
 
-**Language/Version**: Python ≥ 3.11 (3.10's end of life was 2026-10-01; Spec Kit's own floor), standard library only, for the ledger hook and the audit;
-bash for the installer, like the existing Stop-gate installer.
+**Language/Version**: Python ≥ 3.11 (3.10's end of life was 2026-10-01; Spec Kit's own floor), standard library only, for the ledger hook, the audit and
+the installer (research R16).
 
-**Primary Dependencies**: none at runtime beyond `git`, `python3` and, for the installer, `jq`
-(already required by `install-stop-gate.sh`). Development: ruff, mypy, pytest and pytest-timeout
+**Primary Dependencies**: none at runtime beyond `git` and `python3`. Development: ruff, mypy, pytest and pytest-timeout
 in a uv dev group (no packaging).
 
 **Storage**: git objects and one per-worktree ref, `refs/worktree/test-first/ledger`; the replay
@@ -155,11 +154,11 @@ commands/
 scripts/
 ├── bash/
 │   ├── install-stop-gate.sh  # unchanged
-│   ├── install-ledger.sh     # new: both hook entries + configuration, one commit
 │   └── run-bounded.sh        # unchanged, used by the audit
 └── python/
     ├── cli.py                # new: the one entry point; checks the Python version first
     ├── ledger.py             # new: the PostToolUse hook and the snapshot both entry points share
+    ├── install.py            # new: both hook entries + configuration, one commit (research R16)
     └── audit.py              # new: the birth search, the replays and their memo; the Stop entry point
 tests/
 ├── compose.sh                # + new scripts installed and referenced; + dev files export-ignored

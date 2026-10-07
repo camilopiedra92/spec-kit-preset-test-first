@@ -589,26 +589,58 @@ born-with-code test is blocked once, and the next stop passes.
 **Independent test**: compose the preset into a scratch Spec Kit project; the composed
 `speckit-implement` carries each instruction; installing from it records.
 
-- [ ] T023 [US3] `scripts/bash/install-ledger.sh`: write `.specify/test-first.json` and both hook
+- [X] T023 [US3] `cli.py install` in `scripts/python/install.py` (research R16): write `.specify/test-first.json` and both hook
   entries (`PostToolUse` matcher `*`; `Stop` with `timeout` 300, in seconds) into
   `.claude/settings.json`, creating it when absent, keeping every other entry, and commit exactly
   those two files as one commit; refuse with exit 1, the repository unchanged, on each condition of
   contracts/install-ledger.md (FR-013; FR-014; constitution IV)
   - a clean repository with tracked tests → one commit, two files, both entries, config as given
+    - red: `NotImplementedError` from the stub
   - an existing `hooks.Stop` entry (the 1.x Stop gate) → kept, the new one added beside it
+    - red: `KeyError: 'permissions'`
   - not at the root with `.specify/` → refused
+    - red: `FileNotFoundError` writing `.specify/test-first.json`, from a subdirectory and from a
+      root without `.specify/`
   - detached HEAD → refused; HEAD on the default branch → refused; no base resolves → refused
+    - red: all three failed before the check existed
   - something staged → refused
+    - red: `assert 0 == 1`
   - no `.claude/settings.json` → created, in the commit
+    - pinned by the first case, whose project has no `.claude/` (its red above)
   - `.claude/settings.json` untracked, tracked with uncommitted changes, ignored, not a regular
     file, or skip-worktree → refused
+    - red: all seven failed (untracked, changed, ignored, a directory, a symlink, skip-worktree,
+      assume-unchanged)
   - a ledger entry already present → refused
+    - red: `assert 0 == 1`; then the unchanged-repository check caught the configuration written
+      before the refusal (`?? .specify/test-first.json`): every check now runs before any write
   - `--run` without `{file}` or `{junit}` → refused; a missing flag → refused
+    - red: all six failed (argparse's own exit, or no refusal); the configuration is checked by
+      `ledger.parse_config`, the hook's own validation
   - test globs matching no tracked file → refused
-  - no `jq` → refused
+    - red: both failed (`spec/**`, and `tests`, which names a directory, not a glob)
   - a commit hook rejecting the commit → refused, working tree and index as before
-  - after every refusal → `git status`, the index and HEAD unchanged; these cases end to end in
-    `tests/install-ledger.sh` (quickstart step 3), added as a step of the CI `compose` job (T003)
+    - red: `CalledProcessError` from `git commit`, with `settings.json` absent and committed
+  - after every refusal → `git status`, the index and HEAD unchanged; these cases as pytest units
+    over scratch repositories (`tests/python/test_install.py`), and an install and a refusal end
+    to end through `cli.py` in `tests/install-ledger.sh` (quickstart step 3), a step of the CI
+    `compose` job (T003)
+  - found during implementation: `.specify/test-first.json` untracked or ignored → refused
+    - red: both failed
+  - found during implementation: a `settings.json` that is empty, not JSON, not an object, or with
+    hooks of the wrong shape → refused
+    - red: all five failed; then a hook entry that is not an object (`["x"]`) raised
+      `AttributeError`
+  - found during implementation: a git error while committing (a held `index.lock`) → refused,
+    everything as before
+    - red: `CalledProcessError` from `git add`
+  - found during implementation (FR-011, constitution IV): the audit without the preset's
+    `run-bounded.sh` → refused naming it, not "the command wrote no JUnit"
+    - red: `assert 1 == 2`
+  - found during implementation (constitution IV): `cli.py` writes no `__pycache__` beside the
+    installed scripts
+    - red: `tests/install-ledger.sh`: "a refusal changed the repository" (an untracked
+      `__pycache__/`); removing the fix on purpose fails it again
 - [ ] T024 [US3] Rewrite `commands/speckit.implement.md` — Test-first, Stop gate and Independent
   review sections — for observed evidence: install the ledger before the first task, deriving
   `--tests`, `--sources` and `--run` from the plan and saying so when it cannot (FR-015); each case
@@ -621,10 +653,11 @@ born-with-code test is blocked once, and the next stop passes.
   from 1.x read with its red bullets kept and not required of new cases (FR-021); each rule
   overridden in core named (constitution I)
 - [ ] T025 [US3] Extend `tests/compose.sh`: the composed `speckit-implement` names
-  `install-ledger.sh` and `audit.py` at their installed paths and those files are installed;
+  `cli.py install` and `cli.py audit` at their installed path and the four Python modules are
+  installed;
   the overridden core rules are still in core; the composed skill no longer asks for recorded red
   runs nor offers breaking the code on purpose (constitution I, II)
-- [ ] T026 [US3] Declare the new scripts in `preset.yml` (`install-ledger`, `ledger`, `audit`) and
+- [ ] T026 [US3] Declare the new scripts in `preset.yml` (`cli`, `ledger`, `audit`, `install`) and
   check in `tests/compose.sh` that `specify preset info` lists them
 
 ---

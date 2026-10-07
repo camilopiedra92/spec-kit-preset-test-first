@@ -1,6 +1,6 @@
 # Quickstart: validating observed test-first
 
-Prerequisites: `git`, `python3`, `jq`, `uv`, `specify` on PATH; run from the repository root.
+Prerequisites: `git`, `python3`, `uv`, `specify` on PATH; run from the repository root.
 
 1. Units: `uv run pytest` — green; `uv run ruff check`, `uv run mypy` — clean.
 2. The hook end to end: `tests/ledger.sh` — a mixed call is reported, a test-only call is silent,

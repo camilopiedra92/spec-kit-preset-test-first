@@ -355,7 +355,7 @@ that the gate still runs and the composed skills read an old `tasks.md`.
   detached HEAD; no base resolving (data-model.md, Base); anything staged; a settings file that is
   untracked, tracked with uncommitted changes, ignored, not a regular file or marked skip-worktree;
   an existing entry for the ledger; HEAD on the default branch; an incomplete configuration; test
-  patterns matching no tracked file; `jq` missing; a commit hook rejecting the commit.
+  patterns matching no tracked file; a commit hook rejecting the commit.
 - **FR-015**: The `speckit-implement` fragment MUST install the ledger before the first task when it
   is not installed, and MUST say so in the completion report when it cannot.
 - **FR-016**: The `speckit-implement` fragment MUST instruct that each case's test is written and

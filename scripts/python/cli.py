@@ -1,5 +1,6 @@
-"""The preset's entry point: `python3 cli.py ledger` (the PostToolUse hook) or
-`python3 cli.py audit [options]` (the audit, and its Stop hook).
+"""The preset's entry point: `python3 cli.py ledger` (the PostToolUse hook),
+`python3 cli.py audit [options]` (the audit, and its Stop hook) or
+`python3 cli.py install [options]` (the installer).
 
 Claude Code runs it with whatever python3 a project has on its PATH, which may be older than
 the scripts support -- the macOS one is 3.9. So this file stays parseable by any Python 3 and
@@ -20,6 +21,9 @@ def main() -> int:
         # Exit 2: Claude Code shows a hook's stderr to Claude only on that status.
         print(f"test-first: needs python3 >= {FLOOR[0]}.{FLOOR[1]}, found {found}", file=sys.stderr)
         return 2
+    # The modules live in the project's tree (.specify/presets/...): bytecode cached beside them
+    # would be an untracked __pycache__ in the project after every hook call.
+    sys.dont_write_bytecode = True
     command, args = (sys.argv[1], sys.argv[2:]) if len(sys.argv) > 1 else ("", [])
     if command == "ledger":
         import ledger
@@ -29,7 +33,13 @@ def main() -> int:
         import audit
 
         return audit.main(args)
-    print("usage: cli.py ledger | cli.py audit [options]", file=sys.stderr)
+    if command == "install":
+        import install
+
+        return install.main(args)
+    print(
+        "usage: cli.py ledger | cli.py audit [options] | cli.py install [options]", file=sys.stderr
+    )
     return 2
 
 

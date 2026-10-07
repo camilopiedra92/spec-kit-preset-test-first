@@ -443,6 +443,25 @@ The research behind R0–R15, kept whole so a later session does not redo it. So
 2026-10-07 unless dated otherwise. **Verified** = read in the primary source or measured here;
 **second-hand** = from search results or a summary, not opened.
 
+## R16. The installer is Python, beside the hook and the audit
+
+**Decision**: `cli.py install --tests … --sources … --run …`, a module of the same package as the
+hook and the audit (`scripts/python/install.py`), checked by pytest units over scratch
+repositories and by `tests/install-ledger.sh` end to end through `cli.py`.
+
+**Rationale**: three of its refusals are decisions the audit already makes — whether a base
+resolves (data-model.md, Base), whether a configuration is complete, and which tracked files a test
+glob matches (R15's wildmatch) — and a second implementation in bash would be a copy that can
+drift: a configuration the installer accepts and the hook rejects, or globs the installer matches
+and the audit does not. In Python they are the same functions, the JSON of `.claude/settings.json`
+is the standard library's, and the `jq` dependency goes with the bash. The `python3` floor check is
+`cli.py`'s, as for the hook.
+
+**Alternatives considered**: `scripts/bash/install-ledger.sh` with `jq`, the shape of the 1.x
+`install-stop-gate.sh` and the plan's first choice — lost on the duplicated base, configuration and
+glob logic, and on the extra dependency. Calling Python from bash for those three checks — two
+languages for one installer, for no gain over writing it in the one that has them.
+
 ## L1. What motivated the feature: the renta run on preset 1.6.0
 
 Project renta (private), feature `001-bridge-adjudication`, implemented 2026-10-06/07 with this

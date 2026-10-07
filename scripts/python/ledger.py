@@ -39,6 +39,11 @@ def load_config(root: Path) -> Config:
         raw = json.loads(text)
     except json.JSONDecodeError as error:
         raise ConfigError(f"{CONFIG}: {error}") from None
+    return parse_config(raw)
+
+
+def parse_config(raw: object) -> Config:
+    """The configuration a JSON value holds; ConfigError naming what is missing or wrong."""
     if not isinstance(raw, dict):
         raise ConfigError(f"{CONFIG}: must be a JSON object")
     return Config(tests=_globs(raw, "tests"), sources=_globs(raw, "sources"), run=_run(raw))

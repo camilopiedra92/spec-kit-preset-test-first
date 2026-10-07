@@ -257,21 +257,21 @@ def resolve_base(worktree: Path, override: str | None = None) -> str:
     """The commit new tests are new against (data-model.md, Base)."""
     if override is not None:
         return ledger.git(worktree, "rev-parse", "--verify", f"{override}^{{commit}}")
-    if "origin" in _quiet_git(worktree, "remote").split():
+    if "origin" in quiet_git(worktree, "remote").split():
         # Remote-tracking first: a local merge into the default branch cannot move these.
-        named = _quiet_git(worktree, "symbolic-ref", "--quiet", "refs/remotes/origin/HEAD")
+        named = quiet_git(worktree, "symbolic-ref", "--quiet", "refs/remotes/origin/HEAD")
         candidates = [named.removeprefix("refs/remotes/"), "origin/main", "origin/master"]
     else:
-        configured = _quiet_git(worktree, "config", "init.defaultBranch")
+        configured = quiet_git(worktree, "config", "init.defaultBranch")
         candidates = [configured, "main", "master"]
     tried = [ref for ref in candidates if ref]
     default = next(
-        (ref for ref in tried if _quiet_git(worktree, "rev-parse", "--verify", "--quiet", ref)),
+        (ref for ref in tried if quiet_git(worktree, "rev-parse", "--verify", "--quiet", ref)),
         None,
     )
     if default is None:
         raise BaseError(f"no default branch to take the base from: tried {', '.join(tried)}")
-    branch = _quiet_git(worktree, "symbolic-ref", "--quiet", "--short", "HEAD")
+    branch = quiet_git(worktree, "symbolic-ref", "--quiet", "--short", "HEAD")
     if branch == default.removeprefix("origin/"):
         raise BaseError(
             f"HEAD is on the default branch, {branch}: nothing is new against it",
@@ -280,7 +280,7 @@ def resolve_base(worktree: Path, override: str | None = None) -> str:
     return ledger.git(worktree, "merge-base", "HEAD", default)
 
 
-def _quiet_git(worktree: Path, *args: str) -> str:
+def quiet_git(worktree: Path, *args: str) -> str:
     """git's output, or "" when the command fails (an absent ref, for instance)."""
     result = subprocess.run(["git", "-C", str(worktree), *args], capture_output=True, text=True)
     return result.stdout.strip() if result.returncode == 0 else ""
@@ -317,7 +317,7 @@ def effective_history(records: list[Record], branch: str) -> list[Record]:
 
 def load_records(worktree: Path) -> list[Record]:
     """The worktree's ledger, oldest record first; empty when there is none."""
-    log = _quiet_git(worktree, "log", "--reverse", "-z", "--format=%H %T %B", ledger.REF, "--")
+    log = quiet_git(worktree, "log", "--reverse", "-z", "--format=%H %T %B", ledger.REF, "--")
     records = []
     for entry in filter(None, log.split("\0")):
         commit, tree, message = entry.split(" ", 2)
@@ -542,7 +542,7 @@ class Auditor:
         return None
 
     def _blob(self, i: int, file: str) -> str:
-        return _quiet_git(self.worktree, "rev-parse", f"{self.history[i].tree}:{file}")
+        return quiet_git(self.worktree, "rev-parse", f"{self.history[i].tree}:{file}")
 
     def judge_first_pass(self, test: str, file: str, r1: int) -> Verdict:
         """A test whose first run, at r1, passed (data-model.md, Judged at first run)."""
@@ -810,7 +810,7 @@ class NothingToJudge(Refusal):
 
 
 def _preconditions(cwd: Path, base: str | None) -> tuple[Path, ledger.Config]:
-    root = _quiet_git(cwd, "rev-parse", "--show-toplevel")
+    root = quiet_git(cwd, "rev-parse", "--show-toplevel")
     if not root:
         raise NothingToJudge("not inside a git worktree")
     worktree = Path(root)
@@ -820,9 +820,12 @@ def _preconditions(cwd: Path, base: str | None) -> tuple[Path, ledger.Config]:
         raise NothingToJudge(f"not installed here: no {ledger.CONFIG}") from None
     except ledger.ConfigError as error:
         raise Refusal(str(error)) from None
-    if not _quiet_git(worktree, "symbolic-ref", "--quiet", "HEAD"):
+    if not RUNNER.is_file():
+        # Every replay runs under it (FR-011); without it each would read as "no JUnit".
+        raise Refusal(f"{RUNNER} is missing: reinstall the test-first preset")
+    if not quiet_git(worktree, "symbolic-ref", "--quiet", "HEAD"):
         raise NothingToJudge("HEAD is detached: check out the feature's branch")
-    if not _quiet_git(worktree, "rev-parse", "--verify", "--quiet", ledger.REF):
+    if not quiet_git(worktree, "rev-parse", "--verify", "--quiet", ledger.REF):
         message = f"no ledger in this worktree ({ledger.REF}): nothing was recorded"
         raise NothingToJudge(message)
     try:

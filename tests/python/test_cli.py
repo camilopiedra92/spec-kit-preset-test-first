@@ -121,3 +121,13 @@ def test_every_failing_verdict_without_a_reason_prints_its_remedy(name: str, phr
     printed = audit.render([("t::x", audit.Verdict(name))], {})
 
     assert phrase in printed
+
+
+def test_without_the_preset_runner_the_audit_refuses_naming_it(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    feature(repo).call({"tests/test_b.py": TEST_B})
+    monkeypatch.setattr(audit, "RUNNER", repo / "missing" / "run-bounded.sh")
+
+    assert run(repo, monkeypatch) == 2
+    assert "run-bounded.sh" in capsys.readouterr().err

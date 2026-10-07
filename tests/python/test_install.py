@@ -1,0 +1,290 @@
+import json
+from pathlib import Path
+
+import pytest
+
+import install
+import ledger
+from helpers import git
+
+RUN = "pytest --junitxml={junit} {file}"
+ARGS = ["--tests", "tests/**", "--sources", "src/**", "--run", RUN]
+
+
+@pytest.fixture
+def project(repo: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """The repository on a feature branch, with Spec Kit at its root."""
+    (repo / ".specify").mkdir()
+    (repo / ".specify" / "memory.md").write_text("spec kit\n")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "spec kit")
+    git(repo, "checkout", "-q", "-b", "feat")
+    monkeypatch.chdir(repo)
+    return repo
+
+
+def test_an_install_is_one_commit_of_the_configuration_and_both_entries(project: Path) -> None:
+    before = git(project, "rev-parse", "HEAD")
+
+    assert install.main(ARGS) == 0
+
+    assert git(project, "rev-parse", "HEAD~1") == before
+    assert git(project, "show", "--name-only", "--format=", "HEAD").splitlines() == [
+        ".claude/settings.json",
+        ".specify/test-first.json",
+    ]
+    config = json.loads((project / ".specify" / "test-first.json").read_text())
+    assert config == {"tests": ["tests/**"], "sources": ["src/**"], "run": RUN}
+    hooks = json.loads((project / ".claude" / "settings.json").read_text())["hooks"]
+    cli = '"$CLAUDE_PROJECT_DIR"/.specify/presets/test-first/scripts/python/cli.py'
+    assert hooks == {
+        "PostToolUse": [
+            {"matcher": "*", "hooks": [{"type": "command", "command": f"python3 {cli} ledger"}]}
+        ],
+        "Stop": [
+            {
+                "hooks": [
+                    {"type": "command", "timeout": 300, "command": f"python3 {cli} audit --stop"}
+                ]
+            }
+        ],
+    }
+    assert git(project, "status", "--porcelain") == ""
+
+
+GATE = {"hooks": [{"type": "command", "command": "stop-gate.sh", "timeout": 600}]}
+
+
+def commit_settings(project: Path, settings: dict[str, object]) -> None:
+    (project / ".claude").mkdir(exist_ok=True)
+    (project / ".claude" / "settings.json").write_text(json.dumps(settings))
+    git(project, "add", ".claude/settings.json")
+    git(project, "commit", "-q", "-m", "settings")
+
+
+def test_every_existing_entry_is_kept_and_the_new_ones_added_beside_them(project: Path) -> None:
+    commit_settings(project, {"permissions": {"deny": ["Read(./.env)"]}, "hooks": {"Stop": [GATE]}})
+
+    assert install.main(ARGS) == 0
+
+    settings = json.loads((project / ".claude" / "settings.json").read_text())
+    assert settings["permissions"] == {"deny": ["Read(./.env)"]}
+    assert settings["hooks"]["Stop"][0] == GATE
+    assert len(settings["hooks"]["Stop"]) == 2
+
+
+def state(project: Path) -> tuple[str, ...]:
+    """HEAD, the index, and every path's status, ignored ones included."""
+    return (
+        git(project, "rev-parse", "HEAD"),
+        git(project, "ls-files", "--stage"),
+        git(project, "status", "--porcelain", "--ignored", "--untracked-files=all"),
+    )
+
+
+def refused(project: Path, capsys: pytest.CaptureFixture[str], argv: list[str] = ARGS) -> str:
+    """Install, expecting a refusal that leaves the repository as it was; its message."""
+    before = state(project)
+    assert install.main(argv) == 1
+    assert state(project) == before
+    err = capsys.readouterr().err
+    assert err.startswith("test-first install: ")
+    return err
+
+
+@pytest.mark.parametrize("where", ["a subdirectory", "a root without .specify"])
+def test_outside_the_root_with_spec_kit_it_refuses(
+    where: str, project: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    if where == "a subdirectory":
+        monkeypatch.chdir(project / "src")
+    else:
+        git(project, "rm", "-q", "-r", ".specify")
+        git(project, "commit", "-q", "-m", "no spec kit")
+
+    assert ".specify" in refused(project, capsys)
+
+
+@pytest.mark.parametrize(
+    ("where", "says"),
+    [
+        ("detached", "detached"),
+        ("on the default branch", "default branch"),
+        ("no default branch", "no default branch"),
+    ],
+)
+def test_without_a_feature_branch_and_its_base_it_refuses(
+    where: str, says: str, project: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    if where == "detached":
+        git(project, "checkout", "-q", "--detach")
+    elif where == "on the default branch":
+        git(project, "checkout", "-q", "main")
+    else:
+        git(project, "branch", "-q", "-m", "main", "trunk")
+
+    assert says in refused(project, capsys)
+
+
+def test_with_something_staged_it_refuses(
+    project: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    (project / "src" / "a.py").write_text("A = 2\n")
+    git(project, "add", "src/a.py")
+
+    assert "staged" in refused(project, capsys)
+
+
+@pytest.mark.parametrize(
+    ("how", "says"),
+    [
+        ("untracked", "not committed"),
+        ("changed", "uncommitted changes"),
+        ("ignored", "ignored"),
+        ("a directory", "not a regular file"),
+        ("a symlink", "not a regular file"),
+        ("skip-worktree", "skip-worktree"),
+        ("assume-unchanged", "skip-worktree"),
+    ],
+)
+def test_a_settings_file_the_commit_cannot_take_whole_is_refused(
+    how: str, says: str, project: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    settings = project / ".claude" / "settings.json"
+    settings.parent.mkdir()
+    if how == "untracked":
+        settings.write_text("{}\n")
+    elif how == "ignored":
+        (project / ".gitignore").write_text(".claude/\n")
+        git(project, "add", ".gitignore")
+        git(project, "commit", "-q", "-m", "ignore")
+        settings.write_text("{}\n")
+    elif how == "a directory":
+        settings.mkdir()
+        (settings / "x").write_text("x\n")
+    elif how == "a symlink":
+        (project / "elsewhere.json").write_text("{}\n")
+        settings.symlink_to(project / "elsewhere.json")
+        git(project, "add", "-A")
+        git(project, "commit", "-q", "-m", "linked settings")
+    else:
+        commit_settings(project, {"permissions": {}})
+        if how == "changed":
+            settings.write_text('{"permissions": {"allow": []}}\n')
+        else:
+            git(project, "update-index", f"--{how}", ".claude/settings.json")
+
+    assert says in refused(project, capsys)
+
+
+@pytest.mark.parametrize("event", ["PostToolUse", "Stop"])
+def test_with_a_ledger_entry_already_there_it_refuses(
+    event: str, project: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert install.main(ARGS) == 0
+    settings = json.loads((project / ".claude" / "settings.json").read_text())
+    kept = {event: settings["hooks"][event]}  # the other entry removed by hand
+    commit_settings(project, {"hooks": kept})
+    git(project, "rm", "-q", ".specify/test-first.json")
+    git(project, "commit", "-q", "-m", "half removed")
+
+    assert "already" in refused(project, capsys)
+
+
+@pytest.mark.parametrize(
+    ("argv", "says"),
+    [
+        (["--tests", "tests/**", "--sources", "src/**", "--run", "pytest {file}"], "{junit}"),
+        (["--tests", "tests/**", "--sources", "src/**", "--run", "pytest {junit}"], "{file}"),
+        (["--tests", "tests/**", "--sources", "src/**"], "--run"),
+        (["--sources", "src/**", "--run", RUN], "--tests"),
+        (["--tests", "tests/**", "--run", RUN], "--sources"),
+        (["--tests", "", "--sources", "src/**", "--run", RUN], "tests"),
+    ],
+)
+def test_an_incomplete_configuration_is_refused(
+    argv: list[str], says: str, project: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert says in refused(project, capsys, argv)
+
+
+@pytest.mark.parametrize("glob", ["spec/**", "tests"])  # the second: a directory is not a glob
+def test_test_globs_matching_no_tracked_file_are_refused(
+    glob: str, project: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    (project / "spec").mkdir()
+    (project / "spec" / "untracked_test.py").write_text("x\n")
+    argv = ["--tests", glob, "--sources", "src/**", "--run", RUN]
+
+    assert "no tracked file" in refused(project, capsys, argv)
+
+
+@pytest.mark.parametrize("settings", ["absent", "committed"])
+def test_a_commit_hook_that_rejects_the_commit_leaves_everything_as_it_was(
+    settings: str, project: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    if settings == "committed":
+        commit_settings(project, {"permissions": {}})
+    hook = project / ".git" / "hooks" / "pre-commit"
+    hook.write_text("#!/bin/sh\necho 'policy says no' >&2\nexit 1\n")
+    hook.chmod(0o755)
+
+    assert "commit" in refused(project, capsys)
+    assert (project / ".claude").exists() == (settings == "committed")
+
+
+@pytest.mark.parametrize(("how", "says"), [("untracked", "not committed"), ("ignored", "ignored")])
+def test_a_configuration_file_the_commit_cannot_take_whole_is_refused(
+    how: str, says: str, project: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    config = project / ".specify" / "test-first.json"
+    if how == "ignored":
+        (project / ".gitignore").write_text(".specify/test-first.json\n")
+        git(project, "add", ".gitignore")
+        git(project, "commit", "-q", "-m", "ignore")
+    config.write_text('{"tests": ["x"]}\n')
+
+    assert says in refused(project, capsys)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "",
+        "not json",
+        "[]",
+        '{"hooks": []}',
+        '{"hooks": {"Stop": {}}}',
+        '{"hooks": {"Stop": [{"hooks": ["x"]}]}}',
+    ],
+)
+def test_a_settings_file_that_is_not_a_settings_object_is_refused(
+    text: str, project: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    (project / ".claude").mkdir()
+    (project / ".claude" / "settings.json").write_text(text)
+    git(project, "add", ".claude/settings.json")
+    git(project, "commit", "-q", "-m", "settings")
+
+    assert "settings.json" in refused(project, capsys)
+
+
+def test_a_git_error_while_committing_is_a_refusal_that_leaves_everything_as_it_was(
+    project: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    real_git = ledger.git
+
+    def locked(
+        worktree: Path, *args: str, env: dict[str, str] | None = None, input: str | None = None
+    ) -> str:
+        if args[0] != "add":
+            return real_git(worktree, *args, env=env, input=input)
+        (project / ".git" / "index.lock").write_text("")  # another git holds the index
+        try:
+            return real_git(worktree, *args, env=env, input=input)
+        finally:
+            (project / ".git" / "index.lock").unlink()
+
+    monkeypatch.setattr(ledger, "git", locked)
+
+    assert "index.lock" in refused(project, capsys)
