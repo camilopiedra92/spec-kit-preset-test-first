@@ -59,9 +59,10 @@ the file-editing tool. `PostToolUse` fires for every tool, subagents included, a
   call that went wrong. Lost on both counts.
 
 Parallel tool calls: whether Claude Code runs write tools concurrently is not stated in its docs
-(read 2026-10-07; not tested here). If two calls overlap, their changes land in one record, and a
-test and its code that were written concurrently were not written in order: the union is the
-correct reading, not an error to correct.
+(read 2026-10-07; not tested here). If two calls overlap, or a second call finishes before the
+first call's hook takes its snapshot, their changes land in one record under the first call's name.
+Judging them together fails closed — a test and its code written concurrently were not written in
+order — and concurrent writers are outside the supported workflow (FR-016).
 
 ## R2. The ledger is a chain of commits under a per-worktree ref
 
@@ -184,7 +185,7 @@ command reports on the same tree with that file replaced by unparseable bytes (t
 conclusive run. A run with no case at all is conclusive: the file has no tests.
 
 **Rationale**: the one result format pytest, Jest (jest-junit), Vitest and PHPUnit all write for a
-single test file, so the audit stays language-agnostic. Go writes it through gotestsum, but its
+single test file (pytest's and Vitest's measured, Jest's and PHPUnit's not), so the audit stays language-agnostic. Go writes it through gotestsum, but its
 unit is the package, not the file, so Go is not supported. One file per run because a collection error in one
 file stops pytest from running the others (measured, pytest 9.1.1, without
 `--continue-on-collection-errors`), and a replay must not let one file hide another. Inconclusive
@@ -321,8 +322,8 @@ the story-close audit, which the fragment runs, is the full report. Every failin
 final has a remedy: the redo sequence for a test written with or after its code, the
 configuration for one that passes without any source; so no exception list is needed. The
 memo makes the Stop run incremental without a second algorithm: a turn pays for replays of its own
-records, until the base moves (a rebase) or the environment changes, after which base runs are
-made again. Searching back from the newest record bounds the work to each test's own history, so a
+records, until the base moves (a rebase), after which base runs are made again. An environment
+change does not invalidate the memo (data-model.md, Memo). Searching back from the newest record bounds the work to each test's own history, so a
 long-lived ledger does not make older features' records replay. A run that wrote no JUnit is not
 memoized, since a broken installation rather than the tree may be the cause. The effective history follows the
 branch across `checkout -b`, renames, visits to other branches and rebases, which a clock-based range
@@ -571,6 +572,10 @@ and Antigravity showed nothing test-first-specific in searches (second-hand).
   is `<skipped>`; a file whose import cannot resolve gives one `<failure type="Error">` case whose
   classname and name are the file's path. So Vitest exposes a type where pytest does not, and the
   two report a file that cannot load differently.
+- **Probe environment**: pytest 9.1.1 on Python 3.12.12 (`uv run --no-project --with pytest`);
+  Vitest 5.0.3 on node 26.7.0 (pnpm); macOS (Darwin 27.0.0); 2026-10-07.
+- **A test file that does not exist**: pytest 9.1.1 exits 4 and writes JUnit with `tests="0"` and no
+  case; Vitest 5.0.3 writes JUnit with `tests="0"` and no case.
 - **pytest 9.1.1 and Vitest 5.0.3, load failures and empty files** (same scratch projects): pytest
   reports unparseable content in a test file exactly as a missing import, one `<error
   message="collection failure">` case named after the module, and a file without tests as
@@ -580,8 +585,12 @@ and Antigravity showed nothing test-first-specific in searches (second-hand).
   exit 2 shows stderr to Claude and cannot block; matcher `*` matches every tool;
   `${CLAUDE_PROJECT_DIR}` stays at the original root, read `cwd` for worktrees; the transcript is
   written asynchronously and can lag; "All matching hooks run in parallel"; command hooks default
-  to a 600 s timeout; Stop blocks are capped after a number of consecutive blocks.
-  Verified (code.claude.com/docs/en/hooks).
+  to a 600 s timeout, settable per entry with `timeout` in milliseconds, and on events other than
+  `UserPromptSubmit` a hook that "fails or times out" lets Claude Code proceed, "and notes the
+  failure in debug output"; the Stop input carries `stop_hook_active`, "`true` when Claude Code is
+  already continuing as a result of a stop hook"; "after stop hooks have continued the turn eight
+  times in a row, Claude Code overrides the next block and ends the turn", and "the count resets
+  each time Claude calls a tool". Read 2026-10-07 (code.claude.com/docs/en/hooks).
 - **renta mutation gate** (merged 2026-10-07, PR #59, `scripts/mutation_gate.py`): on renta main
   a7503cd, mutmut over all of `co/` with the 40 runnable `tests/co` files: 3,589 mutants, 2,653
   killed, 936 survived; of the survivors 593 message-only (AST rule), 322 behaviour, 21 not

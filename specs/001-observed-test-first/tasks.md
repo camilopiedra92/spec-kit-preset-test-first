@@ -29,17 +29,22 @@ suites in scratch repositories), `commands/` (fragments).
 ## Phase 1: Setup
 
 - [ ] T001 Add the Python toolchain as its own change: `pyproject.toml` with a uv dev group
-  (ruff, mypy, pytest, pytest-timeout), `[tool.uv] package = false`, mypy strict over
-  `scripts/python` and `tests/python`, pytest `timeout` set and `testpaths = ["tests/python"]`;
-  `uv.lock` committed (research R11; approved defaults in the global rules)
+  (ruff, mypy, pytest, pytest-timeout), `[tool.uv] package = false`, `requires-python = ">=3.10"`,
+  mypy strict with `python_version = "3.10"` over `scripts/python` and `tests/python`, ruff
+  `target-version = "py310"`, pytest `timeout` set and `testpaths = ["tests/python"]`; `uv.lock`
+  committed. The 3.10 floor because the scripts run on other projects' `python3` (plan, Technical
+  Context; research R11; approved defaults in the global rules)
 - [ ] T002 Export-ignore `pyproject.toml`, `uv.lock` and `docs/` in `.gitattributes`, and make
   `tests/compose.sh` fail when the installed preset carries any of them (constitution V, 1.1.0)
   - an archive built from a commit that drops one of the three `.gitattributes` lines → compose.sh
     names that path and exits non-zero (break it on purpose, then restore)
   - the archive of HEAD with all three lines → no complaint about them
-- [ ] T003 Run the Python checks in CI as steps of the existing `compose` job in
+- [ ] T003 Run the Python checks and the new suites in CI as steps of the existing `compose` job in
   `.github/workflows/ci.yml` — `uv run ruff check`, `uv run ruff format --check`, `uv run mypy`,
-  `uv run pytest` — so the required `compose (pinned)` check covers them (plan, "CI")
+  `uv run pytest` (also under Python 3.10, `uv run --python 3.10 pytest`), `tests/ledger.sh`,
+  `tests/install-ledger.sh`, `tests/audit.sh` — so the required `compose (pinned)` check covers
+  them (plan, "CI"; FR-023; constitution IV). Each suite step is added by the task that creates the
+  suite; this task adds the Python steps and the order
 
 ---
 
@@ -97,7 +102,7 @@ suites in scratch repositories), `commands/` (fragments).
   - a source and a test written by one Bash heredoc → one record holding both
   - one snapshot of a ~1,000-file scratch repository → under 100 ms, median of five (SC-003)
   - these cases end to end, with recorded hook inputs in scratch repositories, in `tests/ledger.sh`
-    (quickstart step 2)
+    (quickstart step 2), added as a step of the CI `compose` job (T003)
 
 ---
 
@@ -170,6 +175,7 @@ code" and "test and code in one shell call"; the audit reports `red` and exits 0
   - HEAD on `main` → refusal naming it
   - nothing resolves → refusal naming what was tried
   - `--base <rev>` → that commit
+  - an `origin` whose URL is unreachable → the base resolves from local refs; no fetch is made
 - [ ] T015 [US1] Compute the effective history of the current branch from the ledger in
   `scripts/python/audit.py`, and each record's previous and change (data-model "Effective
   history")
@@ -250,7 +256,8 @@ code" and "test and code in one shell call"; the audit reports `red` and exits 0
   - the audit reads no `tasks.md`: a `tasks.md` claiming red runs changes nothing
   - end to end in `tests/audit.sh`: ledgers built in a scratch pytest project by replaying recorded
     tool-call sequences through `ledger.py`, every case of quickstart step 4 and spec Story 1
-    scenarios 1–12, verdicts and exit codes asserted (SC-001, SC-002)
+    scenarios 1–12, verdicts and exit codes asserted (SC-001, SC-002), added as a step of the CI
+    `compose` job (T003)
   - a second audit → reruns nothing (memo)
   - a 60-test, 20-file feature → warm under 2 minutes, cold time reported (SC-004)
 
@@ -283,7 +290,7 @@ born-with-code test is blocked once, and the next stop passes.
   - the same input with `stop_hook_active` true → exit 0
   - a turn ending on a red case in progress (`still-red`) → exit 0
   - `unobserved`, `never-run`, `not-judged` only → exit 0
-  - budget exhausted → no run started after it; exit 0; stderr says how many births are unjudged
+  - budget exhausted → no run started after it; exit 0, no output
   - the next turn → judges them from the memo
   - one turn's test and code → judged within 30 seconds (SC-004)
   - these cases end to end in `tests/audit.sh`, T021's in `tests/ledger.sh`
@@ -298,7 +305,8 @@ born-with-code test is blocked once, and the next stop passes.
 `speckit-implement` carries each instruction; installing from it records.
 
 - [ ] T023 [US3] `scripts/bash/install-ledger.sh`: write `.specify/test-first.json` and both hook
-  entries (`PostToolUse` matcher `*`, `Stop`) into `.claude/settings.json`, keeping every other
+  entries (`PostToolUse` matcher `*`; `Stop` with `timeout` 300000) into `.claude/settings.json`,
+  creating it when absent, keeping every other
   entry, and commit exactly those two files as one commit; refuse with exit 1, the repository
   unchanged, on each condition of contracts/install-ledger.md (FR-013; FR-014; constitution IV)
   - a clean repository with tracked tests → one commit, two files, both entries, config as given
@@ -306,14 +314,15 @@ born-with-code test is blocked once, and the next stop passes.
   - not at the root with `.specify/` → refused
   - detached HEAD → refused; no resolvable default branch → refused
   - something staged → refused
-  - `.claude/settings.json` uncommitted, ignored, a symlink, or skip-worktree → refused
+  - no `.claude/settings.json` → created, in the commit
+  - `.claude/settings.json` uncommitted, ignored, not a regular file, or skip-worktree → refused
   - a ledger entry already present → refused
   - `--run` without `{file}` or `{junit}` → refused; a missing flag → refused
   - test globs matching no tracked file → refused
   - no `jq` → refused
   - a commit hook rejecting the commit → refused, working tree and index as before
   - after every refusal → `git status`, the index and HEAD unchanged; these cases end to end in
-    `tests/install-ledger.sh` (quickstart step 3)
+    `tests/install-ledger.sh` (quickstart step 3), added as a step of the CI `compose` job (T003)
 - [ ] T024 [US3] Rewrite `commands/speckit.implement.md` — Test-first, Stop gate and Independent
   review sections — for observed evidence: install the ledger before the first task, deriving
   `--tests`, `--sources` and `--run` from the plan and saying so when it cannot (FR-015); each case

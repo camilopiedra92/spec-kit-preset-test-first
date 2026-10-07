@@ -16,7 +16,8 @@
 - `{file}`: one test file to run, as a repository-relative path, shell-quoted. The audit runs one
   file per run, so a file that fails to load cannot hide another's results (research R6). A runner
   that cannot run one file on its own (Go, whose unit is the package) is not supported.
-- `{junit}`: an absolute path the command writes JUnit XML to.
+- `{junit}`: an absolute path inside the audit's temporary directory, which the command writes
+  JUnit XML to.
 - `{root}`: the absolute path of the worktree the audit was run from, so a run can reuse its
   installed environment (e.g. `UV_PROJECT_ENVIRONMENT={root}/.venv`). An environment that imports
   the project's code from `{root}` (an editable install, a workspace link) would test the real

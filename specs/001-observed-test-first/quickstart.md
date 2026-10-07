@@ -13,13 +13,15 @@ Prerequisites: `git`, `python3`, `jq`, `uv`, `specify` on PATH; run from the rep
    - test, then code → `red`, exit 0 (SC-002);
    - test and code in one call → `born-with-code`, exit 1 (SC-001);
    - code, then test → `born-green`, exit 1 (SC-002);
+   - test, a commit in its own call, then code → `red`;
+   - a test-helper refactor while every test is green → verdicts unchanged;
    - a moved test that passes at the base → `predates`, exit 0;
    - tests renamed and merged in a test-only call → `refactored`, exit 0; the same call also adding
      a test for code written earlier → none refactored, exit 1;
    - an enum member renamed in code, renaming a parametrized test id → `refactored`;
    - a red test whose expected value is changed in a helper until it passes → `rewritten-to-green`;
    - behaviour written first in a template outside the source globs, tested later → `born-green`;
-   - a red test rewritten in the call that adds its code → `rewritten-to-green`, exit 1;
+   - a red test rewritten in the call that adds its code → `rewritten-to-green`, exit 1 (SC-002);
    - a file that cannot load, then a stub, then code → `red`; then full code instead → `born-with-code`;
    - a typo that breaks a file for one call, then fixed → its tests are not born again (pytest and,
      where node is available, Vitest);

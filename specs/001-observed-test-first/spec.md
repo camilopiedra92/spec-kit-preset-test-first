@@ -269,8 +269,10 @@ that the gate still runs and the composed skills read an old `tasks.md`.
   are found along the branch's own line of records, and a visit to another branch is not part of
   it.
 - Two sessions, or parallel tool calls, writing in the same worktree: their changes interleave in
-  one ledger; a test and its code written concurrently land in one record and are judged born with
-  their code, which is what happened.
+  one ledger; a test and its code written concurrently, or a second call that finishes before the
+  first call's hook takes its snapshot, land in one record under the first call's name and are
+  judged born with their code. That fails closed; concurrent writers are outside the supported
+  workflow (FR-016).
 - Tests that arrive with commits the ledger did not see written — a merge, a fast-forward, a pull,
   a cherry-pick, from this worktree or another: unobserved. The fragment keeps a feature's work on
   its branch, in its worktree, with code-writing subagents one at a time.
@@ -346,10 +348,12 @@ that the gate still runs and the composed skills read an old `tasks.md`.
   command that runs one given test file and writes JUnit XML to a given path — MUST be given once
   at install and committed in the repository.
 - **FR-014**: Installing the ledger MUST be one commit holding only the ledger's two hook entries
-  and the configuration, and MUST refuse, leaving the repository unchanged, on: a detached HEAD; no
-  resolvable default branch;
-  anything staged; a settings file that is uncommitted, ignored or not a regular file; an existing
-  entry for the ledger; an incomplete configuration; test patterns matching no tracked file.
+  and the configuration — creating `.claude/settings.json` when it does not exist — and MUST
+  refuse, leaving the repository unchanged, on: not being at the repository root with `.specify/`;
+  a detached HEAD; no resolvable default branch; anything staged; a settings file that is
+  uncommitted, ignored, not a regular file or marked skip-worktree; an existing entry for the
+  ledger; an incomplete configuration; test patterns matching no tracked file; `jq` missing; a
+  commit hook rejecting the commit.
 - **FR-015**: The `speckit-implement` fragment MUST install the ledger before the first task when it
   is not installed, and MUST say so in the completion report when it cannot.
 - **FR-016**: The `speckit-implement` fragment MUST instruct that each case's test is written and
@@ -360,31 +364,40 @@ that the gate still runs and the composed skills read an old `tasks.md`.
   MUST NOT offer breaking the code on purpose as the way to accept a test that passed on its first
   run.
 - **FR-018**: The `speckit-implement` fragment MUST run the audit at the close of each user story,
-  before the independent review, give its report to the reviewer, and prescribe the redo sequence
-  for each test born with its code, born green or rewritten to green, and the remedy named in the
-  reason of each test not judged.
+  before the independent review, give its report to the reviewer, and prescribe the remedy of each
+  failing verdict as data-model.md lists it: the redo sequence for a test born with its code, born
+  green or rewritten to green; the configuration for one that passes without sources; the code,
+  in a call that changes no test, for one still red; the redo sequence for one unobserved; and the
+  reason's remedy for one not judged.
 - **FR-019**: The story review MUST use the project's mutation check where the project's
   constitution or CI names one, and hand-written wrong versions otherwise.
 - **FR-020**: The `speckit-tasks` fragment MUST add a property case to the test list of a task that
   implements an invariant the spec states, and only then.
 - **FR-021**: The release MUST be 2.0.0, with a CHANGELOG entry and README migration notes; a
   `tasks.md` from 1.x MUST remain readable, and an installed 1.x Stop gate MUST keep running.
-- **FR-022**: The README MUST state that only Claude Code is verified; that frameworks without
-  JUnit XML output are not supported; that the audit checks order, not strength; that it assumes
-  an agent taking shortcuts, not one forging the ledger; that a changed body of an already
-  accepted test is not judged; that a test added to an unchanged test file by a change elsewhere is
-  not found; that tests arriving with commits the ledger did not see written are unobserved;
-  that runners which cannot run one test file on its own (Go) are not supported; and that the
-  ledger holds uncommitted states locally, which `git push --mirror` would send.
+- **FR-022**: The README MUST state, as one closed list that every limit stated elsewhere is added
+  to: that only Claude Code is verified, and pytest the only runner verified end to end; that
+  runners without JUnit XML output, or unable to run one test file on its own (Go), are not
+  supported; that the audit checks order, not strength; that it assumes an agent taking shortcuts,
+  not one forging the ledger; that a changed body of an already accepted test is not judged; that a
+  test added to an unchanged test file by a change elsewhere is not found; that tests arriving with
+  commits the ledger did not see written are unobserved; that a restored test keeps its verdict
+  whatever code now stands beside it; that replays use the environment at audit time and observe
+  flaky tests as they behave on replay; that the audit's cost for compiled languages is not
+  measured; that the Stop hook shows a failing verdict once per turn and does not prevent the turn
+  from ending; and that the ledger stores every tracked and untracked-but-not-ignored file of the
+  worktree, an un-ignored secret included, locally, which `git push --mirror` would send.
 - **FR-023**: Each rule added to or removed from a fragment MUST carry its evidence in the README
   (constitution III), and every script MUST have a test suite run in CI (constitution IV).
-- **FR-024**: At the end of every turn, the audit MUST run within a time budget and block the turn
-  once when a new test has a verdict of born with its code, born green or rewritten to green,
-  naming each; it MUST NOT block for a test still red, never run, unobserved or not yet judged, and
-  MUST let the next stop of the same turn through.
-- **FR-025**: A test accepted because it passed against code other than its record's own
-  (predates, refactored) MUST also fail or not run when every source file is removed from the
-  replayed tree; one that still passes MUST be reported as born green, with that reason.
+- **FR-024**: At the end of every turn — except on a detached HEAD, on the default branch, or when
+  a Stop hook already blocked this turn — the audit MUST run within a time budget and block the
+  turn once when a new test has a verdict of born with its code, born green or rewritten to green,
+  naming each; it MUST NOT block for a test still red, never run, unobserved or not judged, nor for
+  a birth the budget left unjudged.
+- **FR-025**: Every test whose first run passed MUST first be run with every source path removed
+  from the replayed tree; one that still passes MUST be reported as born green, with the reason
+  that it passes without any source file — before it can be considered as predating the feature
+  or refactored.
 - **FR-026**: Each audit MUST snapshot the worktree first when it differs from the newest record,
   and MUST reuse the outcome of any replay already made on the same tree, file and command.
 - **FR-027**: The base MUST be the merge base with the remote-tracking default branch when the
@@ -412,13 +425,15 @@ that the gate still runs and the composed skills read an old `tasks.md`.
 
 ### Measurable Outcomes
 
-- **SC-001**: On recorded sequences reproducing the observed failure (code and test in one call),
+- **SC-001**: On the recorded sequences of quickstart step 4 marked SC-001, reproducing the observed
+  failure (code and test in one call),
   100% of those tests are reported as born with their code, and the audit fails.
-- **SC-002**: On a sequence that follows the cycle (test alone, red, then code), 0 tests fail the
-  audit; on one where code comes one call before its test, or the test is rewritten in the call
+- **SC-002**: On the recorded sequences of quickstart step 4 marked SC-002: on a sequence that
+  follows the cycle (test alone, red, then code), 0 tests fail the audit; on one where code comes one call before its test, or the test is rewritten in the call
   that turns it green, 100% of those tests fail it.
-- **SC-003**: Recording adds at most 100 ms per tool call on a repository of about 1,000 tracked
-  files, measured on the development machine.
+- **SC-003**: Recording adds at most 100 ms per tool call — the median of five snapshots of a
+  scratch repository of 1,000 tracked files and no untracked ones — with the machine's model and OS
+  recorded beside the result.
 - **SC-004**: For a pytest project whose single-file run takes about 2 seconds, on the development
   machine: a Stop audit after a turn that added one test and its code completes within 30 seconds;
   a story-close audit of a feature with 60 new tests in 20 test files completes within 2 minutes
@@ -440,7 +455,8 @@ that the gate still runs and the composed skills read an old `tasks.md`.
   is installed.
 - The project's test runner can run one test file and write JUnit XML for it (pytest, Jest,
   Vitest and PHPUnit can; Go cannot — its unit is the package); pytest's and Vitest's reports were
-  measured on 2026-10-07, and the one verified end to end with this feature is pytest.
+  measured on 2026-10-07 and Jest's and PHPUnit's were not, and the one verified end to end with
+  this feature is pytest.
 - A test is identified by its file and its name as the JUnit XML reports them.
 - Replaying a record uses the project's installed environment at audit time, not the one it had
   when the record was made; the configured command is responsible for pointing at it.
