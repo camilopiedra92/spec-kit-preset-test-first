@@ -110,3 +110,15 @@ def test_a_replay_past_its_deadline_is_not_judged(repo: Path) -> None:
         auditor = audit.Auditor(repo, CONFIG, replayer, deadline=1)
         with pytest.raises(audit.NotJudged, match="deadline"):
             auditor.follow(B, "tests/test_b.py", 1)
+
+
+def test_a_red_test_edited_until_it_passes_in_a_test_only_call_is_rewritten(
+    repo: Path,
+) -> None:
+    calls = Calls(repo)
+    calls.call({"README.md": "origin"})
+    calls.call({"src/b.py": "A\n"})
+    calls.call({"tests/test_b.py": TEST_B})
+    calls.call({"tests/test_b.py": "def test_b(): # expects src/b.py A\n"})
+
+    assert follow(repo) == audit.Lifecycle("rewritten-to-green", at=3)

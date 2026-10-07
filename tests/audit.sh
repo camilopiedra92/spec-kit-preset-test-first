@@ -133,6 +133,161 @@ before=$(ls "$memo" | wc -l)
 expect 0 "never-run tests.test_b::test_b"
 [ "$(ls "$memo" | wc -l)" = "$before" ] || problem "$SCENARIO: the memo grew"
 
+SCENARIO="a file that cannot load, then the full code at once (scenario 5)"
+project full-code
+write tests/test_b.py "$TEST_B" && record
+write src/b.py "$CODE_B" && record
+expect 1 "born-with-code tests.test_b::test_b"
+
+SCENARIO="red by an exception -- a missing method -- then the code (scenario 6)"
+project exception
+write src/b.py 'class B:\n    pass\n' && record
+write tests/test_b.py 'from src.b import B\n\ndef test_b():\n    assert B().value() == 2\n' && record
+write src/b.py 'class B:\n    def value(self):\n        return 2\n' && record
+expect 0 "red tests.test_b::test_b"
+
+SCENARIO="a red test edited until it passes in a test-only call (scenario 9)"
+project edited
+write src/b.py "$STUB_B" && record
+write tests/test_b.py "$TEST_B" && record
+write tests/test_b.py 'from src.b import value\n\ndef test_b():\n    assert value() is None\n' && record
+expect 1 "rewritten-to-green tests.test_b::test_b"
+
+SCENARIO="three accepted tests merged into one parametrized test (scenario 10)"
+project consolidated
+write tests/test_b.py 'from src.b import double\n\ndef test_one():\n    assert double(1) == 2\n\ndef test_two():\n    assert double(2) == 4\n\ndef test_three():\n    assert double(3) == 6\n'
+write src/b.py 'def double(n):\n    return None\n' && record
+write src/b.py 'def double(n):\n    return 2 * n\n' && record
+write tests/test_b.py 'import pytest\nfrom src.b import double\n\n@pytest.mark.parametrize("n", [1, 2, 3])\ndef test_double(n):\n    assert double(n) == 2 * n\n' && record
+expect 0 "refactored tests.test_b::test_double\[1\]" "refactored tests.test_b::test_double\[3\]"
+
+SCENARIO="a rename beside one more passing test (scenario 10)"
+project rename-plus
+write tests/test_b.py "$TEST_B" && write src/b.py "$STUB_B" && record
+write src/b.py "$CODE_B" && record
+write tests/test_b.py 'from src.b import value\n\ndef test_renamed():\n    assert value() == 2\n\ndef test_extra():\n    assert value() > 1\n' && record
+expect 1 "born-green tests.test_b::test_renamed" "born-green tests.test_b::test_extra"
+
+SCENARIO="a red test turned green by a helper alone (scenario 11)"
+project helper
+write tests/helper.py 'EXPECTED = 3\n'
+write tests/test_b.py 'from src.b import value\nfrom tests.helper import EXPECTED\n\ndef test_b():\n    assert value() == EXPECTED\n'
+write tests/__init__.py '' && write src/b.py "$CODE_B" && record
+write tests/helper.py 'EXPECTED = 2\n' && record
+expect 1 "rewritten-to-green tests.test_b::test_b"
+
+SCENARIO="behaviour first written outside the source globs (scenario 12)"
+project template
+write templates/greeting.txt 'hello\n' && record
+write tests/test_b.py 'from pathlib import Path\n\ndef test_b():\n    assert Path("templates/greeting.txt").read_text() == "hello\\n"\n' && record
+expect 1 "born-green tests.test_b::test_b"
+
+SCENARIO="test, a commit in its own call, then code"
+project commit-own-call
+write tests/test_b.py "$TEST_B" && write src/b.py "$STUB_B" && record
+git -C "$REPO" add -A && git -C "$REPO" commit -q -m "red test" && write NOTES.md 'committed\n' && record
+write src/b.py "$CODE_B" && record
+expect 0 "red tests.test_b::test_b"
+
+SCENARIO="a test-helper refactor while every test is green"
+project helper-refactor
+write tests/test_b.py "$TEST_B" && write src/b.py "$STUB_B" && record
+write src/b.py "$CODE_B" && record
+write tests/conftest.py 'import pytest\n\n@pytest.fixture\ndef unused():\n    return 1\n' && record
+expect 0 "red tests.test_b::test_b"
+
+SCENARIO="an enum member renamed in code renames a parametrized id"
+project enum
+write src/colors.py 'COLORS = ["red"]\n\ndef known(c):\n    return False\n' && record
+write tests/test_b.py 'import pytest\nfrom src.colors import COLORS, known\n\n@pytest.mark.parametrize("c", COLORS)\ndef test_c(c):\n    assert known(c)\n' && record
+write src/colors.py 'COLORS = ["red"]\n\ndef known(c):\n    return c in COLORS\n' && record
+write src/colors.py 'COLORS = ["crimson"]\n\ndef known(c):\n    return c in COLORS\n' && record
+expect 0 "refactored tests.test_b::test_c\[crimson\]"
+
+SCENARIO="a branch merged in brings its tests unobserved"
+project merged
+git -C "$REPO" checkout -q -b elsewhere main
+write tests/test_b.py "$TEST_B" && write src/b.py "$CODE_B"
+git -C "$REPO" add -A && git -C "$REPO" commit -q -m "written elsewhere"
+git -C "$REPO" checkout -q feat && git -C "$REPO" merge -q --no-edit elsewhere && record
+expect 1 "unobserved tests.test_b::test_b"
+
+SCENARIO="a local merge into the default branch does not move the base"
+project local-merge
+git init -q --bare "$work/local-merge-origin.git"
+git -C "$REPO" remote add origin "$work/local-merge-origin.git"
+git -C "$REPO" push -q origin main && git -C "$REPO" fetch -q origin
+write tests/test_b.py "$TEST_B" && write src/b.py "$STUB_B" && record
+write src/b.py "$CODE_B" && record
+git -C "$REPO" add -A && git -C "$REPO" commit -q -m feature
+git -C "$REPO" checkout -q main && git -C "$REPO" merge -q --ff-only feat && git -C "$REPO" checkout -q feat
+expect 0 "red tests.test_b::test_b"
+
+SCENARIO="an API and its shared fixture changed in one call"
+project shared-fixture
+write tests/__init__.py '' && write src/v1.py 'def make():\n    return 1\n'
+write tests/conftest.py 'import pytest\nfrom src.v1 import make\n\n@pytest.fixture\ndef thing():\n    return make()\n'
+write tests/test_b.py 'from src.b import value\n\ndef test_b(thing):\n    assert value() == thing + 1\n'
+write src/b.py "$STUB_B" && record
+rm "$REPO/src/v1.py" && write src/v2.py 'def make():\n    return 1\n'
+write tests/conftest.py 'import pytest\nfrom src.v2 import make\n\n@pytest.fixture\ndef thing():\n    return make()\n'
+write src/b.py "$CODE_B" && record
+expect 1 "not-judged tests.test_b::test_b"
+
+SCENARIO="a test file left unloadable at the end"
+project broken-end
+write tests/test_b.py "$TEST_B" && write src/b.py "$STUB_B" && record
+write src/b.py "$CODE_B" && record
+write tests/test_b.py "$TEST_B)" && record
+expect 1 "not-judged tests.test_b::test_b"
+
+SCENARIO="a test rewritten together with the code for a new case"
+project rewrite-new-case
+write tests/test_b.py "$TEST_B" && write src/b.py "$STUB_B" && record
+write src/b.py "$CODE_B" && record
+write tests/test_b.py 'from src.b import value, more\n\ndef test_b_and_more():\n    assert (value(), more()) == (2, 3)\n'
+write src/b.py "$CODE_B"'def more():\n    return 3\n' && record
+expect 1 "born-with-code tests.test_b::test_b_and_more"
+
+SCENARIO="a branch visit and a rebase onto newer main"
+project visit-rebase
+write tests/test_b.py "$TEST_B" && write src/b.py "$STUB_B" && record
+git -C "$REPO" add -A && git -C "$REPO" commit -q -m red && git -C "$REPO" checkout -q main
+write OTHER.md 'on main\n' && git -C "$REPO" add -A && git -C "$REPO" commit -q -m "main moves" && record
+git -C "$REPO" checkout -q feat && git -C "$REPO" rebase -q main && record
+write src/b.py "$CODE_B" && record
+expect 0 "red tests.test_b::test_b"
+
+SCENARIO="an environment that imports the real worktree's code cannot make a test predate"
+project editable
+RUN_SAVED=$RUN
+jq --arg run 'PYTHONPATH={root} uv run --quiet --no-project --with pytest python -m pytest -q -p no:cacheprovider --import-mode=append --junitxml={junit} {file}' '.run = $run' "$REPO/.specify/test-first.json" > "$work/editable.json"
+cp "$work/editable.json" "$REPO/.specify/test-first.json"
+git -C "$REPO" add -A && git -C "$REPO" commit -q -m "run through the real worktree"
+write src/b.py "$CODE_B" && record
+write tests/test_b.py "$TEST_B" && record
+expect 1 "born-green tests.test_b::test_b"
+RUN=$RUN_SAVED
+
+SCENARIO="an audit killed mid-run leaves no scratch worktree behind the next one"
+project killed
+write tests/test_slow.py 'import time\n\ndef test_slow():\n    time.sleep(60)\n' && record
+(cd "$REPO" && exec python3 "$CLI" audit --deadline 120) > /dev/null 2>&1 &
+audit_pid=$!
+for _ in $(seq 1 50); do
+  [ "$(git -C "$REPO" worktree list | wc -l | tr -d ' ')" -gt 1 ] && break
+  sleep 0.2
+done
+kill -9 "$audit_pid" 2> /dev/null
+wait "$audit_pid" 2> /dev/null
+pkill -f "time.sleep\(60\)" 2> /dev/null
+rm "$REPO/tests/test_slow.py" && record
+write tests/test_b.py "$TEST_B" && write src/b.py "$STUB_B" && record
+write src/b.py "$CODE_B" && record
+expect 0 "red tests.test_b::test_b"
+[ "$(git -C "$REPO" worktree list | wc -l | tr -d ' ')" = 1 ] ||
+  problem "$SCENARIO: worktrees left: $(git -C "$REPO" worktree list)"
+
 SCENARIO="a typo that breaks the file for one call, then fixed"
 project typo
 write tests/test_b.py "$TEST_B" && write src/b.py "$STUB_B" && record

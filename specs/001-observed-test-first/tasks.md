@@ -300,6 +300,10 @@ code" and "test and code in one shell call"; the audit reports `red` and exits 0
     - first passed by coincidence (`HEAD~1` was the merge base); made distinguishable, red:
       `assert '7c2c5c4…' == '8df27c4…'`
   - an `origin` whose URL is unreachable → the base resolves from local refs; no fetch is made
+  - without a remote, `init.defaultBranch` comes before `main` (added after the story 1 review:
+    no case pinned it) — dropping it on purpose failed the case
+  - `--base` on the default branch is honoured (decided after the review, FR-027) — refusing it
+    on purpose failed the case
     - rewritten to detect a fetch (a remote whose main moved on, and `origin/main` checked);
       passed on its first run; a `git fetch` on purpose failed it (`the audit fetched`), restored
 - [X] T015 [US1] Compute the effective history of the current branch from the ledger in
@@ -367,8 +371,11 @@ code" and "test and code in one shell call"; the audit reports `red` and exits 0
     - first run failed on bad test data (`EXPECTED` contains `X`; the test passed at birth);
       fixed the data; it then passed; running the green record's own tree on purpose failed it
   - a red test with a missing method that a later source call adds → `red` (scenario 6)
-    - covered by the first case: the stand-in runner reports a missing behaviour as a failure,
-      like pytest's `AttributeError` (research L7)
+    - covered by the first case with the stand-in runner; with real pytest in tests/audit.sh
+      (a missing method raising `AttributeError`) since the story 1 review
+  - a red test edited until it passes in a test-only call → `rewritten-to-green` (scenario 9;
+    no test had it until the story 1 review)
+    - passed on its first run; a green check that always says red failed it on purpose
   - the crash the test reproduces, then the fix → `red`
     - covered by the first case for the same reason
   - one call changing an API and a shared fixture, so the before-version does not load →
@@ -454,9 +461,13 @@ code" and "test and code in one shell call"; the audit reports `red` and exits 0
   - the audit reads no `tasks.md`: a `tasks.md` claiming red runs changes nothing
     - passed on its first run (nothing reads it); trusting a `red:` line on purpose failed it
   - end to end in `tests/audit.sh`: ledgers built in a scratch pytest project by replaying recorded
-    tool-call sequences through `ledger.py`, every case of quickstart step 4 and spec Story 1
+    tool-call sequences through `cli.py ledger`, every case of quickstart step 4 and spec Story 1
     scenarios 1–12, verdicts and exit codes asserted (SC-001, SC-002), added as a step of the CI
     `compose` job (T003)
+    - the story 1 review found this claimed more than it ran (scenarios 5b, 6, 9, 10, 11, 12 and
+      15 quickstart items had units only); all now run with real pytest — 30 scenarios. Two of
+      the new ones first failed on my data (scenario 11's expected verdict; macOS `wc -l`
+      padding), corrected; pruning disabled on purpose failed the killed-audit scenario
     - red: every scenario failed with no output (no script entry point); then the moved-test
       scenario's data was wrong (its test exercised no source, rightly born green), fixed
     - the hang scenario found a fail-open: a file whose newest run timed out and whose tests no
