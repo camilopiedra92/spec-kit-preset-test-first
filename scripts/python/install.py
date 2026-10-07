@@ -132,6 +132,7 @@ def _commit(root: Path, contents: dict[Path, dict[str, Any]]) -> None:
     }
     made = [] if (root / SETTINGS.parent).exists() else [root / SETTINGS.parent]
     paths = [str(path) for path in written]
+    head = audit.quiet_git(root, "rev-parse", "--verify", "--quiet", "HEAD")
     committed = False
     try:
         for directory in made:
@@ -156,17 +157,27 @@ def _commit(root: Path, contents: dict[Path, dict[str, Any]]) -> None:
             commit.terminate()
             commit.wait()
             raise
-        if commit.returncode == audit.TIMED_OUT:
+        if commit.returncode != 0 and _landed(root, head):
+            # A post-commit hook runs after git wrote the commit: it stands whatever came after.
+            print(
+                "test-first install: committed; a post-commit hook did not finish or failed: "
+                + (stderr + stdout).strip(),
+                file=sys.stderr,
+            )
+        elif commit.returncode == audit.TIMED_OUT:
             raise Refused(
                 f"the commit did not finish within its {COMMIT_DEADLINE}-second deadline: a "
                 "pre-commit or commit-msg hook that hangs"
             )
-        if commit.returncode != 0:
+        elif commit.returncode != 0:
             output = (stderr + stdout).strip()
             raise Refused(f"the commit was refused (a pre-commit or commit-msg hook?): {output}")
         committed = True
     finally:
-        if not committed:
+        if not committed and _landed(root, head):
+            # Terminated after git wrote the commit (in a post-commit hook): it stands.
+            print("test-first install: committed before it was stopped", file=sys.stderr)
+        elif not committed:
             subprocess.run(["git", "-C", str(root), "reset", "-q", "--", *paths], check=False)
             for path, content in before.items():
                 if content is None:
@@ -175,6 +186,11 @@ def _commit(root: Path, contents: dict[Path, dict[str, Any]]) -> None:
                     (root / path).write_bytes(content)
             for directory in made:
                 directory.rmdir()
+
+
+def _landed(root: Path, head: str) -> bool:
+    """Whether HEAD moved past `head`: the commit was written, whatever happened after."""
+    return audit.quiet_git(root, "rev-parse", "--verify", "--quiet", "HEAD") != head
 
 
 def _settings(path: Path) -> dict[str, Any]:

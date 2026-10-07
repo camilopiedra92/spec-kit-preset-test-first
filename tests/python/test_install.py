@@ -388,3 +388,42 @@ def test_without_the_preset_runner_the_install_refuses_naming_it(
 
     # Refused as a precondition, before any write, not by the commit that needs the runner.
     assert "run-bounded.sh is missing: reinstall the test-first preset" in refused(project, capsys)
+
+
+def test_a_post_commit_hook_that_outlives_the_deadline_leaves_the_commit_standing(
+    project: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    hook = project / ".git" / "hooks" / "post-commit"
+    hook.write_text("#!/bin/sh\nsleep 30\n")  # runs after git has written the commit
+    hook.chmod(0o755)
+    monkeypatch.setattr(install, "COMMIT_DEADLINE", 2)
+    before = git(project, "rev-parse", "HEAD")
+
+    install.main(ARGS)
+
+    assert git(project, "rev-parse", "HEAD~1") == before  # the commit landed
+    assert git(project, "status", "--porcelain") == ""  # and nothing was undone under it
+    assert "committed" in capsys.readouterr().err
+
+
+def test_an_installer_terminated_in_a_post_commit_hook_leaves_the_commit_standing(
+    project: Path,
+) -> None:
+    hook = project / ".git" / "hooks" / "post-commit"
+    started = project.parent / "started"
+    hook.write_text(f"#!/bin/sh\ntouch {started}\nsleep 30\n")
+    hook.chmod(0o755)
+    before = git(project, "rev-parse", "HEAD")
+    cli = Path(install.__file__).with_name("cli.py")
+    proc = subprocess.Popen(
+        [sys.executable, str(cli), "install", *ARGS], cwd=project, stderr=subprocess.PIPE
+    )
+    for _ in range(100):
+        if started.exists():
+            break
+        time.sleep(0.1)
+    proc.terminate()
+    proc.wait(timeout=20)
+
+    assert git(project, "rev-parse", "HEAD~1") == before
+    assert git(project, "status", "--porcelain") == ""
