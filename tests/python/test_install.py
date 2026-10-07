@@ -350,3 +350,18 @@ def test_an_installer_terminated_during_its_commit_leaves_everything_as_it_was(
     proc.wait(timeout=10)
 
     assert state(project) == before
+
+
+def test_a_first_record_that_fails_after_the_commit_says_what_was_left(
+    project: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    def failing(*args: object) -> None:
+        raise ledger.RecordError("disk full")
+
+    monkeypatch.setattr(ledger, "record", failing)
+
+    assert install.main(ARGS) == 1
+    err = capsys.readouterr().err
+    assert "committed" in err
+    assert "first tool call" in err  # what the missing origin means
+    assert git(project, "status", "--porcelain") == ""

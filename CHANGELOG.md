@@ -31,7 +31,9 @@ what was measured: README, "Why this shape".
   one file and writes JUnit (pytest and Vitest measured).
 - The same audit as a `Stop` hook (`cli.py audit --stop`): within a
   120-second budget, it blocks a turn once when a new test was born with its
-  code, born green or rewritten to green.
+  code, born green or rewritten to green, or when the audit cannot run (a
+  configuration or git error); it is silent where there is nothing to judge
+  (no ledger, a detached HEAD, the default branch).
 - The installer (`cli.py install --tests … --sources … --run …`): one
   commit of `.specify/test-first.json` and both hook entries, or a refusal
   that leaves the repository as it was.
@@ -43,8 +45,21 @@ what was measured: README, "Why this shape".
   mutation check where its constitution or CI names one.
 - `speckit-tasks`: a task implementing an invariant the spec states gets a
   property case over generated inputs.
-- Requires `python3` 3.11 or newer on `PATH` for the hooks; the hooks say
-  so, rather than failing, on an older one.
+- Requires `python3` 3.11 or newer on `PATH` for the hooks; on an older one
+  each says so, and the Stop hook blocks once per turn, not every stop.
+- `run-bounded` is declared in `preset.yml`, so `specify preset info` lists
+  it with the new scripts.
+
+### Changed
+
+- `speckit-implement`: a task closes when every case was taken — written and
+  run as the cycle says, or stopped — instead of on a recorded red run; a
+  stub raises rather than returning a placeholder, and a task's property case
+  is written with its first case; the story review receives the audit's
+  report, counts a failing verdict as a finding, removes the copy's
+  `PostToolUse` entries as well as its `Stop` ones, and narrows core's
+  "parallel tasks [P] can run together" for writing subagents.
+- The preset's and `speckit-implement`'s descriptions.
 
 ### Removed
 
@@ -57,8 +72,7 @@ what was measured: README, "Why this shape".
 
 1. `specify preset update test-first --from <the v2.0.0 archive URL>`, and
    commit the updated `.specify/presets/test-first/`.
-2. Make sure `python3 --version` is 3.11 or newer where Claude Code runs.
-3. Nothing else: the next `/speckit-implement` on a feature branch installs
+2. Nothing else, given `python3` 3.11 or newer where Claude Code runs: the next `/speckit-implement` on a feature branch installs
    the ledger in a commit of its own. The 1.x Stop gate keeps running beside
    the ledger's Stop hook, and a tasks.md written under 1.x keeps its red
    bullets; new cases get none.

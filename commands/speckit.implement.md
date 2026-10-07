@@ -63,7 +63,10 @@ calls. A call is one tool use: one write, one edit, one shell command.
   It must fail from inside: an import error, a collection error or a missing
   module proves the test was found, not that it exercises anything. Stub the
   code under test, in a call of its own that changes no test, until the test
-  runs and fails from inside.
+  runs and fails from inside. A stub raises (`NotImplementedError`, or the
+  language's equivalent) rather than returning a placeholder: a placeholder
+  can satisfy a property. A task's property case is written in the same call
+  as its first case, before any code exists.
 - Then write the least code that makes it pass, in a later call that changes
   no test-side path, and run the whole suite. A test changed in the same call
   as the code that makes it pass is the defect the audit exists to find.

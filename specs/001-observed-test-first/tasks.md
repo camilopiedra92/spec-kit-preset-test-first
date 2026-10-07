@@ -768,9 +768,25 @@ gate still runs and an old `tasks.md` is read.
   call and one mixed call, end the turn, run the audit; record the verdicts and a timed snapshot
   with the versions of Claude Code, git and pytest, dated, in the README (SC-003; SC-006;
   constitution III)
-- [ ] T035 Run the whole quickstart and every suite (`uv run ruff check`, `uv run mypy`,
+- [X] T035 Run the whole quickstart and every suite (`uv run ruff check`, `uv run mypy`,
   `uv run pytest`, `tests/ledger.sh`, `tests/install-ledger.sh`, `tests/audit.sh`,
   `tests/stop-gate.sh`, `tests/run-bounded.sh`, then commit and `tests/compose.sh`); all green
+  - found by the polish review: the migration check needs the v1.6.0 tag, which CI's default
+    shallow checkout lacks — `fetch-depth: 0` (a shallow, tagless clone failed with
+    `not a valid object name: v1.6.0`; full history holds the tag)
+  - found by the polish review: on a python3 older than 3.11, a stop that continues a blocked
+    turn goes through
+    - red: `cli.py audit --stop under Python 3.9, a continued stop: exit 2` (`tests/ledger.sh`)
+  - found by the polish review: a ledger origin that fails after the commit says the commit
+    stands and what the missing origin means
+    - red: `assert 'first tool call' in "…first record failed: disk full"`
+  - found by the polish review: a property case is taken with its task's first case, against a
+    stub that raises; compose checks it, FR-020's "only then", and the 2.0 half of the 1.x
+    tasks.md rule
+    - red: `speckit-tasks no longer says: listed with the task's first case`, against HEAD
+  - found by the polish review: `tests/audit.sh` runs the uv and Vitest recipes as the fragment
+    gives them, and fails when the README's differ; npm where pnpm is missing
+    - red: `the README's recipe differs from: PYTHONPATH=src …`, with the README's broken on purpose
 
 ---
 

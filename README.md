@@ -49,9 +49,13 @@ observes instead:
   alone, see it fail, restore the code.
 - **The Stop hook.** The same audit runs at the end of every turn within a
   120-second budget, reusing every run already made, and blocks the turn once
-  when a new test was born with its code, born green or rewritten to green.
-  `/speckit-implement` runs it in full at each story's close, before the
-  review.
+  when a new test was born with its code, born green or rewritten to green,
+  or when the audit cannot run (a configuration or git error). It stays
+  silent where there is nothing to judge — no configuration, no ledger, a
+  detached HEAD, the default branch — and on a stop that continues a turn it
+  already blocked. A birth the budget leaves unjudged waits for the next turn
+  or the story's audit. `/speckit-implement` runs the audit in full at each
+  story's close, before the review.
 
 The audit checks order, not strength: that a test failed before its code, not
 that it tells right behaviour from wrong. Strength is the story review's,
@@ -78,8 +82,11 @@ from importing the real worktree's code instead of the record's. For a Node proj
 The installer commits the configuration and the two hook entries in
 `.claude/settings.json` as one commit, or refuses and leaves the repository
 as it was: off the feature's branch, with something staged, with a
-`settings.json` it could not commit whole, with globs that match no tracked
-test, or when a commit hook rejects it.
+`settings.json` or configuration file it could not commit whole (untracked,
+changed, ignored, skip-worktree, a symlink or inside a symlinked directory,
+not a settings object), with a ledger entry already there, with globs git
+cannot use or that match no tracked test, when a commit hook rejects it, or
+when it is terminated during its commit.
 The audit by hand: `python3 .specify/presets/test-first/scripts/python/cli.py audit`.
 
 ### Limits
@@ -98,7 +105,13 @@ What the audit does not check, and where it does not hold:
 - A test added to an unchanged test file by a change elsewhere (generated
   cases) is not found as new.
 - Tests arriving with commits the ledger did not see written (a merge, a
-  cherry-pick) are `unobserved`.
+  cherry-pick), or written and committed in one call, are `unobserved`.
+- Test and code brought in together by one call that copies rather than
+  writes (`git checkout <rev> -- <path>`, a patch) are `born-with-code`.
+- A `--run` that imports the real worktree's code instead of the record's —
+  an editable install, a workspace package linked into `node_modules` — makes
+  a test written first look `born-green`; the uv recipe above prevents it for
+  a src layout, and a pnpm workspace is not tested.
 - The ledger is local to each worktree. In another clone, where the hook
   entries arrive committed and nothing installed a ledger, the first tool
   call's record is the ledger's origin, and the tests it writes are
@@ -110,7 +123,9 @@ What the audit does not check, and where it does not hold:
 - The audit's cost for compiled languages is not measured: every replay
   starts from a clean tree.
 - The Stop hook shows a failing verdict once per turn; it does not prevent
-  the turn from ending.
+  the turn from ending, judges nothing on the default branch or a detached
+  HEAD, and leaves to a later turn the births its 120-second budget does not
+  reach.
 - The ledger stores every tracked and untracked-but-not-ignored file of the
   worktree, an un-ignored secret included, as git objects in the local
   repository; `git push --mirror` would send them. No git-ignored file.
@@ -218,7 +233,7 @@ and that nothing survives.
 For the ledger: `tests/python/` holds the units (pytest, run on Python 3.11
 too, with ruff and mypy in strict mode); `tests/ledger.sh` runs the hook as
 Claude Code does and times it; `tests/audit.sh` builds ledgers call by call
-in scratch projects and runs the audit over 35 scenarios, all but one with real
+in scratch projects and runs the audit over 36 scenarios, all but one with real
 pytest — test first, code first in one call or one call apart, tests renamed,
 consolidated or edited until they pass, commits in their own call, rebases,
 a hang, a killed audit — and the other with Vitest; `tests/install-ledger.sh`
@@ -228,12 +243,12 @@ its Stop gate and its 1.x tasks.md still work. CI runs all of them, against
 the pinned Spec Kit release on every push and against the latest release
 weekly.
 
-Measured on 2026-10-07, macOS on an M-series Mac (Mac16,8), git 2.55.0,
-pytest 9.1.1, Spec Kit 1.1.0 (research L7): a record costs a median of
-91–92 ms per call on 1,001 tracked files, and 91–94 ms on a clone of renta
-(861 files) once git has rewritten its index; an audit of 60 new tests in 20
-files took 26–29 s from an empty memo and 8–9 s warm; a Stop turn with one
-test and its code, 1 s.
+Measured on 2026-10-07, macOS on an M-series Mac (Mac16,8), git 2.55.0
+(research L7): a record costs a median of 91–92 ms per call on 1,001 tracked
+files, and 91–94 ms on a clone of renta (861 files) once git has rewritten
+its index, the hook on Python 3.14.7; an audit of 60 new tests in 20 files,
+pytest 9.1.1 on Python 3.12.12, took 26–29 s from an empty memo and 8–9 s
+warm, and a Stop turn with one test and its code 1–2 s.
 
 With v1.0.0, in one pilot (Spec Kit 1.1.0, 2026-10-05), `/speckit-tasks`
 produced 61 tasks, 52 citing requirement IDs, against 29 and 5 without the

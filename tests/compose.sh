@@ -162,8 +162,14 @@ done
 
 # A stated invariant gets a property case (FR-020), and only a stated one.
 # Joined into one line first, so rewrapping the fragment does not fail this.
-tr -s ' \n' '  ' < "$skills/speckit-tasks/SKILL.md" | grep -qF "property case" ||
-  problem "speckit-tasks does not add a property case for a stated invariant"
+for rule in "property case" "listed with the task's first case" \
+  "Only then: a task whose behaviour has no stated invariant gets none"; do
+  tr -s ' \n' '  ' < "$skills/speckit-tasks/SKILL.md" | grep -qF "$rule" ||
+    problem "speckit-tasks no longer says: $rule"
+done
+tr -s ' \n' '  ' < "$skills/speckit-implement/SKILL.md" |
+  grep -qF "property case is written in the same call as its first case" ||
+  problem "speckit-implement does not take the property case with the first case"
 
 # Each script the fragments or the installed hooks run is declared in
 # preset.yml, which is what makes `specify preset info` list it.
@@ -202,7 +208,7 @@ mkdir "$work/migrate"
   stop
   [ $? -eq 2 ] || problem "after the update, the 1.6.0 gate lets a red turn end"
   tr -s ' \n' '  ' < "$skills/speckit-implement/SKILL.md" |
-    grep -qF "A tasks.md from an earlier version of this preset" ||
+    grep -qF "Its recorded red runs stay as they are; new cases get none." ||
     problem "after the update, speckit-implement no longer reads a 1.x tasks.md"
   [ "$fail" -eq 0 ]
 ) || fail=1

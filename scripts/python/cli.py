@@ -17,6 +17,8 @@ FLOOR = (3, 11)
 
 def main() -> int:
     if sys.version_info < FLOOR:
+        if sys.argv[1:3] == ["audit", "--stop"] and _continued_stop():
+            return 0  # one block per turn, as the Stop hook itself does
         found = ".".join(map(str, sys.version_info[:3]))
         # Exit 2: Claude Code shows a hook's stderr to Claude only on that status.
         print(f"test-first: needs python3 >= {FLOOR[0]}.{FLOOR[1]}, found {found}", file=sys.stderr)
@@ -41,6 +43,18 @@ def main() -> int:
         "usage: cli.py ledger | cli.py audit [options] | cli.py install [options]", file=sys.stderr
     )
     return 2
+
+
+def _continued_stop() -> bool:
+    """Whether the Stop payload says a Stop hook already blocked this turn. Read with the
+    oldest Python 3's json, before the version check exits."""
+    import json
+
+    try:
+        payload = json.load(sys.stdin)
+    except ValueError:
+        return False
+    return isinstance(payload, dict) and payload.get("stop_hook_active") is True
 
 
 if __name__ == "__main__":

@@ -24,8 +24,11 @@ has watched a test reject is not evidence of anything.
   conserved, an order preserved, a bound never crossed — the test list of the
   task that implements it also holds one property case: the invariant stated
   over generated inputs and named after it ("for any list of transfers, the
-  total balance is unchanged"). Only then: a task whose behaviour has no
-  stated invariant gets none. The property library (Hypothesis, fast-check)
+  total balance is unchanged"). It is the one case that is not a concrete
+  input and its expected result, and it is listed with the task's first
+  case: written after the code that satisfies it, it could only be born
+  green. Only then: a task whose behaviour has no stated invariant gets
+  none. The property library (Hypothesis, fast-check)
   is a dependency like any other: where the project has none, the setup
   phase gets a task that adds it, which needs the user's approval.
 - No test task separate from the behaviour it pins: this replaces "Each

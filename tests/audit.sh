@@ -67,6 +67,15 @@ expect() {
   done
 }
 
+# recipe <prefix>: sets RECIPE to the --run command the implement fragment gives, starting with
+# <prefix>, as one line of code in backticks; the README must give the same one. Not called in
+# $(...): `problem` has to run in this shell.
+recipe() {
+  RECIPE=$(grep -o "\`$1[^\`]*\`" "$PRESET/commands/speckit.implement.md" | head -1 | tr -d '\`')
+  [ -n "$RECIPE" ] || problem "the implement fragment gives no --run recipe starting with: $1"
+  grep -qF -- "$RECIPE" "$PRESET/README.md" || problem "the README's recipe differs from: $RECIPE"
+}
+
 TEST_B='from src.b import value\n\ndef test_b():\n    assert value() == 2\n'
 CODE_B='def value():\n    return 2\n'
 STUB_B='def value():\n    return None\n'
@@ -334,15 +343,18 @@ fi
 
 # Vitest reports a file that does not load differently from pytest (research L7): one failure
 # case named after the file. A typo for one call must still not give the test a new birth.
-if command -v pnpm > /dev/null && command -v node > /dev/null; then
+if command -v node > /dev/null && { command -v pnpm || command -v npm; } > /dev/null; then
   SCENARIO="Vitest: a typo that breaks the file for one call"
   vitest=$work/vitest-install
   mkdir -p "$vitest" && echo '{"private": true}' > "$vitest/package.json"
-  if (cd "$vitest" && pnpm add -D vitest > /dev/null 2>&1 && pnpm add is-odd > /dev/null 2>&1); then
+  # pnpm where it is installed, else npm, which every node ships with (CI's runners included).
+  if command -v pnpm > /dev/null; then add='pnpm add'; else add='npm install --no-audit --no-fund'; fi
+  if (cd "$vitest" && $add -D vitest > /dev/null 2>&1 && $add is-odd > /dev/null 2>&1); then
     # The project's dependencies, as `pnpm install` leaves them: ignored, at the root. The
     # scratch worktree has none, so the run links the real worktree's in first (the
     # README's recipe for Node); `git clean -fdx` removes the link before the next run.
-    RUN='ln -s {root}/node_modules node_modules && node_modules/.bin/vitest run {file} --reporter=junit --outputFile={junit}'
+    recipe 'ln -s {root}/node_modules '
+    RUN=$RECIPE
     project vitest
     ln -s "$vitest/node_modules" "$REPO/node_modules"
     echo node_modules > "$REPO/.gitignore"
@@ -362,6 +374,7 @@ else
   echo "note: Vitest scenario skipped: no node or pnpm on PATH"
 fi
 
+
 # A packaged uv project (src layout): its .venv imports the package from the real worktree
 # through an editable install, so the fragment's recipe puts the scratch worktree's src first.
 SCENARIO="a packaged uv project, with the fragment's run recipe"
@@ -372,7 +385,8 @@ if (mkdir -p "$pkg" && cd "$pkg" && git init -q -b main && uv init -q --lib --na
   git -C "$pkg" config user.name T
   mkdir -p "$pkg/.specify" "$pkg/tests"
   echo '.venv' >> "$pkg/.gitignore"
-  RUN_PKG='PYTHONPATH=src UV_PROJECT_ENVIRONMENT={root}/.venv uv run --no-sync python -m pytest -q -p no:cacheprovider --junitxml={junit} {file}'
+  recipe 'PYTHONPATH=src '
+  RUN_PKG=$RECIPE
   jq -n --arg run "$RUN_PKG" '{tests: ["tests/**"], sources: ["src/**"], run: $run}' \
     > "$pkg/.specify/test-first.json"
   git -C "$pkg" add -A && git -C "$pkg" commit -q -m base && git -C "$pkg" checkout -q -b feat

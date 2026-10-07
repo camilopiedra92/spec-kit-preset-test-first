@@ -66,7 +66,9 @@ def main(argv: list[str]) -> int:
         return 1
     except ledger.RecordError as error:
         print(
-            f"test-first install: committed, but the ledger's first record failed: {error}",
+            f"test-first install: committed, but the ledger's first record failed: {error}; "
+            "the first tool call's record will be the ledger's origin, and the tests it writes "
+            "unobserved",
             file=sys.stderr,
         )
         return 1

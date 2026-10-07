@@ -663,6 +663,23 @@ and Antigravity showed nothing test-first-specific in searches (second-hand).
   `uv run --no-project --with pytest`, Python 3.12, git 2.55.0, macOS arm64 (Mac16,8). First
   version: cold 92 s, warm 71 s; most of the warm time was `git diff-tree` recomputed per record
   per test. With each record's change cached per audit: cold 27–29 s, warm 8–9 s, two runs.
+  Later the same day, after stories 2–5, same machine and versions (pytest 9.1.1 on Python
+  3.12.12): cold 26–27 s, warm 8–9 s, and the Stop hook's turn with one test and its code 1–2 s
+  (`tests/audit.sh`, four runs, one of them in a reviewer's clone).
+- **Validation in renta** (T034, 2026-10-07, Claude Code 2.1.293 in `claude -p`, Spec Kit 1.1.0,
+  git 2.55.0, pytest 9.1.1 on Python 3.14.7, macOS arm64 Mac16,8): a clone of renta (861 files),
+  the preset updated from 1.6.0 to this branch's archive, the ledger installed on a feature
+  branch with `--sources 'co/**' 'datos/**' 'scripts/**' '*.py'`, then one session per run told
+  to make given calls; one run each, about $0.43–0.44 per session. Run 1: test alone and run
+  (collection error), then the code, then a test and its code in one shell command: the hook
+  told Claude at that call, the Stop audit blocked the turn, verdicts `born-with-code` and
+  `unobserved` — the ledger had no record before the first call (fixed: the installer records
+  the origin). Run 2, same steps: `born-with-code` for both — the first test's file did not load
+  until its code existed, which the session read as a false positive (fixed: the verdict says
+  so and gives the redo with a stub). Run 3, a stub first, the test alone and red, then the
+  code, then a test and its code together: `red` and `born-with-code`, as designed. A record on
+  that clone: median 92–94 ms of eleven calls once git had rewritten its index (Kept index,
+  above).
 - **Racy git and the snapshot's index copy** (T006/T020, 2026-10-07, git 2.55.0, macOS): git
   trusts an index entry's stat unless the entry is not older than the index file. Copying the index
   with a fresh mtime disables that recheck: a same-size edit made in the second the index was

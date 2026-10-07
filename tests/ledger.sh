@@ -132,5 +132,12 @@ for command in ledger audit; do
     problem "cli.py $command under Python 3.9: exit $status: $out"
 done
 
+# The Stop hook keeps its one-block-per-turn rule there too: the stop that continues a turn
+# already blocked goes through, or an old python3 would block every stop.
+out=$(echo '{"stop_hook_active": true}' |
+  uv run --quiet --isolated --no-project --python 3.9 python "$HOOK" audit --stop 2>&1)
+status=$?
+[ "$status" = 0 ] || problem "cli.py audit --stop under Python 3.9, a continued stop: exit $status: $out"
+
 [ "$fail" -eq 0 ] && echo "ok: ledger"
 exit "$fail"
