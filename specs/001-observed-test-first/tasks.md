@@ -92,14 +92,23 @@ suites in scratch repositories), `commands/` (fragments).
   - `stopped: possible spec gap` — whether `**/test_*.py` matches a root-level `test_x.py`
     (found during implementation): plain `fnmatch` says no, gitignore-style globs say yes; the
     data model says only "`fnmatch`, where `**` matches across directories"
-- [ ] T006 Snapshot the worktree as a tree in `scripts/python/ledger.py`: temporary index seeded
+- [X] T006 Snapshot the worktree as a tree in `scripts/python/ledger.py`: temporary index seeded
   from the worktree's own, `git add -A`, `git write-tree`; tracked and untracked-but-not-ignored
   files; the real index and the worktree never modified (research R2; FR-001; constitution IV)
   - a clean repository → the HEAD commit's tree
+    - red: `AttributeError: … no attribute 'snapshot'`, then `assert '' == 'dc7a7dd…'` from the stub
   - an untracked file → in the tree; an ignored one → not
+    - passed on its first run; `git add -u` on purpose failed it (`'src/new.py' in {…}`), and
+      `git add -A -f` on purpose (`'debug.log' not in {…}`), restored
   - a deleted tracked file → absent from the tree
+    - passed on its first run; `git add --ignore-removal .` on purpose failed it, restored
   - staged and unstaged edits of one file → the worktree's content
+    - passed on its first run; writing the tree from the real index on purpose failed it
+      (`'A = 2' == 'A = 3'`), restored
   - after the snapshot, `git status --porcelain` and `.git/index` byte-identical to before
+    - its first run failed against correct code: the test read the index before `git status`,
+      which refreshes it; reordered (expectation unchanged); `git add -A` on the real index on
+      purpose then failed it, restored
 - [ ] T007 Append a record in `scripts/python/ledger.py`: `git commit-tree <tree> -p <previous>`
   with the message JSON `time`, `session`, `agent`, `tool`, `call`, `branch`, `head`; move
   `refs/worktree/test-first/ledger` with `git update-ref <ref> <new> <old>`, retried on a race;

@@ -4,6 +4,10 @@ from __future__ import annotations
 
 import fnmatch
 import json
+import os
+import shutil
+import subprocess
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -77,3 +81,29 @@ def is_mixed(config: Config, paths: list[str]) -> bool:
     """A change is mixed when it holds at least one test path and at least one source path."""
     kinds = {classify(config, path) for path in paths}
     return {"test", "source"} <= kinds
+
+
+def snapshot(worktree: Path) -> str:
+    """The tree of the worktree's tracked and untracked-but-not-ignored files, as on disk.
+
+    Built in a temporary index seeded from the worktree's own, in the system's temporary
+    location, so the real index and the worktree are never touched (research R2).
+    """
+    index = Path(_git(worktree, "rev-parse", "--path-format=absolute", "--git-path", "index"))
+    with tempfile.TemporaryDirectory(prefix="test-first-") as scratch:
+        temporary = Path(scratch) / "index"
+        if index.exists():
+            shutil.copyfile(index, temporary)
+        env = {**os.environ, "GIT_INDEX_FILE": str(temporary)}
+        _git(worktree, "add", "-A", env=env)
+        return _git(worktree, "write-tree", env=env)
+
+
+def _git(worktree: Path, *args: str, env: dict[str, str] | None = None) -> str:
+    return subprocess.run(
+        ["git", "-C", str(worktree), *args],
+        check=True,
+        capture_output=True,
+        text=True,
+        env=env,
+    ).stdout.strip()
