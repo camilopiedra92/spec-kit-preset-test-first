@@ -98,6 +98,10 @@ What the audit does not check, and where it does not hold:
   cases) is not found as new.
 - Tests arriving with commits the ledger did not see written (a merge, a
   cherry-pick) are `unobserved`.
+- The ledger is local to each worktree. In another clone, where the hook
+  entries arrive committed and nothing installed a ledger, the first tool
+  call's record is the ledger's origin, and the tests it writes are
+  `unobserved`.
 - A restored test keeps its earlier verdict, whatever code now stands
   beside it.
 - Replays use the environment as it is at audit time, and observe a flaky
