@@ -59,15 +59,14 @@ call() {
   printf '{"cwd": "%s", "session_id": "s", "tool_name": "Write", "tool_use_id": "%s"}' "$repo" "$1" |
     CLAUDE_PROJECT_DIR=$repo sh -c "$(entry PostToolUse)" 2> "$work/stderr"
 }
-echo origin > "$repo/README.md"
-call t0 # the ledger's first record: what the feature starts from
 echo 'def test_b(): pass' > "$repo/tests/test_b.py"
 call t1
 status=$?
 [ "$status" -eq 0 ] || problem "the PostToolUse command exited $status: $(cat "$work/stderr")"
 git -C "$repo" ls-tree -r --name-only refs/worktree/test-first/ledger 2> /dev/null |
   grep -qx tests/test_b.py || problem "the PostToolUse command recorded nothing"
-# test_b passes with no code of its own: born green, which the Stop audit blocks on.
+# test_b passes with no code of its own: born green, which the Stop audit blocks on -- born
+# in the first call's record, because the install recorded the worktree before it.
 printf '{"cwd": "%s", "session_id": "s", "stop_hook_active": false}' "$repo" |
   CLAUDE_PROJECT_DIR=$repo sh -c "$(entry Stop)" 2> "$work/stderr"
 status=$?

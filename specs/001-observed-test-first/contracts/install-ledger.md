@@ -7,7 +7,9 @@ python3 .specify/presets/test-first/scripts/python/cli.py install \
 
 Writes `.specify/test-first.json` and the two hook entries of [ledger-hook.md](ledger-hook.md)
 (`hooks.PostToolUse` and `hooks.Stop`) in `.claude/settings.json`, keeping every other entry, and
-commits exactly those two files as one commit. Refuses, exit 1, the repository unchanged, when: not
+commits exactly those two files as one commit; then records the worktree as the ledger's first
+record (`tool` = `install`, data-model.md, origin), so the first tool call's record is a change.
+Refuses, exit 1, the repository unchanged, when: not
 at the repository root with `.specify/`; HEAD is detached; no base resolves (data-model.md, Base —
 HEAD on the default branch included); anything is staged; `.claude/settings.json` exists and is
 untracked, tracked with uncommitted changes, ignored, not a regular file or skip-worktree (it is

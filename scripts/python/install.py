@@ -48,12 +48,22 @@ def main(argv: list[str]) -> int:
         config = {"tests": args.tests, "sources": args.sources, "run": args.run}
         settings = _checked(root, config)
         _commit(root, {ledger.CONFIG: config, SETTINGS: settings})
+        # The ledger's first record: the worktree as the install leaves it, so the first tool
+        # call's record is a change and the tests it writes are born in it.
+        origin: ledger.Call = {"session": "install", "agent": None, "tool": "install", "call": None}
+        ledger.record(root, origin, ledger.parse_config(config))
     except Refused as refusal:
         print(f"test-first install: {refusal}", file=sys.stderr)
         return 1
     except subprocess.CalledProcessError as error:
         # A git failure (a held lock, a full disk) after the checks: the commit's undo has run.
         print(f"test-first install: git failed: {(error.stderr or '').strip()}", file=sys.stderr)
+        return 1
+    except ledger.RecordError as error:
+        print(
+            f"test-first install: committed, but the ledger's first record failed: {error}",
+            file=sys.stderr,
+        )
         return 1
     return 0
 

@@ -649,6 +649,12 @@ born-with-code test is blocked once, and the next stop passes.
   - found during implementation (FR-011, constitution IV): the audit without the preset's
     `run-bounded.sh` → refused naming it, not "the command wrote no JUnit"
     - red: `assert 1 == 2`
+  - found by T034's validation in renta: the install records the worktree as the ledger's origin
+    — otherwise the first tool call's record is the origin and the test it writes is
+    `unobserved` instead of `red` (observed: `audit: 2 new tests: born-with-code 1, unobserved 1`)
+    - red: `CalledProcessError` from `git rev-list refs/worktree/test-first/ledger` (no ledger);
+      `tests/install-ledger.sh` without its earlier workaround (an origin call) fails when the
+      origin record is removed on purpose
   - found during implementation (constitution IV): `cli.py` writes no `__pycache__` beside the
     installed scripts
     - red: `tests/install-ledger.sh`: "a refusal changed the repository" (an untracked

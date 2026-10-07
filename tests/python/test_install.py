@@ -288,3 +288,16 @@ def test_a_git_error_while_committing_is_a_refusal_that_leaves_everything_as_it_
     monkeypatch.setattr(ledger, "git", locked)
 
     assert "index.lock" in refused(project, capsys)
+
+
+def test_the_install_starts_the_ledger_at_the_worktree_it_leaves(project: Path) -> None:
+    """The first tool call's record must be a change: without an origin before it, the
+    tests that call writes would already be in the ledger's first record (unobserved)."""
+    assert install.main(ARGS) == 0
+
+    records = git(project, "rev-list", ledger.REF).splitlines()
+    assert len(records) == 1
+    assert git(project, "rev-parse", f"{ledger.REF}^{{tree}}") == git(
+        project, "rev-parse", "HEAD^{tree}"
+    )
+    assert json.loads(git(project, "log", "-1", "--format=%B", ledger.REF))["tool"] == "install"

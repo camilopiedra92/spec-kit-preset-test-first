@@ -44,7 +44,9 @@ Invariants: a record's tree differs from its parent's (FR-002); records are only
 
 The chain reachable from `refs/worktree/test-first/ledger` in one worktree, oldest first when read.
 Its oldest record is the **origin**: nothing is born there, because the state before it was not
-observed.
+observed. The installer writes it (`tool` = `install`), the worktree as the install leaves it, so
+the first tool call's record is a change; a worktree whose ledger starts at a tool call instead (a
+clone where the hook entries arrived committed) has that call's tests `unobserved`.
 
 ## Effective history (derived)
 
