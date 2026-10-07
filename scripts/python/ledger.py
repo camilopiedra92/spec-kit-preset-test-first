@@ -133,7 +133,7 @@ def snapshot(worktree: Path, index: Path | None = None) -> str:
     location, so the real index and the worktree are never touched (research R2).
     """
     if index is None:
-        index = Path(_git(worktree, "rev-parse", "--path-format=absolute", "--git-path", "index"))
+        index = Path(git(worktree, "rev-parse", "--path-format=absolute", "--git-path", "index"))
     with tempfile.TemporaryDirectory(prefix="test-first-") as scratch:
         temporary = Path(scratch) / "index"
         if index.exists():
@@ -142,13 +142,14 @@ def snapshot(worktree: Path, index: Path | None = None) -> str:
             # in the index's last second pass for unchanged (observed: 10 of 10 missed).
             shutil.copy2(index, temporary)
         env = {**os.environ, "GIT_INDEX_FILE": str(temporary)}
-        _git(worktree, "add", "-A", env=env)
-        return _git(worktree, "write-tree", env=env)
+        git(worktree, "add", "-A", env=env)
+        return git(worktree, "write-tree", env=env)
 
 
-def _git(
+def git(
     worktree: Path, *args: str, env: dict[str, str] | None = None, input: str | None = None
 ) -> str:
+    """git's stdout, stripped; raises CalledProcessError on failure."""
     return subprocess.run(
         ["git", "-C", str(worktree), *args],
         check=True,
@@ -191,11 +192,11 @@ def record(worktree: Path, call: Call, index: Path | None = None) -> str | None:
             return None
         message = message or _message(worktree, call)
         parent = ["-p", newest] if newest else []
-        commit = _git(worktree, "commit-tree", tree, *parent, "-m", message)
+        commit = git(worktree, "commit-tree", tree, *parent, "-m", message)
         # Compare-and-swap: moves the ref only if it still points where it was read.
         command = f"update {REF} {commit} {newest}" if newest else f"create {REF} {commit}"
         try:
-            _git(worktree, "update-ref", "--stdin", input=command + "\n")
+            git(worktree, "update-ref", "--stdin", input=command + "\n")
         except subprocess.CalledProcessError:
             continue
         return commit
@@ -204,7 +205,7 @@ def record(worktree: Path, call: Call, index: Path | None = None) -> str | None:
 
 def _message(worktree: Path, call: Call) -> str:
     # One process for both: the commit, then the branch's full name, or "HEAD" when detached.
-    head, symbolic = _git(worktree, "rev-parse", "HEAD", "--symbolic-full-name", "HEAD").split()
+    head, symbolic = git(worktree, "rev-parse", "HEAD", "--symbolic-full-name", "HEAD").split()
     branch = symbolic.removeprefix("refs/heads/") if symbolic.startswith("refs/heads/") else None
     return json.dumps(
         {

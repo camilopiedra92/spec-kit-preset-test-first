@@ -74,7 +74,7 @@ def test_a_concurrent_record_is_kept_and_the_append_retried(
 ) -> None:
     first = ledger.record(repo, CALL)
     (repo / "src" / "a.py").write_text("A = 2\n")
-    real_git = ledger._git
+    real_git = ledger.git
     raced: list[str] = []
 
     def racing_git(
@@ -89,7 +89,7 @@ def test_a_concurrent_record_is_kept_and_the_append_retried(
             raced.append(other)
         return real_git(worktree, *args, env=env, input=input)
 
-    monkeypatch.setattr(ledger, "_git", racing_git)
+    monkeypatch.setattr(ledger, "git", racing_git)
 
     mine = ledger.record(repo, CALL)
 
@@ -101,7 +101,7 @@ def test_losing_every_race_is_an_error_not_a_lost_record(
 ) -> None:
     ledger.record(repo, CALL)
     (repo / "src" / "a.py").write_text("A = 2\n")
-    real_git = ledger._git
+    real_git = ledger.git
 
     def always_racing(
         worktree: Path, *args: str, env: dict[str, str] | None = None, input: str | None = None
@@ -110,7 +110,7 @@ def test_losing_every_race_is_an_error_not_a_lost_record(
             raise subprocess.CalledProcessError(1, "git update-ref")
         return real_git(worktree, *args, env=env, input=input)
 
-    monkeypatch.setattr(ledger, "_git", always_racing)
+    monkeypatch.setattr(ledger, "git", always_racing)
 
     with pytest.raises(ledger.RecordError, match="5 attempts"):
         ledger.record(repo, CALL)

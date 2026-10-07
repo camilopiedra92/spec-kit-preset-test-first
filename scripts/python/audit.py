@@ -76,14 +76,16 @@ class Replayer:
         self.temporary = Path()
         self.scratch = Path()
         self.memo = Path(
-            _git(worktree, "rev-parse", "--path-format=absolute", "--git-path", "test-first/runs")
+            ledger.git(
+                worktree, "rev-parse", "--path-format=absolute", "--git-path", "test-first/runs"
+            )
         )
 
     def __enter__(self) -> Replayer:
         self._prune_abandoned()
         self.temporary = Path(tempfile.mkdtemp(prefix=f"{SCRATCH_PREFIX}{os.getpid()}-"))
         self.scratch = self.temporary / "worktree"
-        _git(
+        ledger.git(
             self.worktree,
             "worktree",
             "add",
@@ -97,18 +99,18 @@ class Replayer:
 
     def _prune_abandoned(self) -> None:
         """Remove scratch worktrees left registered by audits that were killed."""
-        listing = _git(self.worktree, "worktree", "list", "--porcelain")
+        listing = ledger.git(self.worktree, "worktree", "list", "--porcelain")
         for line in listing.splitlines():
             if not line.startswith("worktree "):
                 continue
             path = Path(line.removeprefix("worktree "))
             owner = SCRATCH_NAME.fullmatch(path.parent.name)
             if owner and not _alive(int(owner.group(1))):
-                _git(self.worktree, "worktree", "remove", "--force", str(path))
+                ledger.git(self.worktree, "worktree", "remove", "--force", str(path))
                 shutil.rmtree(path.parent, ignore_errors=True)
 
     def __exit__(self, *exc: object) -> None:
-        _git(self.worktree, "worktree", "remove", "--force", str(self.scratch))
+        ledger.git(self.worktree, "worktree", "remove", "--force", str(self.scratch))
         shutil.rmtree(self.temporary, ignore_errors=True)
 
     def run(self, tree: str, file: str, deadline: int) -> RunResult:
@@ -147,8 +149,8 @@ class Replayer:
         return Observation(outcomes, conclusive=True, timed_out=False)
 
     def _replay(self, tree: str, file: str, deadline: int) -> RunResult:
-        _git(self.scratch, "read-tree", "-u", "--reset", tree)
-        _git(self.scratch, "clean", "-fdxq")
+        ledger.git(self.scratch, "read-tree", "-u", "--reset", tree)
+        ledger.git(self.scratch, "clean", "-fdxq")
         junit = self.temporary / "junit.xml"
         junit.unlink(missing_ok=True)
         command = (
@@ -174,65 +176,52 @@ def _alive(pid: int) -> bool:
     return True
 
 
-def _git(worktree: Path, *args: str) -> str:
-    return subprocess.run(
-        ["git", "-C", str(worktree), *args], check=True, capture_output=True, text=True
-    ).stdout.strip()
-
-
 def compose(worktree: Path, config: ledger.Config, tests_from: str, rest_from: str) -> str:
     """A tree with exactly the test-side paths of one tree and the other paths of another.
 
     The replay variants swap whole sides, never only the source globs, so code written outside
     them (a template, a schema) is judged too (research R5, FR-028).
     """
-    entries = [entry for entry in _entries(worktree, tests_from) if _is_test(config, entry)] + [
-        entry for entry in _entries(worktree, rest_from) if not _is_test(config, entry)
-    ]
-    return _write_tree(worktree, entries)
+    tests = [e for e in _entries(worktree, tests_from) if _kind(config, e) == "test"]
+    rest = [e for e in _entries(worktree, rest_from) if _kind(config, e) != "test"]
+    return _write_tree(worktree, tests + rest)
 
 
-def _entries(worktree: Path, tree: str) -> list[str]:
-    """`<mode> <type> <object>\t<path>` for every file of the tree, the path unquoted (-z)."""
-    listing = _git(worktree, "ls-tree", "-r", "-z", "--full-tree", tree)
-    return [entry for entry in listing.split("\0") if entry]
+class Entry(NamedTuple):
+    """One file of a tree: its mode, its blob, its path."""
+
+    mode: str
+    blob: str
+    path: str
 
 
-def _is_test(config: ledger.Config, entry: str) -> bool:
-    return ledger.classify(config, entry.split("\t", 1)[1]) == "test"
+def _entries(worktree: Path, tree: str) -> list[Entry]:
+    """Every file of the tree, the path unquoted (-z)."""
+    listing = ledger.git(worktree, "ls-tree", "-r", "-z", "--full-tree", tree)
+    entries = []
+    for line in filter(None, listing.split("\0")):
+        meta, path = line.split("\t", 1)
+        mode, _, blob = meta.split()
+        entries.append(Entry(mode, blob, path))
+    return entries
 
 
-def _write_tree(worktree: Path, entries: list[str]) -> str:
+def _kind(config: ledger.Config, entry: Entry) -> str:
+    return ledger.classify(config, entry.path)
+
+
+def _write_tree(worktree: Path, entries: list[Entry]) -> str:
     """The tree of these entries, through a temporary index; the real one is never touched."""
     with tempfile.TemporaryDirectory(prefix="test-first-") as scratch:
         env = {**os.environ, "GIT_INDEX_FILE": str(Path(scratch) / "index")}
-        index_info = "".join(
-            f"{meta.split()[0]} {meta.split()[2]}\t{path}\0"
-            for meta, path in (entry.split("\t", 1) for entry in entries)
-        )
-        subprocess.run(
-            ["git", "-C", str(worktree), "update-index", "-z", "--index-info"],
-            input=index_info,
-            text=True,
-            check=True,
-            env=env,
-        )
-        return subprocess.run(
-            ["git", "-C", str(worktree), "write-tree"],
-            capture_output=True,
-            text=True,
-            check=True,
-            env=env,
-        ).stdout.strip()
+        index_info = "".join(f"{e.mode} {e.blob}\t{e.path}\0" for e in entries)
+        ledger.git(worktree, "update-index", "-z", "--index-info", env=env, input=index_info)
+        return ledger.git(worktree, "write-tree", env=env)
 
 
 def without_sources(worktree: Path, config: ledger.Config, tree: str) -> str:
     """The tree with every source path removed (data-model.md, no-sources)."""
-    kept = [
-        entry
-        for entry in _entries(worktree, tree)
-        if ledger.classify(config, entry.split("\t", 1)[1]) != "source"
-    ]
+    kept = [e for e in _entries(worktree, tree) if _kind(config, e) != "source"]
     return _write_tree(worktree, kept)
 
 
@@ -243,18 +232,12 @@ UNPARSEABLE = "\x01 this is not code {{{ ]]\n"
 
 def load_probe(worktree: Path, tree: str, file: str) -> str:
     """The tree with one file's content replaced by bytes no language parses."""
-    garbage = _git_input(worktree, UNPARSEABLE, "hash-object", "-w", "--stdin")
+    garbage = ledger.git(worktree, "hash-object", "-w", "--stdin", input=UNPARSEABLE)
     entries = [
-        f"100644 blob {garbage}\t{file}" if entry.split("\t", 1)[1] == file else entry
+        Entry("100644", garbage, file) if entry.path == file else entry
         for entry in _entries(worktree, tree)
     ]
     return _write_tree(worktree, entries)
-
-
-def _git_input(worktree: Path, data: str, *args: str) -> str:
-    return subprocess.run(
-        ["git", "-C", str(worktree), *args], input=data, capture_output=True, text=True, check=True
-    ).stdout.strip()
 
 
 class BaseError(Exception):
@@ -264,7 +247,7 @@ class BaseError(Exception):
 def resolve_base(worktree: Path, override: str | None = None) -> str:
     """The commit new tests are new against (data-model.md, Base)."""
     if override is not None:
-        return _git(worktree, "rev-parse", "--verify", f"{override}^{{commit}}")
+        return ledger.git(worktree, "rev-parse", "--verify", f"{override}^{{commit}}")
     if "origin" in _quiet_git(worktree, "remote").split():
         # Remote-tracking first: a local merge into the default branch cannot move these.
         named = _quiet_git(worktree, "symbolic-ref", "--quiet", "refs/remotes/origin/HEAD")
@@ -282,7 +265,7 @@ def resolve_base(worktree: Path, override: str | None = None) -> str:
     branch = _quiet_git(worktree, "symbolic-ref", "--quiet", "--short", "HEAD")
     if branch == default.removeprefix("origin/"):
         raise BaseError(f"HEAD is on the default branch, {branch}: nothing is new against it")
-    return _git(worktree, "merge-base", "HEAD", default)
+    return ledger.git(worktree, "merge-base", "HEAD", default)
 
 
 def _quiet_git(worktree: Path, *args: str) -> str:
@@ -335,14 +318,15 @@ def load_records(worktree: Path) -> list[Record]:
 
 def changed_paths(worktree: Path, before: str, after: str) -> set[str]:
     """The paths whose presence or content differs between two trees (data-model.md, Change)."""
-    listing = _git(worktree, "diff-tree", "-r", "-z", "--no-renames", "--name-only", before, after)
+    listing = ledger.git(
+        worktree, "diff-tree", "-r", "-z", "--no-renames", "--name-only", before, after
+    )
     return set(filter(None, listing.split("\0")))
 
 
 class Birth(NamedTuple):
     at: int | None
     imported: bool = False
-    restored_from: int | None = None
 
 
 class NotJudged(Exception):
@@ -362,9 +346,9 @@ ACCEPTED = frozenset({"red", "predates", "refactored"})
 
 
 class Verdict(NamedTuple):
-    """An audit's judgement of one test: its name, the record it rests on, and why."""
+    """An audit's judgement of one test: its kind, the record it rests on, and why."""
 
-    name: str
+    kind: str
     record: str | None = None
     reason: str = ""
     replaced: tuple[str, ...] = ()
@@ -389,7 +373,7 @@ class Auditor:
         self._base_tree: str | None = None
         # Keyed by the two trees, so an auditor limited to an earlier history (until) shares it.
         self._changes: dict[tuple[str, str], set[str]] = {}
-        branch = _git(worktree, "symbolic-ref", "--quiet", "--short", "HEAD")
+        branch = ledger.git(worktree, "symbolic-ref", "--quiet", "--short", "HEAD")
         self.history = effective_history(load_records(worktree), branch)
 
     def birth(self, test: str, file: str) -> Birth:
@@ -401,10 +385,7 @@ class Auditor:
         last seen absent.
         """
         touching = [i for i in range(1, len(self.history)) if file in self.change(i)]
-        resume = len(self.history)
         for t in reversed(touching):
-            if t >= resume:
-                continue
             at_t = self.observe(t, file)
             if not at_t.conclusive:
                 continue  # a typo for a call says nothing either way
@@ -416,7 +397,8 @@ class Auditor:
                 return Birth(None)
             if test not in (self.observe(j, file).outcomes or {}):
                 return self.born(test, file, t)
-            resume = j + 1
+            # Reported at j as well: the touching records between are inconclusive, so the
+            # walk goes on from the next one older than j.
         origin = self.observe(0, file)
         if origin.conclusive and test not in (origin.outcomes or {}):
             return self.scan(test, file, 0)
@@ -435,7 +417,7 @@ class Auditor:
         written: b's HEAD moved and the new HEAD's own tree already holds the test."""
         record, previous = self.history[b], self.history[b - 1]
         if record.head != previous.head:
-            committed = _git(self.worktree, "rev-parse", f"{record.head}^{{tree}}")
+            committed = ledger.git(self.worktree, "rev-parse", f"{record.head}^{{tree}}")
             seen = self.observe_tree(committed, file)
             if test in (seen.outcomes or {}):
                 return Birth(b, imported=True)
@@ -519,9 +501,10 @@ class Auditor:
         if restored is not None:
             return restored
         life = self.follow(test, file, birth.at)
-        if life.state != "first-pass" or life.at is None:
+        if life.state != "first-pass":
             record = self.history[life.at].commit if life.at is not None else None
             return Verdict(life.state, record, life.reason)
+        assert life.at is not None  # a first pass always has its record
         return self.judge_first_pass(test, file, life.at)
 
     def restored(self, test: str, file: str, b: int) -> Verdict | None:
@@ -538,7 +521,7 @@ class Auditor:
                 continue
             end = touching[n + 1] - 1 if n + 1 < len(touching) else b - 1
             earlier = self.until(end).verdict(test, file)
-            if earlier.name in ACCEPTED:
+            if earlier.kind in ACCEPTED:
                 return earlier._replace(reason="restored unchanged after it was judged")
         return None
 
@@ -581,22 +564,17 @@ class Auditor:
         if test_side and test_side != changed:
             return ()
         files = sorted(test_side) if test_side else [file]
-        before = {f: self.observe(r1 - 1, f) for f in files}
-        after = {f: self.observe(r1, f) for f in files}
-        gone = [
-            case
-            for f in files
-            if before[f].conclusive and after[f].conclusive
-            for case in (before[f].outcomes or {})
-            if case not in (after[f].outcomes or {}) and self.accepted_before(case, f, r1)
-        ]
-        appeared = [
-            case
-            for f in files
-            if before[f].conclusive and after[f].conclusive
-            for case, outcome in (after[f].outcomes or {}).items()
-            if outcome == "passed" and case not in (before[f].outcomes or {})
-        ]
+        gone: list[str] = []
+        appeared: list[str] = []
+        for f in files:
+            before, after = self.observe(r1 - 1, f), self.observe(r1, f)
+            if not (before.conclusive and after.conclusive):
+                continue  # a file that did not load on either side says nothing
+            was, now = before.outcomes or {}, after.outcomes or {}
+            gone += [case for case in was if case not in now and self.accepted_before(case, f, r1)]
+            appeared += [
+                case for case, outcome in now.items() if outcome == "passed" and case not in was
+            ]
         if gone and test in appeared and len(appeared) <= len(gone):
             return tuple(sorted(gone))
         return ()
@@ -606,7 +584,7 @@ class Auditor:
         verdict, judged along the history up to the record before r."""
         if case in (self.observe_tree(self.base_tree(), file).outcomes or {}):
             return False
-        return self.until(r - 1).verdict(case, file).name in ACCEPTED
+        return self.until(r - 1).verdict(case, file).kind in ACCEPTED
 
     def until(self, newest: int) -> Auditor:
         """This auditor with its history ending at record `newest`."""
@@ -617,7 +595,7 @@ class Auditor:
     def base_tree(self) -> str:
         if self._base_tree is None:
             base = resolve_base(self.worktree, self.base_override)
-            self._base_tree = _git(self.worktree, "rev-parse", f"{base}^{{tree}}")
+            self._base_tree = ledger.git(self.worktree, "rev-parse", f"{base}^{{tree}}")
         return self._base_tree
 
     def follow(self, test: str, file: str, born: int) -> Lifecycle:
@@ -682,7 +660,7 @@ class Auditor:
 def exit_status(verdicts: list[tuple[str, Verdict]]) -> int:
     """0 when every new test is accepted or never ran, 1 otherwise (FR-010)."""
     passing = ACCEPTED | {"never-run"}
-    return 0 if all(verdict.name in passing for _, verdict in verdicts) else 1
+    return 0 if all(verdict.kind in passing for _, verdict in verdicts) else 1
 
 
 def main(argv: list[str]) -> int:
@@ -723,21 +701,21 @@ REMEDIES = {
 def render(verdicts: list[tuple[str, Verdict]], records: dict[str, Record]) -> str:
     """The report: one line per new test, grouped by verdict, then a summary (contracts)."""
     lines = []
-    for name in sorted({verdict.name for _, verdict in verdicts}):
+    for kind in sorted({verdict.kind for _, verdict in verdicts}):
         for test, verdict in verdicts:
-            if verdict.name != name:
+            if verdict.kind != kind:
                 continue
             record = records.get(verdict.record or "")
             where = f"{record.commit} {record.tool} {record.call or '-'}" if record else "- - -"
-            lines.append(f"{name} {test} {where}")
+            lines.append(f"{kind} {test} {where}")
             lines.extend(f"  replaced {replaced}" for replaced in verdict.replaced)
             # A reason carries its own remedy (born-green without sources, not-judged).
             if verdict.reason:
                 lines.append(f"  {verdict.reason}")
-            elif name in REMEDIES:
-                lines.append(f"  {REMEDIES[name]}")
-    counts = Counter(verdict.name for _, verdict in verdicts)
-    tally = ", ".join(f"{name} {count}" for name, count in sorted(counts.items()))
+            elif kind in REMEDIES:
+                lines.append(f"  {REMEDIES[kind]}")
+    counts = Counter(verdict.kind for _, verdict in verdicts)
+    tally = ", ".join(f"{kind} {count}" for kind, count in sorted(counts.items()))
     outcome = "pass" if exit_status(verdicts) == 0 else "FAIL"
     lines.append(f"audit: {len(verdicts)} new tests: {tally}; {outcome}")
     return "\n".join(lines)

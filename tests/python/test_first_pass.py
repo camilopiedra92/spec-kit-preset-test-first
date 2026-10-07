@@ -24,7 +24,7 @@ def test_a_test_and_its_code_in_one_call_is_born_with_its_code(repo: Path) -> No
 
     judged = verdict(repo)
 
-    assert (judged.name, judged.record) == ("born-with-code", record)
+    assert (judged.kind, judged.record) == ("born-with-code", record)
 
 
 def test_code_first_then_its_test_alone_is_born_green(repo: Path) -> None:
@@ -36,7 +36,7 @@ def test_code_first_then_its_test_alone_is_born_green(repo: Path) -> None:
 
     judged = verdict(repo)
 
-    assert (judged.name, judged.record) == ("born-green", record)
+    assert (judged.kind, judged.record) == ("born-green", record)
 
 
 def on_feature_with(repo: Path, files: dict[str, str]) -> None:
@@ -56,7 +56,7 @@ def test_a_moved_test_that_passes_against_the_base_predates_the_feature(repo: Pa
 
     judged = verdict(repo)
 
-    assert (judged.name, judged.record) == ("predates", record)
+    assert (judged.kind, judged.record) == ("predates", record)
 
 
 def test_a_test_that_passes_without_any_source_is_born_green_with_that_reason(
@@ -69,7 +69,7 @@ def test_a_test_that_passes_without_any_source_is_born_green_with_that_reason(
 
     judged = verdict(repo)
 
-    assert judged.name == "born-green"
+    assert judged.kind == "born-green"
     assert "without any source" in judged.reason
 
 
@@ -83,7 +83,7 @@ def test_an_environment_using_the_real_worktrees_code_cannot_make_a_test_predate
 
     judged = verdict(repo, config=LEAKING)
 
-    assert judged.name == "born-green"
+    assert judged.kind == "born-green"
     assert "outside the scratch worktree" in judged.reason
 
 
@@ -108,7 +108,7 @@ def test_a_rename_in_a_test_only_call_is_refactored_listing_the_test_it_replaced
 
     judged = verdict(repo)
 
-    assert (judged.name, judged.record, judged.replaced) == ("refactored", record, (OLD,))
+    assert (judged.kind, judged.record, judged.replaced) == ("refactored", record, (OLD,))
 
 
 def test_three_accepted_tests_consolidated_are_refactored(repo: Path) -> None:
@@ -133,7 +133,7 @@ def test_three_accepted_tests_consolidated_are_refactored(repo: Path) -> None:
 
     judged = verdict(repo, test="tests.test_b::test_b2")
 
-    assert (judged.name, judged.record) == ("refactored", record)
+    assert (judged.kind, judged.record) == ("refactored", record)
     assert judged.replaced == tuple(f"tests.test_b::test_old{n}" for n in (1, 2, 3))
 
 
@@ -141,8 +141,8 @@ def test_a_rename_beside_one_more_passing_test_is_no_refactor(repo: Path) -> Non
     calls = red_then_green_old(repo)
     calls.call({"tests/test_b.py": TEST_B + "def test_extra(): # expects src/b.py B\n"})
 
-    assert verdict(repo).name == "born-green"
-    assert verdict(repo, test="tests.test_b::test_extra").name == "born-green"
+    assert verdict(repo).kind == "born-green"
+    assert verdict(repo, test="tests.test_b::test_extra").kind == "born-green"
 
 
 def test_a_rename_with_a_new_case_and_its_code_in_one_call_is_born_with_its_code(
@@ -151,7 +151,7 @@ def test_a_rename_with_a_new_case_and_its_code_in_one_call_is_born_with_its_code
     calls = red_then_green_old(repo)
     calls.call({"tests/test_b.py": TEST_B, "src/b.py": "B and more\n"})
 
-    assert verdict(repo).name == "born-with-code"
+    assert verdict(repo).kind == "born-with-code"
 
 
 def test_an_id_renamed_by_code_alone_is_refactored(repo: Path) -> None:
@@ -165,7 +165,7 @@ def test_an_id_renamed_by_code_alone_is_refactored(repo: Path) -> None:
 
     judged = verdict(repo, test="tests.test_b::test_c[CRIMSON]")
 
-    assert (judged.name, judged.record) == ("refactored", record)
+    assert (judged.kind, judged.record) == ("refactored", record)
     assert judged.replaced == ("tests.test_b::test_c[RED]",)
 
 
@@ -178,7 +178,7 @@ def test_behaviour_first_written_in_a_template_outside_sources_is_born_green(
     calls.call({"templates/page.html": "B\n"})
     calls.call({"tests/test_b.py": "def test_b(): # expects templates/page.html B\n"})
 
-    assert verdict(repo).name == "born-green"
+    assert verdict(repo).kind == "born-green"
 
 
 def test_renaming_a_test_born_with_its_code_does_not_launder_it(repo: Path) -> None:
@@ -188,14 +188,14 @@ def test_renaming_a_test_born_with_its_code_does_not_launder_it(repo: Path) -> N
     calls.call({"tests/test_b.py": "def test_old(): # expects src/b.py B\n", "src/b.py": "B\n"})
     calls.call({"tests/test_b.py": TEST_B})
 
-    assert verdict(repo).name == "born-green"
+    assert verdict(repo).kind == "born-green"
 
 
 def test_a_rename_made_with_a_documentation_change_is_no_refactor(repo: Path) -> None:
     calls = red_then_green_old(repo)
     calls.call({"tests/test_b.py": TEST_B, "docs/notes.md": "renamed\n"})
 
-    assert verdict(repo).name == "born-green"
+    assert verdict(repo).kind == "born-green"
 
 
 def test_a_test_unskipped_beside_a_rename_is_not_counted_as_refactored(repo: Path) -> None:
@@ -206,4 +206,4 @@ def test_a_test_unskipped_beside_a_rename_is_not_counted_as_refactored(repo: Pat
     calls.call({"src/b.py": "B\n"})
     calls.call({"tests/test_b.py": TEST_B + "def test_s(): # expects src/b.py B\n"})
 
-    assert verdict(repo, test="tests.test_b::test_s").name == "born-green"
+    assert verdict(repo, test="tests.test_b::test_s").kind == "born-green"
