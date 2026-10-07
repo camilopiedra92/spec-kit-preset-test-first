@@ -10,7 +10,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import NamedTuple, TypedDict
 
@@ -208,7 +208,7 @@ def _message(worktree: Path, call: Call) -> str:
     branch = symbolic.removeprefix("refs/heads/") if symbolic.startswith("refs/heads/") else None
     return json.dumps(
         {
-            "time": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+            "time": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
             **call,
             "branch": branch,
             "head": head,
@@ -273,7 +273,3 @@ def main() -> int:
     status, stderr = post_tool_use(json.load(sys.stdin))
     sys.stderr.write(stderr)
     return status
-
-
-if __name__ == "__main__":
-    sys.exit(main())

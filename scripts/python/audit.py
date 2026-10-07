@@ -751,7 +751,3 @@ def _preconditions(base: str | None) -> tuple[Path, ledger.Config]:
     except BaseError as error:
         raise Refusal(str(error)) from None
     return worktree, config
-
-
-if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))

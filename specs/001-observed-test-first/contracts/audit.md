@@ -1,8 +1,8 @@
 # Contract: the audit
 
 ```bash
-python3 .specify/presets/test-first/scripts/python/audit.py [--base <rev>] [--deadline <seconds>]
-python3 .specify/presets/test-first/scripts/python/audit.py --stop [--budget <seconds>]   # the Stop hook
+python3 .specify/presets/test-first/scripts/python/cli.py audit [--base <rev>] [--deadline <seconds>]
+python3 .specify/presets/test-first/scripts/python/cli.py audit --stop [--budget <seconds>]   # the Stop hook
 ```
 
 - `--base`: default as data-model.md, Base: the merge base with the remote-tracking default

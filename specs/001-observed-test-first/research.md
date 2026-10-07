@@ -107,8 +107,17 @@ The README says so.
 standard library. Spec Kit's scripts already need `python3` once a preset is installed. The preset
 install drops the executable bit (specify 1.1.0), so scripts are run through their interpreter.
 
+Floor: Python 3.11 — the oldest CPython still supported (3.10's end of life was 2026-10-01,
+endoflife.date) and Spec Kit's own `requires-python`. Every script runs through one entry point,
+`cli.py`, which stays parseable by any Python 3 and checks the version before importing anything:
+the macOS `python3` is 3.9.6, and without it the hook would fail on an import instead of saying
+why. A runtime dependency is not an option: the preset is installed as files, run by each
+project's own `python3`, with no step that could install a package (a `pip install` into a
+distribution's Python is blocked by PEP 668; the project's virtualenv is the project's).
+
 **Alternatives considered**: bash with `jq` — the Stop-gate hook was written to need no `jq` at run
-time, and XML in bash is not credible.
+time, and XML in bash is not credible. A 3.13 floor (for `glob.translate`, R15): excludes the
+system python3 of Ubuntu 24.04 (3.12) and Debian 12 (3.11) for about 40 lines saved.
 
 ## R4. Telling the agent: exit 2 with stderr
 
@@ -408,7 +417,7 @@ not make.
 **Decision**: the `tests` and `sources` globs follow git's wildmatch semantics, as in a `:(glob)`
 pathspec: `*` and `?` stay within a path segment, `**/` matches zero or more directories, a
 trailing `/**` matches everything inside. Implemented as a translation to a regular expression
-(the scripts' Python 3.10 floor has no wildmatch: `PurePath.full_match` arrives in 3.13), and
+(the scripts' Python 3.11 floor has no wildmatch: `PurePath.full_match` arrives in 3.13), and
 checked against `git ls-files ':(glob)…'` in the units, so git decides what a glob means.
 
 **Rationale**: the preset is built on git — records are trees, the installer checks the globs
@@ -417,8 +426,10 @@ semantics users already know. Found during T005: under `fnmatch`, `**/test_*.py`
 root-level `test_x.py`, and `*` crossed `/`, so `src/*.py` matched `src/a/b.py`.
 
 **Alternatives considered**: `fnmatch` (the first version: both surprises above); `glob.translate`
-(Python 3.13+, above the floor); a pathspec library (a runtime dependency the scripts do not
-otherwise need); asking git for every classification (`git ls-files` per path: a process per path
+(Python 3.13+, above the floor, which excludes the system python3 of Ubuntu 24.04 and Debian 12);
+the `pathspec` library (a runtime dependency, which the preset has no step to install — R3 — and
+it implements `.gitignore` rules, where a slash-less pattern matches at any depth, not the
+`:(glob)` pathspec rules the installer checks with); asking git for every classification (`git ls-files` per path: a process per path
 on every tool call, against SC-003).
 
 ---

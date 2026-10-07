@@ -9,8 +9,7 @@
 set -uo pipefail
 
 PRESET="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-LEDGER="$PRESET/scripts/python/ledger.py"
-AUDIT="$PRESET/scripts/python/audit.py"
+CLI="$PRESET/scripts/python/cli.py"
 # The project's test command: pytest from uv's cache, one file per run, JUnit to {junit}.
 RUN='uv run --quiet --no-project --with pytest python -m pytest -q -p no:cacheprovider --junitxml={junit} {file}'
 fail=0
@@ -47,7 +46,7 @@ project() {
 record() {
   CALLS=$((CALLS + 1))
   printf '{"cwd": "%s", "session_id": "s", "tool_name": "Bash", "tool_use_id": "c%s"}' \
-    "$REPO" "$CALLS" | python3 "$LEDGER" > /dev/null 2>&1
+    "$REPO" "$CALLS" | python3 "$CLI" ledger > /dev/null 2>&1
 }
 
 # write <path> <content>: one file of a call (several before one `record`).
@@ -60,7 +59,7 @@ write() {
 expect() {
   local status=$1 out code
   shift
-  out=$(cd "$REPO" && python3 "$AUDIT" --deadline 120 2>&1)
+  out=$(cd "$REPO" && python3 "$CLI" audit --deadline 120 2>&1)
   code=$?
   [ "$code" = "$status" ] || problem "$SCENARIO: exit $code, expected $status: $out"
   for line in "$@"; do
@@ -159,7 +158,7 @@ expect 1 "unobserved tests.test_b::test_b"
 SCENARIO="a replay that hangs"
 project hang
 write tests/test_b.py 'import time\n\ndef test_b():\n    time.sleep(600)\n' && record
-out=$(cd "$REPO" && python3 "$AUDIT" --deadline 3 2>&1)
+out=$(cd "$REPO" && python3 "$CLI" audit --deadline 3 2>&1)
 [ $? = 1 ] || problem "$SCENARIO: expected exit 1: $out"
 # No run could say which tests the file holds, so the file itself stands unjudged.
 grep -qE "^not-judged tests/test_b.py " <<< "$out" || problem "$SCENARIO: $out"
@@ -201,7 +200,7 @@ for n in $(seq 1 20); do
 done
 for pass in cold warm; do
   start=$(date +%s)
-  out=$(cd "$REPO" && python3 "$AUDIT" --deadline 120 2>&1)
+  out=$(cd "$REPO" && python3 "$CLI" audit --deadline 120 2>&1)
   code=$?
   seconds=$(($(date +%s) - start))
   echo "SC-004 $pass audit: $seconds s, $(tail -1 <<< "$out")"

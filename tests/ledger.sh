@@ -9,7 +9,7 @@
 set -uo pipefail
 
 PRESET="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-HOOK="$PRESET/scripts/python/ledger.py"
+HOOK="$PRESET/scripts/python/cli.py"
 fail=0
 problem() {
   echo "FAIL: $*"
@@ -46,7 +46,7 @@ PY
 cat > '$repo/src/b.py' <<'PY'
 B = 2
 PY"
-hook_input "$repo" toolu_heredoc | python3 "$HOOK" 2> "$work/stderr"
+hook_input "$repo" toolu_heredoc | python3 "$HOOK" ledger 2> "$work/stderr"
 status=$?
 [ "$status" -eq 0 ] || problem "hook exited $status after a heredoc write: $(cat "$work/stderr")"
 files=$(git -C "$repo" ls-tree -r --name-only refs/worktree/test-first/ledger 2> /dev/null)
@@ -77,7 +77,7 @@ for i in range(1, 12):
         {"cwd": str(repo), "session_id": "s", "tool_name": "Bash", "tool_use_id": f"t{i}"}
     )
     start = time.monotonic()
-    subprocess.run([sys.executable, hook], input=payload, text=True, check=True)
+    subprocess.run([sys.executable, hook, "ledger"], input=payload, text=True, check=True)
     times.append(round((time.monotonic() - start) * 1000))
 print(int(statistics.median(times)), " ".join(map(str, times)))
 PY
@@ -91,6 +91,15 @@ if [ "$median" -gt 100 ]; then
     problem "a record took ${median} ms, over SC-003's 100 ms"
   fi
 fi
+
+# An older python3 -- the macOS one is 3.9 -- gets a message, not a traceback: the guard at the
+# top of each script runs only if the whole file still parses there.
+for command in ledger audit; do
+  out=$(echo '{}' | uv run --quiet --isolated --no-project --python 3.9 python "$HOOK" "$command" 2>&1)
+  status=$?
+  [ "$status" = 2 ] && grep -q "needs python3 >= 3.11, found 3.9" <<< "$out" ||
+    problem "cli.py $command under Python 3.9: exit $status: $out"
+done
 
 [ "$fail" -eq 0 ] && echo "ok: ledger"
 exit "$fail"

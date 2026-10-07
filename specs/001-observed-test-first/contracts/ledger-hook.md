@@ -1,17 +1,21 @@
 # Contract: the ledger hook
 
+Both run through `scripts/python/cli.py`, which checks the Python version before anything else:
+on a `python3` older than 3.11 it exits 2 with `test-first: needs python3 >= 3.11, found <v>`, so
+Claude is told instead of the hook failing on an import (research R3).
+
 Installed entries in `.claude/settings.json`:
 
 ```json
 {"hooks": {
   "PostToolUse": [{"matcher": "*", "hooks": [{"type": "command",
-    "command": "python3 \"$CLAUDE_PROJECT_DIR\"/.specify/presets/test-first/scripts/python/ledger.py"}]}],
+    "command": "python3 \"$CLAUDE_PROJECT_DIR\"/.specify/presets/test-first/scripts/python/cli.py ledger"}]}],
   "Stop": [{"hooks": [{"type": "command", "timeout": 300,
-    "command": "python3 \"$CLAUDE_PROJECT_DIR\"/.specify/presets/test-first/scripts/python/audit.py --stop"}]}]
+    "command": "python3 \"$CLAUDE_PROJECT_DIR\"/.specify/presets/test-first/scripts/python/cli.py audit --stop"}]}]
 }}
 ```
 
-## PostToolUse: `ledger.py`
+## PostToolUse: `cli.py ledger`
 
 Input: Claude Code's `PostToolUse` JSON on stdin; fields read: `cwd`, `session_id`, `agent_id`
 (optional), `tool_name`, `tool_use_id`.
@@ -38,7 +42,7 @@ record and at most unreachable objects, which `git gc` prunes; its temporary ind
 system's temporary location, outside the repository, for the system to clean; the next call's
 record then carries the killed call's changes under the next call's name, which fails closed.
 
-## Stop: `audit.py --stop`
+## Stop: `cli.py audit --stop`
 
 Input: Claude Code's `Stop` JSON on stdin; fields read: `cwd`, `session_id`, `stop_hook_active`.
 

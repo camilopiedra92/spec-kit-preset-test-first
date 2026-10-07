@@ -1,17 +1,17 @@
 # Development tooling for this repository's Python scripts (scripts/python),
 # which the preset installs into projects and runs with their own python3 —
-# hence the 3.10 floor and no runtime dependencies. Not a package: nothing
+# hence the 3.11 floor and no runtime dependencies. Not a package: nothing
 # here is built or published, and the file is export-ignored.
 [project]
 name = "spec-kit-preset-test-first"
 version = "0"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 
 [tool.uv]
 package = false
 
 [tool.ruff]
-target-version = "py310"
+target-version = "py311"
 line-length = 100
 # The scripts and the test helpers are imported by module name (not a package).
 src = ["scripts/python", "tests/python"]
@@ -20,7 +20,7 @@ src = ["scripts/python", "tests/python"]
 select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF"]
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.11"
 strict = true
 files = ["scripts/python", "tests/python"]
 # The scripts run as `python3 <path>`, not as a package; the tests import them

@@ -22,7 +22,7 @@ stated invariants. Released as 2.0.0. Decisions and their alternatives: [researc
 
 ## Technical Context
 
-**Language/Version**: Python ≥ 3.10, standard library only, for the ledger hook and the audit;
+**Language/Version**: Python ≥ 3.11 (3.10's end of life was 2026-10-01; Spec Kit's own floor), standard library only, for the ledger hook and the audit;
 bash for the installer, like the existing Stop-gate installer.
 
 **Primary Dependencies**: none at runtime beyond `git`, `python3` and, for the installer, `jq`
@@ -158,6 +158,7 @@ scripts/
 │   ├── install-ledger.sh     # new: both hook entries + configuration, one commit
 │   └── run-bounded.sh        # unchanged, used by the audit
 └── python/
+    ├── cli.py                # new: the one entry point; checks the Python version first
     ├── ledger.py             # new: the PostToolUse hook and the snapshot both entry points share
     └── audit.py              # new: the birth search, the replays and their memo; the Stop entry point
 tests/

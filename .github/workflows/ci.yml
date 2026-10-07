@@ -64,7 +64,7 @@ jobs:
       - run: uv run ruff format --check
       - run: uv run mypy
       - run: uv run pytest
-      - run: uv run --isolated --python 3.10 pytest
+      - run: uv run --isolated --python 3.11 pytest
       # These need no specify, so they say the same on both legs; they are cheap.
       - run: tests/stop-gate.sh
       - run: tests/run-bounded.sh

@@ -29,10 +29,10 @@ suites in scratch repositories), `commands/` (fragments).
 ## Phase 1: Setup
 
 - [X] T001 Add the Python toolchain as its own change: `pyproject.toml` with a uv dev group
-  (ruff, mypy, pytest, pytest-timeout), `[tool.uv] package = false`, `requires-python = ">=3.10"`,
-  mypy strict with `python_version = "3.10"` over `scripts/python` and `tests/python`, ruff
-  `target-version = "py310"`, pytest `timeout` set and `testpaths = ["tests/python"]`; `uv.lock`
-  committed. The 3.10 floor because the scripts run on other projects' `python3` (plan, Technical
+  (ruff, mypy, pytest, pytest-timeout), `[tool.uv] package = false`, `requires-python = ">=3.11"`,
+  mypy strict with `python_version = "3.11"` over `scripts/python` and `tests/python`, ruff
+  `target-version = "py311"`, pytest `timeout` set and `testpaths = ["tests/python"]`; `uv.lock`
+  committed. The 3.11 floor (3.10 reached its end of life on 2026-10-01; Spec Kit's own) because the scripts run on other projects' `python3` (plan, Technical
   Context; research R11; approved defaults in the global rules)
 - [X] T002 Export-ignore `pyproject.toml`, `uv.lock` and `docs/` in `.gitattributes`, and make
   `tests/compose.sh` fail when the installed preset carries any of them (constitution V, 1.1.0)
@@ -45,7 +45,7 @@ suites in scratch repositories), `commands/` (fragments).
     - green: `ok: composes on specify 1.1.0` at cc4dc2b
 - [X] T003 Run the Python checks and the new suites in CI as steps of the existing `compose` job in
   `.github/workflows/ci.yml` — `uv run ruff check`, `uv run ruff format --check`, `uv run mypy`,
-  `uv run pytest` (also under Python 3.10, `uv run --python 3.10 pytest`), `tests/ledger.sh`,
+  `uv run pytest` (also under Python 3.11, `uv run --isolated --python 3.11 pytest`), `tests/ledger.sh`,
   `tests/install-ledger.sh`, `tests/audit.sh` — so the required `compose (pinned)` check covers
   them (plan, "CI"; FR-023; constitution IV). Each suite step is added by the task that creates the
   suite; this task adds the Python steps and the order
@@ -119,6 +119,13 @@ suites in scratch repositories), `commands/` (fragments).
       disables git's racy-entry recheck; measured 10 of 10 edits missed with the snapshot started
       in the next second, 0 of 10 with `shutil.copy2`; at random timing 1 of 300 against 0 of 300
     - red: `assert 'A = 1' == 'A = 2'` three runs out of three; `copy2` fixed it
+  - an older `python3` gets a message, not a traceback (found during implementation, 2026-10-07:
+    the macOS `python3` is 3.9.6, below any floor; the floor raised from 3.10, past its end of
+    life on 2026-10-01, to 3.11, Spec Kit's own)
+    - red: `KeyError: 'cwd'` traceback under a patched 3.9 version; a guard at the top of each
+      script, then one entry point `cli.py` (the guard before any import: no lint exception);
+      under a real Python 3.9 (`tests/ledger.sh`), exit 2 with `needs python3 >= 3.11, found
+      3.9`; an `except*` added on purpose made 3.9 fail to parse it, restored
 - [X] T007 Append a record in `scripts/python/ledger.py`: `git commit-tree <tree> -p <previous>`
   with the message JSON `time`, `session`, `agent`, `tool`, `call`, `branch`, `head`; move
   `refs/worktree/test-first/ledger` with `git update-ref <ref> <new> <old>`, retried on a race;
@@ -484,7 +491,7 @@ born-with-code test is blocked once, and the next stop passes.
   - only tests, only sources, or neither → exit 0, no output
   - tests and `README.md` → exit 0 (documentation is neither)
   - a symbol renamed across code and tests → exit 2, the message worded as conditional
-- [ ] T022 [US2] The `Stop` entry point `audit.py --stop` in `scripts/python/audit.py`: exit 0 when
+- [ ] T022 [US2] The `Stop` entry point `cli.py audit --stop` in `scripts/python/audit.py`: exit 0 when
   not installed, detached, on the default branch, or `stop_hook_active`; snapshot (`tool` =
   `Stop`); audit within `--budget` (default 120 s) with a 60 s deadline per run and no new run
   after the budget; exit 2 listing new tests whose failing verdict is final before the end, else
