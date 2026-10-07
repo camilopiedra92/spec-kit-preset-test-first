@@ -290,7 +290,7 @@ class Record(NamedTuple):
     commit: str
     tree: str
     branch: str | None
-    head: str
+    head: str | None
     tool: str = ""
     call: str | None = None
 
@@ -432,7 +432,7 @@ class Auditor:
         """A birth at record b, imported when it came with commits this ledger did not see
         written: b's HEAD moved and the new HEAD's own tree already holds the test."""
         record, previous = self.history[b], self.history[b - 1]
-        if record.head != previous.head:
+        if record.head is not None and record.head != previous.head:
             committed = ledger.git(self.worktree, "rev-parse", f"{record.head}^{{tree}}")
             seen = self.observe_tree(committed, file)
             if test in (seen.outcomes or {}):
@@ -695,9 +695,19 @@ def main(argv: list[str]) -> int:
     except Refusal as refusal:
         print(f"test-first audit: {refusal}", file=sys.stderr)
         return 2
-    verdicts, history = _audit(worktree, config, "audit", args.deadline or 300, args.base, None)
+    try:
+        verdicts, history = _audit(worktree, config, "audit", args.deadline or 300, args.base, None)
+    except (subprocess.CalledProcessError, ledger.RecordError) as error:
+        print(f"test-first audit: {_git_error(error)}", file=sys.stderr)
+        return 2
     print(render(verdicts, history))
     return exit_status(verdicts)
+
+
+def _git_error(error: Exception) -> str:
+    if isinstance(error, subprocess.CalledProcessError):
+        return f"git failed: {(error.stderr or str(error)).strip()}"
+    return str(error)
 
 
 # What a Stop blocks on: failing verdicts that no later call can change (data-model, Verdict).
@@ -716,7 +726,12 @@ def _stop(budget: int, deadline: int) -> int:
             return 0
         print(f"test-first audit: {refusal}", file=sys.stderr)
         return 2
-    verdicts, history = _audit(worktree, config, "Stop", deadline, None, budget)
+    try:
+        verdicts, history = _audit(worktree, config, "Stop", deadline, None, budget)
+    except (subprocess.CalledProcessError, ledger.RecordError) as error:
+        # An audit that cannot run blocks with its error, so the turn never ends unjudged.
+        print(f"test-first audit: {_git_error(error)}", file=sys.stderr)
+        return 2
     failing = [(test, v) for test, v in verdicts if v.kind in FINAL_FAILING]
     if not failing:
         return 0

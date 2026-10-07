@@ -29,15 +29,6 @@ def test_documentation_and_tasks_are_other() -> None:
     assert ledger.classify(CONFIG, "specs/001/tasks.md") == "other"
 
 
-def test_a_change_of_a_test_and_a_source_is_mixed() -> None:
-    assert ledger.is_mixed(CONFIG, ["tests/t.py", "src/x.py"])
-
-
-def test_tests_and_other_paths_alone_are_not_mixed() -> None:
-    assert not ledger.is_mixed(CONFIG, ["tests/t.py", "README.md"])
-    assert not ledger.is_mixed(CONFIG, ["src/x.py", "README.md"])
-
-
 ANYWHERE = ledger.Config(tests=("**/test_*.py",), sources=("src/*.py",), run="x {file} {junit}")
 
 

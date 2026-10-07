@@ -125,3 +125,31 @@ def test_no_base_that_resolves_blocks_with_its_error(
 
     assert stop(repo, monkeypatch) == 2
     assert "tried" in capsys.readouterr().err
+
+
+def lock_the_ledger(repo: Path) -> None:
+    lock = Path(
+        git(
+            repo,
+            "rev-parse",
+            "--path-format=absolute",
+            "--git-path",
+            "refs/worktree/test-first/ledger.lock",
+        )
+    )
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    lock.write_text("held\n")
+
+
+def test_a_git_error_at_a_stop_blocks_with_its_message(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    calls = feature(repo)
+    calls.call({"tests/test_b.py": TEST_B})
+    lock_the_ledger(repo)
+    (repo / "src" / "b.py").write_text("B\n")  # dirty: the Stop must record it
+
+    assert stop(repo, monkeypatch) == 2
+    err = capsys.readouterr().err
+    assert "test-first audit:" in err
+    assert "Traceback" not in err

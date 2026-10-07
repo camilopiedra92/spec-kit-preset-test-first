@@ -157,3 +157,96 @@ def test_the_message_is_conditional_and_names_the_redo(repo: Path) -> None:
     assert "the audit will fail" in stderr
     assert "a rename or a formatter run" in stderr
     assert "revert the code" in stderr
+
+
+def test_an_unborn_branch_is_recorded_with_no_head(repo: Path) -> None:
+    install(repo)
+    git(repo, "checkout", "-q", "--orphan", "fresh")
+    (repo / "src" / "a.py").write_text("A = 2\n")
+
+    assert ledger.post_tool_use(payload(repo)) == (0, "")
+    fields = newest_message(repo)
+    assert (fields["branch"], fields["head"]) == ("fresh", None)
+
+
+def test_a_reftable_repository_records_its_branch(tmp_path: Path) -> None:
+    repo = tmp_path / "reftable"
+    git(tmp_path, "init", "-q", "--ref-format=reftable", "-b", "feat", str(repo))
+    git(repo, "config", "user.email", "t@example.com")
+    git(repo, "config", "user.name", "T")
+    (repo / "src").mkdir()
+    (repo / "src" / "a.py").write_text("A = 1\n")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "init")
+    install(repo)
+    (repo / "src" / "a.py").write_text("A = 2\n")
+
+    ledger.post_tool_use(payload(repo))
+
+    assert newest_message(repo)["branch"] == "feat"
+
+
+def install_with(repo: Path, tests: list[str], sources: list[str]) -> None:
+    (repo / ".specify").mkdir()
+    (repo / ".specify" / "test-first.json").write_text(
+        json.dumps({"tests": tests, "sources": sources, "run": "x {file} {junit}"})
+    )
+
+
+def test_the_hook_and_the_audit_agree_on_globs_without_wildcards(repo: Path) -> None:
+    # git's pathspecs read "tests" as a directory prefix; the configuration's globs do not.
+    install_with(repo, ["tests"], ["src"])
+    ledger.post_tool_use(payload(repo))
+    (repo / "tests" / "test_b.py").write_text("def test_b(): pass\n")
+    (repo / "src" / "b.py").write_text("B = 1\n")
+
+    assert ledger.post_tool_use(payload(repo)) == (0, "")
+
+
+def test_each_path_is_named_once_in_its_own_group(repo: Path) -> None:
+    install_with(repo, ["**/test_*.py"], ["src/**"])
+    ledger.post_tool_use(payload(repo))
+    (repo / "src" / "test_x.py").write_text("def test_x(): pass\n")  # both globs: a test
+    (repo / "src" / "b.py").write_text("B = 1\n")
+
+    _, stderr = ledger.post_tool_use(payload(repo))
+
+    lines = stderr.splitlines()
+    assert "  tests: src/test_x.py" in lines
+    assert "  code:  src/b.py" in lines
+
+
+def test_a_code_only_call_then_a_test_only_call_is_silent(repo: Path) -> None:
+    install(repo)
+    ledger.post_tool_use(payload(repo))
+    (repo / "src" / "a.py").write_text("A = 2\n")
+    ledger.post_tool_use(payload(repo))
+    (repo / "tests" / "test_a.py").write_text("def test_a(): assert 1\n")
+
+    assert ledger.post_tool_use(payload(repo)) == (0, "")
+
+
+def test_after_a_lost_race_the_change_is_against_the_record_that_won(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    install(repo)
+    ledger.post_tool_use(payload(repo))  # R0, the origin
+    origin = git(repo, "rev-parse", ledger.REF)
+    (repo / "tests" / "test_b.py").write_text("def test_b(): pass\n")
+    test_only = ledger.snapshot(repo)  # what another hook records first: the test alone
+    (repo / "src" / "b.py").write_text("B = 1\n")  # this call's own write: the code
+    real_git = ledger.git
+    raced: list[str] = []
+
+    def racing_git(
+        worktree: Path, *args: str, env: dict[str, str] | None = None, input: str | None = None
+    ) -> str:
+        if args[0] == "update-ref" and not raced:
+            other = real_git(worktree, "commit-tree", test_only, "-p", origin, "-m", "{}")
+            real_git(worktree, "update-ref", ledger.REF, other)
+            raced.append(other)
+        return real_git(worktree, *args, env=env, input=input)
+
+    monkeypatch.setattr(ledger, "git", racing_git)
+
+    assert ledger.post_tool_use(payload(repo)) == (0, "")

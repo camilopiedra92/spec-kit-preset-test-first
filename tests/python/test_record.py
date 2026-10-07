@@ -107,7 +107,10 @@ def test_losing_every_race_is_an_error_not_a_lost_record(
         worktree: Path, *args: str, env: dict[str, str] | None = None, input: str | None = None
     ) -> str:
         if args[0] == "update-ref":
-            raise subprocess.CalledProcessError(1, "git update-ref")
+            # What update-ref says when the ref moved since it was read.
+            raise subprocess.CalledProcessError(
+                128, "git update-ref", stderr="fatal: cannot lock ref: is at x but expected y"
+            )
         return real_git(worktree, *args, env=env, input=input)
 
     monkeypatch.setattr(ledger, "git", always_racing)
@@ -137,3 +140,14 @@ def test_records_survive_garbage_collection(repo: Path) -> None:
 
     assert chain(repo) == [second, first]
     assert git(repo, "cat-file", "-t", f"{first}^{{tree}}") == "tree"
+
+
+def test_a_held_lock_is_reported_as_such_not_as_a_lost_race(repo: Path) -> None:
+    ledger.record(repo, CALL)
+    lock = repo / ".git" / "refs" / "worktree" / "test-first" / "ledger.lock"
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    lock.write_text("held\n")
+    (repo / "src" / "a.py").write_text("A = 2\n")
+
+    with pytest.raises(ledger.RecordError, match="lock"):
+        ledger.record(repo, CALL)

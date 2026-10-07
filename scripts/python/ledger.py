@@ -120,12 +120,6 @@ def _wildmatch(glob: str) -> re.Pattern[str]:
     return re.compile("".join(out))
 
 
-def is_mixed(config: Config, paths: list[str]) -> bool:
-    """A change is mixed when it holds at least one test path and at least one source path."""
-    kinds = {classify(config, path) for path in paths}
-    return {"test", "source"} <= kinds
-
-
 def snapshot(worktree: Path, index: Path | None = None) -> str:
     """The tree of the worktree's tracked and untracked-but-not-ignored files, as on disk."""
     return _snapshot(worktree, index, None, None)[0]
@@ -157,17 +151,18 @@ def _snapshot(
         tree = git(worktree, "write-tree", env=env)
         if previous is None or config is None or previous == tree:
             return tree, []
-        tests = _changed(worktree, previous, config.tests, env)
-        if not tests:
-            return tree, []
-        sources = [p for p in _changed(worktree, previous, config.sources, env) if p not in tests]
-        return tree, (tests + sources if sources else [])
+        changed = _changed(worktree, previous, config.tests + config.sources, env)
+        return tree, _mixed(config, changed)
 
 
 def _changed(
     worktree: Path, previous: str, globs: tuple[str, ...], env: dict[str, str]
 ) -> list[str]:
-    """The paths matching the globs whose index entry differs from the previous tree."""
+    """The paths under the globs' pathspecs whose index entry differs from the previous tree.
+
+    The pathspecs only narrow what git reads; each path is then classified by the globs' own
+    semantics (`classify`): a pathspec without a wildcard also matches a directory prefix,
+    which a glob does not."""
     pathspecs = [f":(glob){glob}" for glob in globs]
     listing = git(
         worktree,
@@ -201,6 +196,9 @@ def git(
 REF = "refs/worktree/test-first/ledger"
 WORKTREE_AND_INDEX = ("--show-toplevel", "--git-path", "index")
 RACE_RETRIES = 5
+# update-ref's words for a ref that moved since it was read; anything else (a held lock, a full
+# disk) is not a race and is reported as it is.
+RACE_LOST = ("but expected", "reference already exists")
 
 
 class Call(TypedDict):
@@ -239,39 +237,47 @@ def _record(
     for _ in range(RACE_RETRIES):
         if newest_tree == tree:
             return None, []
-        message = _message(call, head, _branch(index.parent / "HEAD"))
+        message = _message(call, head, _branch(worktree))
         parent = ["-p", newest] if newest else []
         commit = git(worktree, "commit-tree", tree, *parent, "-m", message)
         # Compare-and-swap: moves the ref only if it still points where it was read.
         command = f"update {REF} {commit} {newest}" if newest else f"create {REF} {commit}"
         try:
             git(worktree, "update-ref", "--stdin", input=command + "\n")
-        except subprocess.CalledProcessError:
-            # Another hook moved the ledger: append on top of its record.
+        except subprocess.CalledProcessError as error:
+            if not any(lost in (error.stderr or "") for lost in RACE_LOST):
+                raise RecordError(f"cannot move {REF}: {(error.stderr or '').strip()}") from None
+            # Another hook moved the ledger: append on top of its record, and judge this
+            # call's change against that record (rare, so the plain tree diff is fine here).
             newest, newest_tree, head = _state(worktree)
+            if config is not None and newest_tree is not None and newest_tree != tree:
+                mixed = _mixed(config, _diff_trees(worktree, newest_tree, tree, config))
             continue
         return commit, mixed
     raise RecordError(f"{REF} kept moving: {RACE_RETRIES} attempts lost the race")
 
 
-def _state(worktree: Path) -> tuple[str | None, str | None, str]:
-    """The newest record, its tree, and HEAD's commit, in one git process."""
+def _state(worktree: Path) -> tuple[str | None, str | None, str | None]:
+    """The newest record, its tree, and HEAD's commit (None on an unborn branch), in one git
+    process."""
     names = f"{REF}\n{REF}^{{tree}}\nHEAD\n"
     lines = git(worktree, "cat-file", "--batch-check=%(objectname)", input=names).splitlines()
     newest, newest_tree, head = (None if line.endswith(" missing") else line for line in lines)
-    assert head is not None, "HEAD resolves: the installer requires a commit"
     return newest, newest_tree, head
 
 
-def _branch(head_file: Path) -> str | None:
-    """The branch HEAD points at, from the worktree's own HEAD file; None when detached."""
-    content = head_file.read_text().strip()
-    return (
-        content.removeprefix("ref: refs/heads/") if content.startswith("ref: refs/heads/") else None
+def _branch(worktree: Path) -> str | None:
+    """The branch HEAD points at, None when detached. Asked of git, not read from the HEAD
+    file: with the reftable ref format that file only holds `refs/heads/.invalid`."""
+    result = subprocess.run(
+        ["git", "-C", str(worktree), "symbolic-ref", "--quiet", "--short", "HEAD"],
+        capture_output=True,
+        text=True,
     )
+    return result.stdout.strip() or None
 
 
-def _message(call: Call, head: str, branch: str | None) -> str:
+def _message(call: Call, head: str | None, branch: str | None) -> str:
     return json.dumps(
         {
             "time": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
@@ -309,6 +315,31 @@ def post_tool_use(payload: dict[str, str]) -> tuple[int, str]:
     if changed:
         return 2, mixed_message(config, changed)
     return 0, ""
+
+
+def _diff_trees(worktree: Path, before: str, after: str, config: Config) -> list[str]:
+    pathspecs = [f":(glob){glob}" for glob in config.tests + config.sources]
+    listing = git(
+        worktree,
+        "diff-tree",
+        "-r",
+        "-z",
+        "--no-renames",
+        "--name-only",
+        before,
+        after,
+        "--",
+        *pathspecs,
+    )
+    return [path for path in listing.split("\0") if path]
+
+
+def _mixed(config: Config, changed: list[str]) -> list[str]:
+    """The changed test and source paths when there are both, else []."""
+    kinds = {path: classify(config, path) for path in changed}
+    if {"test", "source"} <= set(kinds.values()):
+        return [path for path, kind in kinds.items() if kind != "other"]
+    return []
 
 
 def mixed_message(config: Config, changed: list[str]) -> str:
