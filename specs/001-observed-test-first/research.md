@@ -644,7 +644,11 @@ and Antigravity showed nothing test-first-specific in searches (second-hand).
   `rev-parse`; whole hook, eleven calls each, code-only and mixed: the 1,001-file benchmark
   91 and 92 ms; renta after a `git status` 93 and 94 ms, after a commit (the installer's) 92 and
   91 ms, as a fresh clone 232 and 231 ms. A fresh clone stays over SC-003 until any git command
-  rewrites its index (README, limits).
+  rewrites its index (README, limits). Run after the heavier suites, the benchmark went over
+  100 ms in three sessions (101–107 ms), so the convergence pass cut a process: `locate`'s
+  `rev-parse` also resolves the newest record and its tree, which the installer's origin makes
+  exist, and `cat-file` runs only without a ledger. Alternated with the version before, twice:
+  91–96 against 97–107 ms; then three runs at load average 4.7–5.0: 82–85 ms.
 - **Replay environments** (T024, 2026-10-07, macOS arm64): the scratch worktree holds only a
   record's tracked files, so a run needs the project's installed environment from `{root}`. A uv
   project (uv 0.12.4, `attrs` and `pytest` installed with `uv sync`), one test importing `attrs`,

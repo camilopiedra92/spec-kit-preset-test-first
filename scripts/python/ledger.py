@@ -212,38 +212,55 @@ class RecordError(Exception):
 
 
 class Location(NamedTuple):
-    """Where a call ran: the worktree's root and index, and its branch and HEAD commit."""
+    """Where a call ran: the worktree's root and index, its branch and HEAD commit, and the
+    newest record and its tree when the ledger exists (None: not asked, or no ledger yet)."""
 
     root: Path
     index_file: Path
     branch: str | None
     head: str | None
+    newest: tuple[str, str] | None = None
 
 
 def locate(cwd: Path) -> Location | None:
-    """The git worktree of `cwd`, or None outside one -- in one git process in the usual case.
+    """The git worktree of `cwd`, or None outside one -- in one git process in the usual case,
+    the newest record included, since the installer writes the ledger's first.
 
     `--symbolic-full-name` asks git for the branch rather than reading the HEAD file, which
-    with the reftable ref format only holds `refs/heads/.invalid`. On an unborn branch HEAD does
-    not resolve and the one call fails; that rare case asks again in two.
+    with the reftable ref format only holds `refs/heads/.invalid`. A ref that does not resolve
+    fails the whole call: without a ledger it asks again without it, and on an unborn branch
+    again without HEAD -- rare cases, a process each.
     """
     asked = ["--path-format=absolute", "--show-toplevel", "--git-path", "index"]
-    result = subprocess.run(
-        # HEAD before --symbolic-full-name, which applies to every argument after it.
-        ["git", "-C", str(cwd), "rev-parse", *asked, "HEAD", "--symbolic-full-name", "HEAD"],
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode == 0:
+    for ledger_refs in ([REF, f"{REF}^{{tree}}"], []):
+        result = subprocess.run(
+            # HEAD before --symbolic-full-name, which applies to every argument after it.
+            [
+                "git",
+                "-C",
+                str(cwd),
+                "rev-parse",
+                *asked,
+                "HEAD",
+                *ledger_refs,
+                "--symbolic-full-name",
+                "HEAD",
+            ],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            continue
         lines = result.stdout.splitlines()
-        if len(lines) != 4:
+        if len(lines) != 4 + len(ledger_refs):
             # rev-parse prints paths unquoted, one per line: a newline in one cannot be parsed.
             raise RecordError(f"cannot record a worktree whose path holds a newline: {cwd!r}")
-        root, index, head, symbolic = lines
+        root, index, head, *newest, symbolic = lines
         branch = (
             symbolic.removeprefix("refs/heads/") if symbolic.startswith("refs/heads/") else None
         )
-        return Location(Path(root), Path(index), branch, head)
+        found = (newest[0], newest[1]) if newest else None
+        return Location(Path(root), Path(index), branch, head, found)
     unborn = subprocess.run(
         ["git", "-C", str(cwd), "rev-parse", *asked], capture_output=True, text=True
     )
@@ -267,12 +284,12 @@ def _record(where: Location, call: Call, config: Config) -> tuple[str | None, li
     """The new record (None when the worktree is unchanged) and the paths of a mixed change it
     made.
 
-    Every git process costs milliseconds on every tool call (SC-003): with `locate`'s one, an
-    unchanged worktree takes four -- cat-file for the newest record and its tree, add,
+    Every git process costs milliseconds on every tool call (SC-003): with `locate`'s one,
+    which also reads the newest record and its tree, an unchanged worktree takes three -- add,
     write-tree -- and a record adds diff-index, commit-tree and update-ref.
     """
     worktree = where.root
-    newest, newest_tree = _state(worktree)
+    newest, newest_tree = where.newest if where.newest is not None else _state(worktree)
     tree, mixed = _snapshot(worktree, where.index_file, newest_tree, config)
     for _ in range(RACE_RETRIES):
         if newest_tree == tree:

@@ -251,9 +251,9 @@ the pinned Spec Kit release on every push and against the latest release
 weekly.
 
 Measured on 2026-10-07, macOS on an M-series Mac (Mac16,8), git 2.55.0
-(research L7): a record costs a median of 91–92 ms per call on 1,001 tracked
-files, and 91–94 ms on a clone of renta (861 files) once git has rewritten
-its index, the hook on Python 3.14.7; an audit of 60 new tests in 20 files,
+(research L7): a record costs a median of 82–96 ms per call on 1,001 tracked
+files, depending on the machine's load, and 91–94 ms on a clone of renta (861
+files) once git has rewritten its index, the hook on Python 3.14.7; an audit of 60 new tests in 20 files,
 pytest 9.1.1 on Python 3.12.12, took 26–29 s from an empty memo and 8–9 s
 warm, and a Stop turn with one test and its code 1–2 s.
 
