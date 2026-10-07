@@ -424,23 +424,38 @@ code" and "test and code in one shell call"; the audit reports `red` and exits 0
   - every test `red`, `predates`, `refactored` or `never-run` → exit 0, never-run listed
   - any other verdict → exit 1
     - red: `AttributeError: … 'exit_status'`
-- [ ] T020 [US1] The audit's command line in `scripts/python/audit.py`: `--base`, `--deadline`;
+- [X] T020 [US1] The audit's command line in `scripts/python/audit.py`: `--base`, `--deadline`;
   snapshot first when the worktree differs from the newest record (`tool` = `audit`); refuse with
   exit 2 on a detached HEAD, HEAD on the default branch, no ledger, no configuration or no base;
   stdout lines `<verdict> <test id> <record> <tool> <call>` (`-` for `unobserved`), reasons and
   replaced tests, each failing verdict's remedy, and the summary line (contracts/audit.md; FR-012;
   FR-026)
   - a worktree edited after the last call → a record with `tool` = `audit` before judging
+    - red: `AttributeError: … 'main'`, then `assert 'Bash' == 'audit'` from the stub
   - no ledger → exit 2, message; detached HEAD → exit 2
+    - red: `ledger.NotInstalled` escaped; then the test's own last step was wrong (`main` had no
+      configuration), fixed by moving `main` to the feature, expectation unchanged
   - a report → grouped by verdict, summary `audit: <n> new tests: …; pass|FAIL`
+    - red: no output; then two wrong expectations of mine (call numbering starts at the origin's
+      `c1`; `Record` gained `tool` and `call`), corrected
   - `born-with-code` → its line ends with the redo sequence
+    - red: no output
   - the audit reads no `tasks.md`: a `tasks.md` claiming red runs changes nothing
+    - passed on its first run (nothing reads it); trusting a `red:` line on purpose failed it
   - end to end in `tests/audit.sh`: ledgers built in a scratch pytest project by replaying recorded
     tool-call sequences through `ledger.py`, every case of quickstart step 4 and spec Story 1
     scenarios 1–12, verdicts and exit codes asserted (SC-001, SC-002), added as a step of the CI
     `compose` job (T003)
+    - red: every scenario failed with no output (no script entry point); then the moved-test
+      scenario's data was wrong (its test exercised no source, rightly born green), fixed
+    - the hang scenario found a fail-open: a file whose newest run timed out and whose tests no
+      run had reported contributed no test, and the audit passed; now the file itself is
+      `not-judged` (unit case added, red `[] == ['tests/test_b.py']`)
+    - Vitest 5 scenario (a typo for one call): passed where node and pnpm are present
   - a second audit → reruns nothing (memo)
+    - passed on its first run (the memo of T011)
   - a 60-test, 20-file feature → warm under 2 minutes, cold time reported (SC-004)
+    - first measured cold 92 s, warm 71 s; caching each record's change: cold 27–29 s, warm 8–9 s
   - `git stash` then `git stash pop` in another call → restored with its earlier verdict (moved
     from T016: needs the verdicts of T018/T019)
     - red: `'born-with-code' == 'red'`; done with T019, where the verdicts are assembled

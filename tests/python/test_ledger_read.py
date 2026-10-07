@@ -16,8 +16,12 @@ def test_the_ledger_reads_back_oldest_first_with_branch_and_head(repo: Path) -> 
 
     head = git(repo, "rev-parse", "HEAD")
     assert read == [
-        audit.Record(str(first), git(repo, "rev-parse", f"{first}^{{tree}}"), "main", head),
-        audit.Record(str(second), git(repo, "rev-parse", f"{second}^{{tree}}"), "main", head),
+        audit.Record(
+            str(first), git(repo, "rev-parse", f"{first}^{{tree}}"), "main", head, "Bash", "t"
+        ),
+        audit.Record(
+            str(second), git(repo, "rev-parse", f"{second}^{{tree}}"), "main", head, "Bash", "t"
+        ),
     ]
 
 

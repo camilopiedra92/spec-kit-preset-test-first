@@ -121,3 +121,15 @@ def test_a_stash_and_pop_keeps_the_verdict_from_before(repo: Path) -> None:
     calls.call({"tests/test_b.py": TEST_B, "src/b.py": "B\n"})  # git stash pop
 
     assert report(repo)["tests.test_b::test_b"].name == "red"
+
+
+def test_a_file_whose_tests_cannot_be_known_is_itself_not_judged(repo: Path) -> None:
+    git(repo, "checkout", "-q", "-b", "feat")
+    calls = Calls(repo)
+    calls.call({"README.md": "origin"})
+    calls.call({"tests/test_b.py": TEST_B + "# hang\n"})
+
+    judged = report(repo, deadline=1)
+
+    assert list(judged) == ["tests/test_b.py"]
+    assert judged["tests/test_b.py"].name == "not-judged"

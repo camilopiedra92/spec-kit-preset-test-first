@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import copy
 import hashlib
 import json
@@ -10,7 +11,9 @@ import re
 import shlex
 import shutil
 import subprocess
+import sys
 import tempfile
+from collections import Counter
 from pathlib import Path
 from typing import NamedTuple
 from xml.etree import ElementTree
@@ -290,6 +293,8 @@ class Record(NamedTuple):
     tree: str
     branch: str | None
     head: str
+    tool: str = ""
+    call: str | None = None
 
 
 def effective_history(records: list[Record], branch: str) -> list[Record]:
@@ -319,7 +324,9 @@ def load_records(worktree: Path) -> list[Record]:
     for entry in filter(None, log.split("\0")):
         commit, tree, message = entry.split(" ", 2)
         fields = json.loads(message)
-        records.append(Record(commit, tree, fields["branch"], fields["head"]))
+        records.append(
+            Record(commit, tree, fields["branch"], fields["head"], fields["tool"], fields["call"])
+        )
     return records
 
 
@@ -377,6 +384,8 @@ class Auditor:
         self.deadline = deadline
         self.base_override = base
         self._base_tree: str | None = None
+        # Keyed by the two trees, so an auditor limited to an earlier history (until) shares it.
+        self._changes: dict[tuple[str, str], set[str]] = {}
         branch = _git(worktree, "symbolic-ref", "--quiet", "--short", "HEAD")
         self.history = effective_history(load_records(worktree), branch)
 
@@ -459,7 +468,13 @@ class Auditor:
             )
             # Which tests the file holds, from its last run that said so.
             j = self.conclusive_before(last, file)
-            at_newest = self.observe(j, file) if j is not None else Observation({}, True, False)
+            known = self.observe(j, file) if j is not None else None
+            if known is None or not known.outcomes:
+                # No run says which tests the file holds now (an empty run before it was
+                # written says nothing either): the file itself stands unjudged, so an audit
+                # that cannot see a file's tests cannot pass for lack of them.
+                return [(file, Verdict("not-judged", reason=unjudged))]
+            at_newest = known
         at_base = self.observe_tree(self.base_tree(), file)
         if not at_base.conclusive:
             unjudged = unjudged or (
@@ -632,7 +647,10 @@ class Auditor:
 
     def change(self, i: int) -> set[str]:
         """The paths record i changed against its previous in the effective history."""
-        return changed_paths(self.worktree, self.history[i - 1].tree, self.history[i].tree)
+        pair = (self.history[i - 1].tree, self.history[i].tree)
+        if pair not in self._changes:
+            self._changes[pair] = changed_paths(self.worktree, *pair)
+        return self._changes[pair]
 
     def observe(self, i: int, file: str) -> Observation:
         return self.observe_tree(self.history[i].tree, file)
@@ -649,3 +667,91 @@ def exit_status(verdicts: list[tuple[str, Verdict]]) -> int:
     """0 when every new test is accepted or never ran, 1 otherwise (FR-010)."""
     passing = ACCEPTED | {"never-run"}
     return 0 if all(verdict.name in passing for _, verdict in verdicts) else 1
+
+
+def main(argv: list[str]) -> int:
+    """The audit's command line (contracts/audit.md)."""
+    parser = argparse.ArgumentParser(prog="audit.py", description=__doc__)
+    parser.add_argument("--base", help="the commit new tests are new against")
+    parser.add_argument("--deadline", type=int, default=300, help="seconds per replay")
+    args = parser.parse_args(argv)
+    try:
+        worktree, config = _preconditions(args.base)
+    except Refusal as refusal:
+        print(f"test-first audit: {refusal}", file=sys.stderr)
+        return 2
+    # Edits made between calls are judged too: the worktree as it is now is a record.
+    call: ledger.Call = {"session": "audit", "agent": None, "tool": "audit", "call": None}
+    ledger.record(worktree, call)
+    with Replayer(worktree, config) as replayer:
+        auditor = Auditor(worktree, config, replayer, args.deadline, args.base)
+        verdicts = auditor.report()
+    print(render(verdicts, {record.commit: record for record in auditor.history}))
+    return exit_status(verdicts)
+
+
+REDO = (
+    "redo it: remove the test -- its file, when it is the file's only test -- revert the code "
+    "it covers, write the test again in a call that changes nothing else, run it and see it "
+    "fail, then restore the code"
+)
+REMEDIES = {
+    "born-with-code": REDO,
+    "born-green": REDO,
+    "rewritten-to-green": REDO,
+    "still-red": "write the code that makes it pass, in a call that changes no test-side path",
+    "unobserved": REDO + " (that gives it a birth in this ledger)",
+}
+
+
+def render(verdicts: list[tuple[str, Verdict]], records: dict[str, Record]) -> str:
+    """The report: one line per new test, grouped by verdict, then a summary (contracts)."""
+    lines = []
+    for name in sorted({verdict.name for _, verdict in verdicts}):
+        for test, verdict in verdicts:
+            if verdict.name != name:
+                continue
+            record = records.get(verdict.record or "")
+            where = f"{record.commit} {record.tool} {record.call or '-'}" if record else "- - -"
+            lines.append(f"{name} {test} {where}")
+            lines.extend(f"  replaced {replaced}" for replaced in verdict.replaced)
+            # A reason carries its own remedy (born-green without sources, not-judged).
+            if verdict.reason:
+                lines.append(f"  {verdict.reason}")
+            elif name in REMEDIES:
+                lines.append(f"  {REMEDIES[name]}")
+    counts = Counter(verdict.name for _, verdict in verdicts)
+    tally = ", ".join(f"{name} {count}" for name, count in sorted(counts.items()))
+    outcome = "pass" if exit_status(verdicts) == 0 else "FAIL"
+    lines.append(f"audit: {len(verdicts)} new tests: {tally}; {outcome}")
+    return "\n".join(lines)
+
+
+class Refusal(Exception):
+    """The audit cannot run here; the message says why (exit 2)."""
+
+
+def _preconditions(base: str | None) -> tuple[Path, ledger.Config]:
+    root = _quiet_git(Path.cwd(), "rev-parse", "--show-toplevel")
+    if not root:
+        raise Refusal("not inside a git worktree")
+    worktree = Path(root)
+    try:
+        config = ledger.load_config(worktree)
+    except ledger.NotInstalled:
+        raise Refusal(f"not installed here: no {ledger.CONFIG}") from None
+    except ledger.ConfigError as error:
+        raise Refusal(str(error)) from None
+    if not _quiet_git(worktree, "symbolic-ref", "--quiet", "HEAD"):
+        raise Refusal("HEAD is detached: check out the feature's branch")
+    if not _quiet_git(worktree, "rev-parse", "--verify", "--quiet", ledger.REF):
+        raise Refusal(f"no ledger in this worktree ({ledger.REF}): nothing was recorded")
+    try:
+        resolve_base(worktree, base)
+    except BaseError as error:
+        raise Refusal(str(error)) from None
+    return worktree, config
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

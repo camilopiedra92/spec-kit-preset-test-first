@@ -565,6 +565,11 @@ and Antigravity showed nothing test-first-specific in searches (second-hand).
   ms of eleven over three runs, single calls 58–110 ms at a load average of 3.2. Profile: Python
   start 11 ms, imports 13 ms, snapshot (`add -A` + `write-tree`) 25 ms, each other git process
   about 5 ms.
+- **Audit cost, SC-004** (T020, `tests/audit.sh`, 2026-10-07): a feature of 60 new tests in 20
+  pytest files, each written red against a stub then given its code (41 records), pytest 9.1.1 via
+  `uv run --no-project --with pytest`, Python 3.12, git 2.55.0, macOS arm64 (Mac16,8). First
+  version: cold 92 s, warm 71 s; most of the warm time was `git diff-tree` recomputed per record
+  per test. With each record's change cached per audit: cold 27–29 s, warm 8–9 s, two runs.
 - **Racy git and the snapshot's index copy** (T006/T020, 2026-10-07, git 2.55.0, macOS): git
   trusts an index entry's stat unless the entry is not older than the index file. Copying the index
   with a fresh mtime disables that recheck: a same-size edit made in the second the index was

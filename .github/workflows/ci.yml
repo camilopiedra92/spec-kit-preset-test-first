@@ -69,3 +69,4 @@ jobs:
       - run: tests/stop-gate.sh
       - run: tests/run-bounded.sh
       - run: tests/ledger.sh
+      - run: tests/audit.sh
