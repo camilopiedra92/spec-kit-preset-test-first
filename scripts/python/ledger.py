@@ -9,7 +9,9 @@ import shutil
 import subprocess
 import tempfile
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import TypedDict
 
 CONFIG = Path(".specify") / "test-first.json"
 
@@ -99,11 +101,76 @@ def snapshot(worktree: Path) -> str:
         return _git(worktree, "write-tree", env=env)
 
 
-def _git(worktree: Path, *args: str, env: dict[str, str] | None = None) -> str:
+def _git(
+    worktree: Path, *args: str, env: dict[str, str] | None = None, input: str | None = None
+) -> str:
     return subprocess.run(
         ["git", "-C", str(worktree), *args],
         check=True,
         capture_output=True,
         text=True,
         env=env,
+        input=input,
     ).stdout.strip()
+
+
+REF = "refs/worktree/test-first/ledger"
+RACE_RETRIES = 5
+
+
+class Call(TypedDict):
+    """Who made the tool call a record follows (the hook input's fields)."""
+
+    session: str
+    agent: str | None
+    tool: str
+    call: str | None
+
+
+class RecordError(Exception):
+    """A record could not be appended."""
+
+
+def record(worktree: Path, call: Call) -> str | None:
+    """Append the worktree's state as a record; None when it equals the newest record's."""
+    tree = snapshot(worktree)
+    message = _message(worktree, call)
+    for _ in range(RACE_RETRIES):
+        newest = _newest(worktree)
+        if newest and _git(worktree, "rev-parse", f"{newest}^{{tree}}") == tree:
+            return None
+        parent = ["-p", newest] if newest else []
+        commit = _git(worktree, "commit-tree", tree, *parent, "-m", message)
+        # Compare-and-swap: moves the ref only if it still points where it was read.
+        command = f"update {REF} {commit} {newest}" if newest else f"create {REF} {commit}"
+        try:
+            _git(worktree, "update-ref", "--stdin", input=command + "\n")
+        except subprocess.CalledProcessError:
+            continue
+        return commit
+    raise RecordError(f"{REF} kept moving: {RACE_RETRIES} attempts lost the race")
+
+
+def _message(worktree: Path, call: Call) -> str:
+    branch = subprocess.run(
+        ["git", "-C", str(worktree), "symbolic-ref", "--quiet", "--short", "HEAD"],
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    return json.dumps(
+        {
+            "time": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+            **call,
+            "branch": branch or None,
+            "head": _git(worktree, "rev-parse", "HEAD"),
+        }
+    )
+
+
+def _newest(worktree: Path) -> str | None:
+    result = subprocess.run(
+        ["git", "-C", str(worktree), "rev-parse", "--verify", "--quiet", REF],
+        capture_output=True,
+        text=True,
+    )
+    return result.stdout.strip() or None

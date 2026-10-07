@@ -109,18 +109,32 @@ suites in scratch repositories), `commands/` (fragments).
     - its first run failed against correct code: the test read the index before `git status`,
       which refreshes it; reordered (expectation unchanged); `git add -A` on the real index on
       purpose then failed it, restored
-- [ ] T007 Append a record in `scripts/python/ledger.py`: `git commit-tree <tree> -p <previous>`
+- [X] T007 Append a record in `scripts/python/ledger.py`: `git commit-tree <tree> -p <previous>`
   with the message JSON `time`, `session`, `agent`, `tool`, `call`, `branch`, `head`; move
   `refs/worktree/test-first/ledger` with `git update-ref <ref> <new> <old>`, retried on a race;
   no record when the tree equals the newest record's (data-model "Record"; FR-002; FR-003)
   - first snapshot of a worktree → one record, no parent
+    - red: `AttributeError: … no attribute 'record'`, then `rev-list refs/worktree/test-first/ledger`
+      failed (exit 128) under the stub
   - same tree again → no new record
+    - red: `assert 'b7bb0a7…' is None`
   - a changed tree → a record whose parent is the previous newest
+    - passed on its first run; dropping the parent on purpose failed it, restored
   - message JSON carries all seven fields; `agent` null without `agent_id`; `branch` null when
     detached
+    - red: `assert {'agent', 'call', 'session', 'tool'} == {… 'time', …}` (no time, branch, head)
   - a concurrent update between read and write → retried, both records in the chain
+    - red: the racing record was overwritten (`At index 1 diff: '4647c50…' != 'a154539…'`)
+  - losing every race → an error, never a silently dropped record (found during implementation)
+    - passed on its first run (the error path was written with the retry); returning `None` on
+      purpose failed it (`DID NOT RAISE RecordError`), restored
   - a linked worktree → its own ref, the main worktree's chain untouched
+    - passed on its first run (a git property of `refs/worktree/`); a shared
+      `refs/test-first/ledger` on purpose failed it, restored
   - `git gc --prune=now` → every record still reachable
+    - passed on its first run (reachable from the ref); in a scratch repository, deleting the ref
+      before `gc --prune=now` made the record's object unreadable (`cat-file: could not get object
+      info`), which is what the test detects
 - [ ] T008 The `PostToolUse` entry point of `scripts/python/ledger.py`: read the hook JSON from
   stdin (`cwd`, `session_id`, `agent_id`, `tool_name`, `tool_use_id`), resolve the worktree of
   `cwd`, snapshot and append; exit 0 silently when not in a git worktree or not installed; exit 2
