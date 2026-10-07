@@ -8,3 +8,4 @@ CLAUDE.md export-ignore
 pyproject.toml export-ignore
 uv.lock export-ignore
 docs/ export-ignore
+.gitignore export-ignore
