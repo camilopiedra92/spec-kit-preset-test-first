@@ -307,23 +307,38 @@ code" and "test and code in one shell call"; the audit reports `red` and exits 0
   - the ledger read back from git oldest first with branch and head; no ledger reads as none; a
     change is the set of paths that differ (`año.py` included)
     - red: `AttributeError: … 'load_records'` / `'changed_paths'`, then wrong values from the stubs
-- [ ] T016 [US1] Find a test's birth in `scripts/python/audit.py`: walk back over the records
+- [X] T016 [US1] Find a test's birth in `scripts/python/audit.py`: walk back over the records
   that touched its file, running the record before each; skip touching records whose run is
   inconclusive; scan forward when it appeared without its file changing; no birth back to the
   origin; imported when its birth record's HEAD moved to a commit already holding it; restored
   when its file is identical to an earlier accepted state (data-model "Finding a test's birth",
   "Restored", "Imported"; FR-007)
   - a test in a new file → born at the call that created the file
+    - red: `AttributeError: … 'Auditor'`, then `assert None == 1` from the stub
   - a test added to a file written 300 records earlier → born at the adding call, with one extra
     run
+    - with 8 records between: passed on its first run (2 runs); walking forward on purpose
+      failed it (`assert 3 == 2`), restored
   - a file broken by a typo for one call, then fixed → born where first written, not at the fix
+    - passed on its first run; the next case, a file that first loads at its fix, was red
+      (`None`): the walk back through inconclusive records came from it
   - a file that cannot load until a stub is written by a source-only call → born at the stub's
     record
+    - red: `assert None == 2` (no scan forward); the fake runner gained `# needs <path>`
   - present back to the origin → no birth
+    - passed on its first run; scanning from the origin regardless on purpose failed it, restored
+  - a file that never loaded back to the origin → no birth, fail closed (found during
+    implementation: the test may predate the ledger)
+    - red: `assert 1 is None`
   - removed and written again (the redo sequence) → born at the rewrite
+    - passed on its first run; taking the oldest touching record on purpose failed it, restored
   - `git stash` then `git stash pop` in another call → restored with its earlier verdict
+    - moved to T020: a restored birth keeps an earlier *accepted verdict*, which needs T018/T019
   - a test written and committed in one call → imported
+    - red: `Birth(index=1) == Birth(index=1, imported=True)` failed; written then committed in its
+      own call stays not imported
   - a test brought by `git merge` or `git pull` → imported
+    - passed on its first run (the imported rule); dropping the rule on purpose failed it, restored
 - [ ] T017 [US1] Follow a test from its birth in `scripts/python/audit.py`: run its file at every
   record of the effective history until its first run that is not skipped, and, when that failed,
   until it passes; then the green check on the before-version (data-model "Test lifecycle"; FR-009)
@@ -380,6 +395,8 @@ code" and "test and code in one shell call"; the audit reports `red` and exits 0
     `compose` job (T003)
   - a second audit → reruns nothing (memo)
   - a 60-test, 20-file feature → warm under 2 minutes, cold time reported (SC-004)
+  - `git stash` then `git stash pop` in another call → restored with its earlier verdict (moved
+    from T016: needs the verdicts of T018/T019)
 
 **Checkpoint**: US1 delivers the guarantee; the audit can be run by hand.
 

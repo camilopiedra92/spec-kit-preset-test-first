@@ -326,3 +326,86 @@ def changed_paths(worktree: Path, before: str, after: str) -> set[str]:
     """The paths whose presence or content differs between two trees (data-model.md, Change)."""
     listing = _git(worktree, "diff-tree", "-r", "-z", "--no-renames", "--name-only", before, after)
     return set(filter(None, listing.split("\0")))
+
+
+class Birth(NamedTuple):
+    at: int | None
+    imported: bool = False
+    restored_from: int | None = None
+
+
+class Auditor:
+    """Judges tests along the current branch's effective history (data-model.md)."""
+
+    def __init__(
+        self, worktree: Path, config: ledger.Config, replayer: Replayer, deadline: int
+    ) -> None:
+        self.worktree = worktree
+        self.config = config
+        self.replayer = replayer
+        self.deadline = deadline
+        branch = _git(worktree, "symbolic-ref", "--quiet", "--short", "HEAD")
+        self.history = effective_history(load_records(worktree), branch)
+
+    def birth(self, test: str, file: str) -> Birth:
+        """Where the test last appeared after being absent (data-model.md, Finding a birth).
+
+        Walks back over the records that changed the test's file: one run there and one before
+        decide most births. A test that appeared without its file changing (its file started to
+        load, or its id comes from code or data) is found by a scan forward from where it was
+        last seen absent.
+        """
+        touching = [i for i in range(1, len(self.history)) if file in self.change(i)]
+        resume = len(self.history)
+        for t in reversed(touching):
+            if t >= resume:
+                continue
+            at_t = self.observe(t, file)
+            if not at_t.conclusive:
+                continue  # a typo for a call says nothing either way
+            if test not in (at_t.outcomes or {}):
+                return self.scan(test, file, t)
+            j = self.conclusive_before(t, file)
+            if j is None:
+                # Unknown since the origin: the test may predate the ledger. Fail closed.
+                return Birth(None)
+            if test not in (self.observe(j, file).outcomes or {}):
+                return self.born(test, file, t)
+            resume = j + 1
+        origin = self.observe(0, file)
+        if origin.conclusive and test not in (origin.outcomes or {}):
+            return self.scan(test, file, 0)
+        return Birth(None)
+
+    def scan(self, test: str, file: str, absent_at: int) -> Birth:
+        """The first record after `absent_at` whose conclusive run reports the test."""
+        for k in range(absent_at + 1, len(self.history)):
+            seen = self.observe(k, file)
+            if seen.conclusive and test in (seen.outcomes or {}):
+                return self.born(test, file, k)
+        return Birth(None)
+
+    def born(self, test: str, file: str, b: int) -> Birth:
+        """A birth at record b, imported when it came with commits this ledger did not see
+        written: b's HEAD moved and the new HEAD's own tree already holds the test."""
+        record, previous = self.history[b], self.history[b - 1]
+        if record.head != previous.head:
+            committed = _git(self.worktree, "rev-parse", f"{record.head}^{{tree}}")
+            seen = self.replayer.observe(committed, file, self.deadline)
+            if test in (seen.outcomes or {}):
+                return Birth(b, imported=True)
+        return Birth(b)
+
+    def conclusive_before(self, t: int, file: str) -> int | None:
+        """The nearest record before t whose run of the file is conclusive."""
+        for j in range(t - 1, -1, -1):
+            if self.observe(j, file).conclusive:
+                return j
+        return None
+
+    def change(self, i: int) -> set[str]:
+        """The paths record i changed against its previous in the effective history."""
+        return changed_paths(self.worktree, self.history[i - 1].tree, self.history[i].tree)
+
+    def observe(self, i: int, file: str) -> Observation:
+        return self.replayer.observe(self.history[i].tree, file, self.deadline)
