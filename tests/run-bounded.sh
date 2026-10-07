@@ -171,6 +171,20 @@ for second in TERM KILL; do
   while pgrep -f "^sleep 9109" > /dev/null && [ $((SECONDS - start)) -lt 11 ]; do sleep 0.5; done
   leftover 9109 && problem "runner terminated, then $second: the command outlived its bounds"
 done
+# Two signals back to back: the second can arrive before the first's handler has run. The
+# runner must still return only once the command is gone. Timing-dependent, so repeated: about
+# half of the pairs found the hole before the traps were made idempotent.
+early=0
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+  bash "$RUN" 30 sh -c "trap '' TERM INT HUP QUIT; sleep 9110; sleep 9110" 2> /dev/null &
+  runner=$!
+  sleep 1
+  for signal in TERM TERM; do kill -"$signal" "$runner" 2> /dev/null; done
+  wait "$runner" 2> /dev/null
+  pgrep -f "^sleep 9110" > /dev/null && early=$((early + 1))
+  pkill -KILL -f "sleep 9110"
+done
+[ "$early" -eq 0 ] || problem "runner terminated twice at once: returned with the command alive, $early of 10"
 set +m
 
 [ "$fail" -eq 0 ] && echo "ok: run-bounded"

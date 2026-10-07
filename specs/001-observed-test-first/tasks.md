@@ -867,4 +867,9 @@ gate still runs and an old `tasks.md` is read.
 - [X] T054 After a commit that timed out, failed or was terminated, compare HEAD with HEAD before it: a commit that landed (a hanging `post-commit` hook runs after it) stands and is reported as such instead of having its files undone under it; unit cases for a hanging `post-commit` hook and for termination during it, seen red first per FR-014 (contradicts)
   - red: `assert 'D .claude/se...' == ''` (the commit landed and its files were undone); the
     termination case came after the fix and failed when the landed check was removed on purpose
-- [ ] T055 Make `run-bounded.sh`, terminated, keep its grace period and its group kill when a second signal arrives right after the first — today about half of back-to-back pairs return at once and leave the command to the watchdog's deadline — with a `tests/run-bounded.sh` case sending two signals back to back, repeated until it goes red reliably per Constitution IV (contradicts)
+- [X] T055 Make `run-bounded.sh`, terminated, keep its grace period and its group kill when a second signal arrives right after the first — today about half of back-to-back pairs return at once and leave the command to the watchdog's deadline — with a `tests/run-bounded.sh` case sending two signals back to back, repeated until it goes red reliably per Constitution IV (contradicts)
+  - the third fault in the runner's own termination, so the design was put to the owner, who
+    chose the recommended one: keep SIGTERM-then-grace (SIGKILL at once leaves git's
+    `index.lock` and breaks the repository) and make the traps idempotent — each handler ignores
+    all four signals before it exits
+  - red: `returned with the command alive, 7 of 10`; after the fix 0 of 50 pairs, five runs

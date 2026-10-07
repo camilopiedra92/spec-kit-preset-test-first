@@ -84,10 +84,13 @@ cleanup() {
 # runs (bash would skip it on QUIT) and knows it was a signal. Nothing runs on
 # KILL: the watchdog, a group of its own, still enforces the deadline then.
 trap cleanup EXIT
-trap 'terminated=1; exit 143' TERM
-trap 'terminated=1; exit 130' INT
-trap 'terminated=1; exit 129' HUP
-trap 'terminated=1; exit 131' QUIT
+# Each handler ignores all four signals before anything else: one arriving
+# right behind the first would otherwise run a handler again and exit inside
+# the EXIT trap, skipping the grace period and the group kill.
+trap 'trap "" TERM INT HUP QUIT; terminated=1; exit 143' TERM
+trap 'trap "" TERM INT HUP QUIT; terminated=1; exit 130' INT
+trap 'trap "" TERM INT HUP QUIT; terminated=1; exit 129' HUP
+trap 'trap "" TERM INT HUP QUIT; terminated=1; exit 131' QUIT
 
 # Job control gives each background job its own process group, led by the
 # job's first process, so $! names the group.
