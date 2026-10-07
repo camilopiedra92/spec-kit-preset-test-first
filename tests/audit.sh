@@ -312,12 +312,25 @@ expect 1 "unobserved tests.test_b::test_b"
 
 SCENARIO="a replay that hangs"
 project hang
-write tests/test_b.py 'import time\n\ndef test_b():\n    time.sleep(600)\n' && record
+# The test writes its process id where this script can see it: whether the replay survived
+# the deadline is then a fact, not a guess from command lines.
+write tests/test_b.py "import os, time\n\ndef test_b():\n    open('$work/hang.pid', 'w').write(str(os.getpid()))\n    time.sleep(600)\n" && record
 out=$(cd "$REPO" && python3 "$CLI" audit --deadline 3 2>&1)
 [ $? = 1 ] || problem "$SCENARIO: expected exit 1: $out"
 # No run could say which tests the file holds, so the file itself stands unjudged.
 grep -qE "^not-judged tests/test_b.py " <<< "$out" || problem "$SCENARIO: $out"
-pgrep -f "time.sleep\(600\)|test_b.py" > /dev/null && problem "$SCENARIO: a replay is still running"
+# A killed process can take a moment to go; one still there after two seconds survived.
+survivor=
+if [ -s "$work/hang.pid" ]; then
+  survivor=$(cat "$work/hang.pid")
+  for _ in $(seq 1 10); do
+    kill -0 "$survivor" 2> /dev/null || { survivor=; break; }
+    sleep 0.2
+  done
+else
+  problem "$SCENARIO: the hanging test never started"
+fi
+[ -z "$survivor" ] || { kill -9 "$survivor"; problem "$SCENARIO: a replay is still running"; }
 
 # Vitest reports a file that does not load differently from pytest (research L7): one failure
 # case named after the file. A typo for one call must still not give the test a new birth.
@@ -341,6 +354,23 @@ if command -v pnpm > /dev/null && command -v node > /dev/null; then
 else
   echo "note: Vitest scenario skipped: no node or pnpm on PATH"
 fi
+
+# The Stop hook (FR-024): one turn's test and code written together blocks the turn once, within
+# SC-004's 30 seconds; the next stop of that turn goes through.
+SCENARIO="the Stop hook blocks once on a test born with its code"
+project stop
+write tests/test_b.py "$TEST_B" && write src/b.py "$CODE_B" && record
+start=$(date +%s)
+out=$(printf '{"cwd": "%s", "session_id": "s", "stop_hook_active": false}' "$REPO" |
+  python3 "$CLI" audit --stop 2>&1)
+code=$?
+seconds=$(($(date +%s) - start))
+echo "SC-004 Stop audit of one turn: $seconds s"
+[ "$code" = 2 ] && grep -q "^born-with-code tests.test_b::test_b " <<< "$out" ||
+  problem "$SCENARIO: exit $code: $out"
+[ "$seconds" -le 30 ] || problem "$SCENARIO: $seconds s, over 30"
+printf '{"cwd": "%s", "session_id": "s", "stop_hook_active": true}' "$REPO" |
+  python3 "$CLI" audit --stop > /dev/null 2>&1 || problem "$SCENARIO: the next stop was blocked"
 
 # SC-004: a feature of 60 new tests in 20 files, each file written red with a stub and then
 # its code, audited from an empty memo and again with the memo warm. The cold figure is

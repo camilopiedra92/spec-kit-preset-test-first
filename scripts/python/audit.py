@@ -13,6 +13,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from collections import Counter
 from pathlib import Path
 from typing import NamedTuple
@@ -70,9 +71,11 @@ class Replayer:
     temporary location; the worktree's registration is removed on exit.
     """
 
-    def __init__(self, worktree: Path, config: ledger.Config) -> None:
+    def __init__(self, worktree: Path, config: ledger.Config, budget: int | None = None) -> None:
         self.worktree = worktree
         self.config = config
+        # A Stop audit starts no replay after its budget; memoized runs cost nothing and go on.
+        self.spent_at = time.monotonic() + budget if budget is not None else None
         self.temporary = Path()
         self.scratch = Path()
         self.memo = Path(
@@ -122,6 +125,8 @@ class Replayer:
             stored = json.loads(entry.read_text())
             if not stored["timed_out"] or stored["deadline"] >= deadline:
                 return RunResult(stored["outcomes"], stored["timed_out"])
+        if self.spent_at is not None and time.monotonic() >= self.spent_at:
+            raise BudgetSpent("the Stop hook's budget ran out before this replay")
         result = self._replay(tree, file, deadline)
         # A run that wrote no JUnit may be the environment's fault, not the tree's: not kept.
         if result.outcomes is not None or result.timed_out:
@@ -243,6 +248,10 @@ def load_probe(worktree: Path, tree: str, file: str) -> str:
 class BaseError(Exception):
     """No base to judge new tests against."""
 
+    def __init__(self, message: str, on_default_branch: bool = False) -> None:
+        super().__init__(message)
+        self.on_default_branch = on_default_branch
+
 
 def resolve_base(worktree: Path, override: str | None = None) -> str:
     """The commit new tests are new against (data-model.md, Base)."""
@@ -264,7 +273,10 @@ def resolve_base(worktree: Path, override: str | None = None) -> str:
         raise BaseError(f"no default branch to take the base from: tried {', '.join(tried)}")
     branch = _quiet_git(worktree, "symbolic-ref", "--quiet", "--short", "HEAD")
     if branch == default.removeprefix("origin/"):
-        raise BaseError(f"HEAD is on the default branch, {branch}: nothing is new against it")
+        raise BaseError(
+            f"HEAD is on the default branch, {branch}: nothing is new against it",
+            on_default_branch=True,
+        )
     return ledger.git(worktree, "merge-base", "HEAD", default)
 
 
@@ -331,6 +343,10 @@ class Birth(NamedTuple):
 
 class NotJudged(Exception):
     """A run the judgement depends on could not be made; the reason says why."""
+
+
+class BudgetSpent(NotJudged):
+    """A Stop audit's budget ran out: judged by a later turn or the story-close audit."""
 
 
 class Lifecycle(NamedTuple):
@@ -664,24 +680,65 @@ def exit_status(verdicts: list[tuple[str, Verdict]]) -> int:
 
 
 def main(argv: list[str]) -> int:
-    """The audit's command line (contracts/audit.md)."""
+    """The audit's command line (contracts/audit.md), and the Stop hook with `--stop`
+    (contracts/ledger-hook.md)."""
     parser = argparse.ArgumentParser(prog="audit.py", description=__doc__)
     parser.add_argument("--base", help="the commit new tests are new against")
-    parser.add_argument("--deadline", type=int, default=300, help="seconds per replay")
+    parser.add_argument("--deadline", type=int, help="seconds per replay (300; 60 with --stop)")
+    parser.add_argument("--stop", action="store_true", help="run as the Stop hook (JSON on stdin)")
+    parser.add_argument("--budget", type=int, default=120, help="with --stop: seconds in all")
     args = parser.parse_args(argv)
+    if args.stop:
+        return _stop(args.budget, args.deadline or 60)
     try:
-        worktree, config = _preconditions(args.base)
+        worktree, config = _preconditions(Path.cwd(), args.base)
     except Refusal as refusal:
         print(f"test-first audit: {refusal}", file=sys.stderr)
         return 2
-    # Edits made between calls are judged too: the worktree as it is now is a record.
-    call: ledger.Call = {"session": "audit", "agent": None, "tool": "audit", "call": None}
-    ledger.record(worktree, call)
-    with Replayer(worktree, config) as replayer:
-        auditor = Auditor(worktree, config, replayer, args.deadline, args.base)
-        verdicts = auditor.report()
-    print(render(verdicts, {record.commit: record for record in auditor.history}))
+    verdicts, history = _audit(worktree, config, "audit", args.deadline or 300, args.base, None)
+    print(render(verdicts, history))
     return exit_status(verdicts)
+
+
+# What a Stop blocks on: failing verdicts that no later call can change (data-model, Verdict).
+FINAL_FAILING = frozenset({"born-with-code", "born-green", "rewritten-to-green"})
+
+
+def _stop(budget: int, deadline: int) -> int:
+    """The Stop hook: block the turn once when a new test has a final failing verdict."""
+    payload = json.load(sys.stdin)
+    if payload.get("stop_hook_active"):
+        return 0  # one block per turn: this stop continues one a Stop hook already blocked
+    try:
+        worktree, config = _preconditions(Path(payload["cwd"]), None)
+    except Refusal as refusal:
+        if not refusal.blocks_a_stop:
+            return 0
+        print(f"test-first audit: {refusal}", file=sys.stderr)
+        return 2
+    verdicts, history = _audit(worktree, config, "Stop", deadline, None, budget)
+    failing = [(test, v) for test, v in verdicts if v.kind in FINAL_FAILING]
+    if not failing:
+        return 0
+    print(render(failing, history), file=sys.stderr)
+    return 2
+
+
+def _audit(
+    worktree: Path,
+    config: ledger.Config,
+    tool: str,
+    deadline: int,
+    base: str | None,
+    budget: int | None,
+) -> tuple[list[tuple[str, Verdict]], dict[str, Record]]:
+    # Edits made between calls are judged too: the worktree as it is now is a record.
+    call: ledger.Call = {"session": tool, "agent": None, "tool": tool, "call": None}
+    ledger.record(worktree, call)
+    with Replayer(worktree, config, budget) as replayer:
+        auditor = Auditor(worktree, config, replayer, deadline, base)
+        verdicts = auditor.report()
+    return verdicts, {record.commit: record for record in auditor.history}
 
 
 REDO = (
@@ -722,26 +779,32 @@ def render(verdicts: list[tuple[str, Verdict]], records: dict[str, Record]) -> s
 
 
 class Refusal(Exception):
-    """The audit cannot run here; the message says why (exit 2)."""
+    """The audit cannot run here; the message says why (exit 2). A Stop hook passes the
+    refusals that only mean there is nothing to judge, and blocks on the others (FR-024)."""
+
+    def __init__(self, message: str, blocks_a_stop: bool) -> None:
+        super().__init__(message)
+        self.blocks_a_stop = blocks_a_stop
 
 
-def _preconditions(base: str | None) -> tuple[Path, ledger.Config]:
-    root = _quiet_git(Path.cwd(), "rev-parse", "--show-toplevel")
+def _preconditions(cwd: Path, base: str | None) -> tuple[Path, ledger.Config]:
+    root = _quiet_git(cwd, "rev-parse", "--show-toplevel")
     if not root:
-        raise Refusal("not inside a git worktree")
+        raise Refusal("not inside a git worktree", blocks_a_stop=False)
     worktree = Path(root)
     try:
         config = ledger.load_config(worktree)
     except ledger.NotInstalled:
-        raise Refusal(f"not installed here: no {ledger.CONFIG}") from None
+        raise Refusal(f"not installed here: no {ledger.CONFIG}", blocks_a_stop=False) from None
     except ledger.ConfigError as error:
-        raise Refusal(str(error)) from None
+        raise Refusal(str(error), blocks_a_stop=True) from None
     if not _quiet_git(worktree, "symbolic-ref", "--quiet", "HEAD"):
-        raise Refusal("HEAD is detached: check out the feature's branch")
+        raise Refusal("HEAD is detached: check out the feature's branch", blocks_a_stop=False)
     if not _quiet_git(worktree, "rev-parse", "--verify", "--quiet", ledger.REF):
-        raise Refusal(f"no ledger in this worktree ({ledger.REF}): nothing was recorded")
+        message = f"no ledger in this worktree ({ledger.REF}): nothing was recorded"
+        raise Refusal(message, blocks_a_stop=False)
     try:
         resolve_base(worktree, base)
     except BaseError as error:
-        raise Refusal(str(error)) from None
+        raise Refusal(str(error), blocks_a_stop=not error.on_default_branch) from None
     return worktree, config

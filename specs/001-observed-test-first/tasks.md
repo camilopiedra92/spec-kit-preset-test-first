@@ -509,19 +509,33 @@ born-with-code test is blocked once, and the next stop passes.
       normalised (content unchanged)
     - cost: the first version took the hook to 97–104 ms (over SC-003); a diff-index from the
       snapshot's own index, limited by `:(glob)` pathspecs, brought it to 84–87 ms (research L7)
-- [ ] T022 [US2] The `Stop` entry point `cli.py audit --stop` in `scripts/python/audit.py`: exit 0 when
+- [X] T022 [US2] The `Stop` entry point `cli.py audit --stop` in `scripts/python/audit.py`: exit 0 when
   not installed, detached, on the default branch, or `stop_hook_active`; snapshot (`tool` =
   `Stop`); audit within `--budget` (default 120 s) with a 60 s deadline per run and no new run
   after the budget; exit 2 listing new tests whose failing verdict is final before the end, else
   exit 0 (contracts/ledger-hook.md "Stop"; FR-024)
   - a turn with a born-with-code test → exit 2, test, verdict, record and call named
+    - red: argparse rejected `--stop` (usage, not behaviour); with the flag stubbed,
+      `assert 1 == 2`
   - the same input with `stop_hook_active` true → exit 0
+    - passed on its first run (the Stop entry came whole); ignoring the flag on purpose failed it
   - a turn ending on a red case in progress (`still-red`) → exit 0
+    - passed on its first run; blocking on `still-red` on purpose failed it
   - `unobserved`, `never-run`, `not-judged` only → exit 0
+    - passed on its first run; blocking on every failing verdict on purpose failed it
   - budget exhausted → no run started after it; exit 0, no output
+    - passed on its first run; ignoring the budget on purpose failed it (a run was made)
   - the next turn → judges them from the memo
+    - passed on its first run (the memo of T011): the second stop made no new run
   - one turn's test and code → judged within 30 seconds (SC-004)
+    - measured end to end with real pytest: 1 s
   - a malformed configuration or no resolvable base → exit 2 with the error, once per turn
+    - both passed on their first run; a configuration refusal that lets a stop through, on
+      purpose, failed the first; on the default branch a stop goes through (blocking there on
+      purpose failed that case)
+    - the end-to-end hang check could not see a survivor (its marker was in the test file, not
+      on a command line); it now reads the replay's process id; a replay without the
+      process-group kill, on purpose, failed it
   - these cases end to end in `tests/audit.sh`, T021's in `tests/ledger.sh`
 
 ---
