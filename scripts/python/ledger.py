@@ -95,7 +95,10 @@ def snapshot(worktree: Path, index: Path | None = None) -> str:
     with tempfile.TemporaryDirectory(prefix="test-first-") as scratch:
         temporary = Path(scratch) / "index"
         if index.exists():
-            shutil.copyfile(index, temporary)
+            # copy2 keeps the index's mtime: git rechecks an entry not older than the index
+            # file ("racy git"), and a fresh mtime on the copy would let a same-size edit made
+            # in the index's last second pass for unchanged (observed: 10 of 10 missed).
+            shutil.copy2(index, temporary)
         env = {**os.environ, "GIT_INDEX_FILE": str(temporary)}
         _git(worktree, "add", "-A", env=env)
         return _git(worktree, "write-tree", env=env)

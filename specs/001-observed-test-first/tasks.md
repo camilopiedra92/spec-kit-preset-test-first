@@ -109,6 +109,12 @@ suites in scratch repositories), `commands/` (fragments).
     - its first run failed against correct code: the test read the index before `git status`,
       which refreshes it; reordered (expectation unchanged); `git add -A` on the real index on
       purpose then failed it, restored
+  - a same-size edit made in the second the index was written is seen (found during T020: the
+    intermittent failure first noticed in T012)
+    - root cause: copying the index with `shutil.copyfile` gave the copy a fresh mtime, which
+      disables git's racy-entry recheck; measured 10 of 10 edits missed with the snapshot started
+      in the next second, 0 of 10 with `shutil.copy2`; at random timing 1 of 300 against 0 of 300
+    - red: `assert 'A = 1' == 'A = 2'` three runs out of three; `copy2` fixed it
 - [X] T007 Append a record in `scripts/python/ledger.py`: `git commit-tree <tree> -p <previous>`
   with the message JSON `time`, `session`, `agent`, `tool`, `call`, `branch`, `head`; move
   `refs/worktree/test-first/ledger` with `git update-ref <ref> <new> <old>`, retried on a race;

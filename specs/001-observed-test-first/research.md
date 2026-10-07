@@ -565,6 +565,11 @@ and Antigravity showed nothing test-first-specific in searches (second-hand).
   ms of eleven over three runs, single calls 58–110 ms at a load average of 3.2. Profile: Python
   start 11 ms, imports 13 ms, snapshot (`add -A` + `write-tree`) 25 ms, each other git process
   about 5 ms.
+- **Racy git and the snapshot's index copy** (T006/T020, 2026-10-07, git 2.55.0, macOS): git
+  trusts an index entry's stat unless the entry is not older than the index file. Copying the index
+  with a fresh mtime disables that recheck: a same-size edit made in the second the index was
+  written, with the snapshot starting in the next second, was missed 10 times of 10; keeping the
+  index's mtime (`shutil.copy2`) missed 0 of 10. At unforced timing, 1 of 300 against 0 of 300.
 - **Ledger snapshot cost**: temporary index copied from the worktree's, `git add -A`,
   `git write-tree`, on renta (860 tracked files): 0.04–0.05 s, three runs. Repeated on a fresh clone
   (861 files, git 2.55.0): 0.03–0.04 s seeded each time (three runs), 0.03 s with an index kept
