@@ -282,3 +282,47 @@ def _quiet_git(worktree: Path, *args: str) -> str:
     """git's output, or "" when the command fails (an absent ref, for instance)."""
     result = subprocess.run(["git", "-C", str(worktree), *args], capture_output=True, text=True)
     return result.stdout.strip() if result.returncode == 0 else ""
+
+
+class Record(NamedTuple):
+    commit: str
+    tree: str
+    branch: str | None
+    head: str
+
+
+def effective_history(records: list[Record], branch: str) -> list[Record]:
+    """The records of the branch's line of work, oldest first (data-model.md).
+
+    Walking back from the branch's newest record with a current lineage: a record on the
+    lineage is included; one off it is skipped when the lineage has an older record (a visit
+    elsewhere and back), and otherwise included as the line the lineage came from.
+    """
+    lineage: str | None = branch
+    line: list[Record] = []
+    newest = max((i for i, record in enumerate(records) if record.branch == branch), default=-1)
+    for i in range(newest, -1, -1):
+        record = records[i]
+        if record.branch != lineage:
+            if any(older.branch == lineage for older in records[:i]):
+                continue
+            lineage = record.branch
+        line.append(record)
+    return line[::-1]
+
+
+def load_records(worktree: Path) -> list[Record]:
+    """The worktree's ledger, oldest record first; empty when there is none."""
+    log = _quiet_git(worktree, "log", "--reverse", "-z", "--format=%H %T %B", ledger.REF, "--")
+    records = []
+    for entry in filter(None, log.split("\0")):
+        commit, tree, message = entry.split(" ", 2)
+        fields = json.loads(message)
+        records.append(Record(commit, tree, fields["branch"], fields["head"]))
+    return records
+
+
+def changed_paths(worktree: Path, before: str, after: str) -> set[str]:
+    """The paths whose presence or content differs between two trees (data-model.md, Change)."""
+    listing = _git(worktree, "diff-tree", "-r", "-z", "--no-renames", "--name-only", before, after)
+    return set(filter(None, listing.split("\0")))

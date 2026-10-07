@@ -285,17 +285,28 @@ code" and "test and code in one shell call"; the audit reports `red` and exits 0
   - an `origin` whose URL is unreachable → the base resolves from local refs; no fetch is made
     - rewritten to detect a fetch (a remote whose main moved on, and `origin/main` checked);
       passed on its first run; a `git fetch` on purpose failed it (`the audit fetched`), restored
-- [ ] T015 [US1] Compute the effective history of the current branch from the ledger in
+- [X] T015 [US1] Compute the effective history of the current branch from the ledger in
   `scripts/python/audit.py`, and each record's previous and change (data-model "Effective
   history")
   - one branch, five records → all five, each previous the one before
+    - red: `AttributeError: … 'Record'`, then `assert [] == ['c0', …, 'c4']` from the stub
   - a visit to another branch and back → the visit's records skipped; the return compared with
     the branch's last record
+    - passed on its first run (the lineage walk came with the next case); dropping the visit rule
+      on purpose failed it, restored
   - `git checkout -b feat` with uncommitted work → the records before it, on the original branch,
     included; the new branch's first change compared with them
+    - red: `assert ['c2', 'c3'] == ['c0', 'c1', 'c2', 'c3']`
   - a branch renamed mid-line → one continuous line
+    - passed on its first run; not following the lineage on purpose failed it, restored
   - a rebase (detached records in between) → detached records skipped
+    - passed on its first run; dropping the visit rule on purpose failed it, restored
   - the origin → no previous
+    - a branch with no record has no history: passed on its first run; starting from the newest
+      record of any branch on purpose failed it, restored
+  - the ledger read back from git oldest first with branch and head; no ledger reads as none; a
+    change is the set of paths that differ (`año.py` included)
+    - red: `AttributeError: … 'load_records'` / `'changed_paths'`, then wrong values from the stubs
 - [ ] T016 [US1] Find a test's birth in `scripts/python/audit.py`: walk back over the records
   that touched its file, running the record before each; skip touching records whose run is
   inconclusive; scan forward when it appeared without its file changing; no birth back to the
