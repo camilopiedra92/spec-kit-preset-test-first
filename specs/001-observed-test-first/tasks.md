@@ -364,22 +364,37 @@ code" and "test and code in one shell call"; the audit reports `red` and exits 0
   - a replay past its deadline anywhere in the judgement → `not-judged` (found during
     implementation: a timed-out run read as "nothing seen")
     - red: `AttributeError: … 'NotJudged'`, then `DID NOT RAISE NotJudged`
-- [ ] T018 [US1] Judge a test whose first run passed in `scripts/python/audit.py`: steps 1–4 in
+- [X] T018 [US1] Judge a test whose first run passed in `scripts/python/audit.py`: steps 1–4 in
   order — no-sources pass, base-overlay pass, the refactor count in a call that is not two-sided,
   then by source in the change (data-model "Judged at first run"; research R7, R13; FR-009;
   FR-025)
   - test and code in one shell call → `born-with-code`, call named
+    - red: `AttributeError: … 'Verdict'`, then `('', None)` from the stub
   - code first, then the test alone → `born-green`
+    - passed on its first run; naming every first pass born-with-code on purpose failed it
   - a test moved from a file at the base, passing against the base → `predates`
+    - red: `'born-green' == 'predates'`; the two earlier cases moved to a feature branch (on
+      `main` the base refuses), expectations unchanged
   - a test that imports nothing from `sources` → `born-green`, reason "passes without sources"
+    - red: `'predates' == 'born-green'` (no no-sources step)
   - an environment that imports the real worktree's code → a would-be `predates` is `born-green`
     with that reason
+    - passed on its first run (the no-sources step); disabling the step on purpose failed it;
+      the stand-in gained `--root` (paths from the real worktree)
   - a test-only call renaming one accepted test → `refactored`, listing it
+    - red: `('born-green', …, ()) == ('refactored', …, ('tests.test_b::test_old',))`
   - three accepted tests merged into one parametrized test with three ids → `refactored`
+    - passed on its first run; requiring exactly one replaced test on purpose failed it
   - a rename plus one more passing test in the same call → none refactored
+    - passed on its first run; dropping the count on purpose failed it
   - a rename, a new case and its code in one mixed call → `born-with-code`
+    - passed on its first run; dropping the two-sided rule on purpose failed it
   - an enum member renamed in code, renaming one parametrized id → `refactored`
+    - passed on its first run; ignoring a code-only change's own file on purpose failed it; the
+      stand-in gained `# params <list> <check>`
   - behaviour first written in a template outside `sources`, tested later → `born-green`
+    - passed on its first run; with the no-sources step off and only source globs from the base,
+      on purpose, it read `predates`, restored
 - [ ] T019 [US1] Determine the new tests and assemble the verdicts in `scripts/python/audit.py`:
   tests reported at the newest record by test files that differ from the base and absent from the
   base's runs; a file inconclusive at the newest record → its last conclusive tests `not-judged`;

@@ -3,6 +3,8 @@
 Each `def test_<name>():` line is a test. After it, on the same line:
   `# expects <path> <text>`  fails unless <path> exists and contains <text>
   `# skip`                   is skipped
+  `# params <list> <check>`  is one case per line of <list>, named `<name>[<line>]`, each
+                             failing unless <check> contains its line (ids generated from code)
 A file containing `import missing`, or the load probe's content, or a `# needs <path>` line
 whose path does not exist -- in the file itself or in a shared fixture it names with
 `# uses <path>` -- does not load: one error case
@@ -40,13 +42,27 @@ def cases(file: Path) -> list[str]:
     for name, rest in TEST.findall(text):
         head = f"<testcase classname={quoteattr(module)} name={quoteattr(name)}"
         expects = re.search(r"# expects (\S+) (.+)", rest)
-        if "# skip" in rest:
+        params = re.search(r"# params (\S+) (\S+)", rest)
+        if params:
+            for value in _lines(Path(params.group(1))):
+                case = (
+                    f"<testcase classname={quoteattr(module)} name={quoteattr(f'{name}[{value}]')}"
+                )
+                ok = _holds(Path(params.group(2)), value)
+                found.append(
+                    f"{case}/>" if ok else f'{case}><failure message="expected"/></testcase>'
+                )
+        elif "# skip" in rest:
             found.append(f"{head}><skipped/></testcase>")
         elif expects and not _holds(Path(expects.group(1)), expects.group(2).strip()):
             found.append(f'{head}><failure message="expected"/></testcase>')
         else:
             found.append(f"{head}/>")
     return found
+
+
+def _lines(path: Path) -> list[str]:
+    return path.read_text().split() if path.exists() else []
 
 
 def _exists(path: str) -> bool:

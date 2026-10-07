@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import os
@@ -346,6 +347,10 @@ class Lifecycle(NamedTuple):
     reason: str = ""
 
 
+# Verdicts that do not fail the audit and can stand for a test that replaces them.
+ACCEPTED = frozenset({"red", "predates", "refactored"})
+
+
 class Verdict(NamedTuple):
     """An audit's judgement of one test: its name, the record it rests on, and why."""
 
@@ -452,9 +457,57 @@ class Auditor:
         if (self.observe_tree(on_base, file).outcomes or {}).get(test) == "passed":
             return Verdict("predates", record)
         changed = self.change(r1)
+        replaced = self.refactor_of(test, file, r1, changed)
+        if replaced:
+            return Verdict("refactored", record, replaced=replaced)
         if any(ledger.classify(self.config, path) == "source" for path in changed):
             return Verdict("born-with-code", record)
         return Verdict("born-green", record)
+
+    def refactor_of(self, test: str, file: str, r1: int, changed: set[str]) -> tuple[str, ...]:
+        """The accepted tests of the feature a refactor at r1 replaced, or () when it is not one.
+
+        A call that changed the test side and anything else is never a refactor of tests. The
+        tests whose first run passed at r1 may be at most as many as the accepted tests that
+        disappeared there (research R13); passing that count means deleting an accepted test to
+        add an untested one, which is forging, outside the threat model (research R0).
+        """
+        test_side = {path for path in changed if ledger.classify(self.config, path) == "test"}
+        if test_side and test_side != changed:
+            return ()
+        files = sorted(test_side) if test_side else [file]
+        before = {f: self.observe(r1 - 1, f) for f in files}
+        after = {f: self.observe(r1, f) for f in files}
+        gone = [
+            case
+            for f in files
+            if before[f].conclusive and after[f].conclusive
+            for case in (before[f].outcomes or {})
+            if case not in (after[f].outcomes or {}) and self.accepted_before(case, f, r1)
+        ]
+        appeared = [
+            case
+            for f in files
+            if before[f].conclusive and after[f].conclusive
+            for case, outcome in (after[f].outcomes or {}).items()
+            if outcome == "passed" and case not in (before[f].outcomes or {})
+        ]
+        if gone and test in appeared and len(appeared) <= len(gone):
+            return tuple(sorted(gone))
+        return ()
+
+    def accepted_before(self, case: str, file: str, r: int) -> bool:
+        """Whether a test that disappeared at r was a test of the feature with an accepted
+        verdict, judged along the history up to the record before r."""
+        if case in (self.observe_tree(self.base_tree(), file).outcomes or {}):
+            return False
+        return self.until(r - 1).verdict(case, file).name in ACCEPTED
+
+    def until(self, newest: int) -> Auditor:
+        """This auditor with its history ending at record `newest`."""
+        earlier = copy.copy(self)
+        earlier.history = self.history[: newest + 1]
+        return earlier
 
     def base_tree(self) -> str:
         if self._base_tree is None:
