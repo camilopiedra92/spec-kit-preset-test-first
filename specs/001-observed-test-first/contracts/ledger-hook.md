@@ -36,8 +36,7 @@ No `timeout` is set on this entry, so Claude Code's 600-second default applies; 
 tens of milliseconds (research L7). A hook killed mid-run leaves the ref at the old or the new
 record and at most unreachable objects, which `git gc` prunes; its temporary index stays in the
 system's temporary location, outside the repository, for the system to clean; the next call's
-record then carries
-the killed call's changes under the next call's name, which fails closed.
+record then carries the killed call's changes under the next call's name, which fails closed.
 
 ## Stop: `audit.py --stop`
 
