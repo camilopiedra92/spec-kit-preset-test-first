@@ -429,16 +429,93 @@ class Auditor:
                 return Birth(b, imported=True)
         return Birth(b)
 
+    def report(self) -> list[tuple[str, Verdict]]:
+        """Every new test with its verdict (data-model.md, Verdict): reported at the newest
+        record by a test-side file that differs from the base, and not by the base's run."""
+        newest = self.history[-1].tree
+        files = sorted(
+            path
+            for path in changed_paths(self.worktree, self.base_tree(), newest)
+            if ledger.classify(self.config, path) == "test"
+        )
+        judged: list[tuple[str, Verdict]] = []
+        for file in files:
+            judged.extend(self.report_file(file))
+        return judged
+
+    def report_file(self, file: str) -> list[tuple[str, Verdict]]:
+        """The new tests of one file with their verdicts."""
+        last = len(self.history) - 1
+        unjudged = ""
+        try:
+            at_newest = self.observe(last, file)
+        except NotJudged as error:
+            unjudged, at_newest = str(error), Observation(None, conclusive=False, timed_out=True)
+        if not at_newest.conclusive:
+            unjudged = unjudged or (
+                f"{file} does not load at the newest record: make it load"
+                if at_newest.outcomes is not None
+                else f"the command wrote no JUnit for {file}: check `run` and the environment"
+            )
+            # Which tests the file holds, from its last run that said so.
+            j = self.conclusive_before(last, file)
+            at_newest = self.observe(j, file) if j is not None else Observation({}, True, False)
+        at_base = self.observe_tree(self.base_tree(), file)
+        if not at_base.conclusive:
+            unjudged = unjudged or (
+                f"{file} does not load at the base: fix it on the default branch, or pass "
+                "--base a commit where it loads"
+            )
+        new = [
+            test
+            for test in sorted(at_newest.outcomes or {})
+            if test not in (at_base.outcomes or {})
+        ]
+        if unjudged:
+            return [(test, Verdict("not-judged", reason=unjudged)) for test in new]
+        return [(test, self.judge(test, file)) for test in new]
+
+    def judge(self, test: str, file: str) -> Verdict:
+        """The test's verdict, or not-judged when a run it depends on could not be made."""
+        try:
+            return self.verdict(test, file)
+        except NotJudged as error:
+            return Verdict("not-judged", reason=str(error))
+
     def verdict(self, test: str, file: str) -> Verdict:
         """The test's verdict along the history (data-model.md, Verdict)."""
         birth = self.birth(test, file)
         if birth.at is None or birth.imported:
             return Verdict("unobserved")
+        restored = self.restored(test, file, birth.at)
+        if restored is not None:
+            return restored
         life = self.follow(test, file, birth.at)
         if life.state != "first-pass" or life.at is None:
             record = self.history[life.at].commit if life.at is not None else None
             return Verdict(life.state, record, life.reason)
         return self.judge_first_pass(test, file, life.at)
+
+    def restored(self, test: str, file: str, b: int) -> Verdict | None:
+        """The accepted verdict of an earlier stretch whose file the birth at b brought back
+        unchanged (a stash and pop, an undone rename), or None (data-model.md, Restored).
+
+        The code beside the restored test is not compared: deleting an accepted test with its
+        code to write it back beside other code is forging, outside the threat model (R0).
+        """
+        touching = [i for i in range(1, b) if file in self.change(i)]
+        here = self._blob(b, file)
+        for n, t in enumerate(touching):
+            if self._blob(t, file) != here:
+                continue
+            end = touching[n + 1] - 1 if n + 1 < len(touching) else b - 1
+            earlier = self.until(end).verdict(test, file)
+            if earlier.name in ACCEPTED:
+                return earlier._replace(reason="restored unchanged after it was judged")
+        return None
+
+    def _blob(self, i: int, file: str) -> str:
+        return _quiet_git(self.worktree, "rev-parse", f"{self.history[i].tree}:{file}")
 
     def judge_first_pass(self, test: str, file: str, r1: int) -> Verdict:
         """A test whose first run, at r1, passed (data-model.md, Judged at first run)."""
@@ -566,3 +643,9 @@ class Auditor:
         if seen.timed_out:
             raise NotJudged(f"a replay of {file} exceeded its {self.deadline}-second deadline")
         return seen
+
+
+def exit_status(verdicts: list[tuple[str, Verdict]]) -> int:
+    """0 when every new test is accepted or never ran, 1 otherwise (FR-010)."""
+    passing = ACCEPTED | {"never-run"}
+    return 0 if all(verdict.name in passing for _, verdict in verdicts) else 1

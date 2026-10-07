@@ -81,6 +81,8 @@ if __name__ == "__main__":
     file, junit = Path(sys.argv[1]), Path(sys.argv[2])
     if file.exists() and "# hang" in file.read_text(errors="replace"):
         time.sleep(3600)
+    if file.exists() and "# nojunit" in file.read_text(errors="replace"):
+        sys.exit(1)
     body = "".join(cases(file))
     junit.write_text(
         f'<testsuites><testsuite tests="{body.count("<testcase")}">{body}</testsuite></testsuites>'

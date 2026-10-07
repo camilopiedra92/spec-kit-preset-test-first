@@ -395,17 +395,29 @@ code" and "test and code in one shell call"; the audit reports `red` and exits 0
   - behaviour first written in a template outside `sources`, tested later → `born-green`
     - passed on its first run; with the no-sources step off and only source globs from the base,
       on purpose, it read `predates`, restored
-- [ ] T019 [US1] Determine the new tests and assemble the verdicts in `scripts/python/audit.py`:
+- [X] T019 [US1] Determine the new tests and assemble the verdicts in `scripts/python/audit.py`:
   tests reported at the newest record by test files that differ from the base and absent from the
   base's runs; a file inconclusive at the newest record → its last conclusive tests `not-judged`;
   a dependent run past its deadline → `not-judged`; a test deleted before the end → not judged
   (data-model "Verdict"; FR-006; FR-010)
   - a new test in a changed file → judged; an existing test changed in the feature → not new
+    - red: `AttributeError: 'Auditor' object has no attribute 'report'`, then `{}` from the stub
   - a test deleted before the end → absent from the report
+    - passed on its first run (only the newest record's tests are candidates); taking candidates
+      from every record would be the break, and is what the next case's red showed for a file
+      that does not load
   - a test file broken at the newest record → its tests `not-judged`, exit 1
+    - red: `['::tests.test_b'] == ['tests.test_b::test_b']` (the load-failure case reported as a
+      test)
+  - a command writing no JUnit at the newest record, and a file that does not load at the base →
+    `not-judged` with their own reasons (found during implementation: the data model's reasons)
+    - passed on their first run; both branches disabled on purpose failed them, restored; the
+      stand-in gained `# nojunit`
   - a hanging replay → `not-judged`, exit 1, nothing left running
+    - red: `audit.NotJudged: … exceeded its 1-second deadline` escaped the report
   - every test `red`, `predates`, `refactored` or `never-run` → exit 0, never-run listed
   - any other verdict → exit 1
+    - red: `AttributeError: … 'exit_status'`
 - [ ] T020 [US1] The audit's command line in `scripts/python/audit.py`: `--base`, `--deadline`;
   snapshot first when the worktree differs from the newest record (`tool` = `audit`); refuse with
   exit 2 on a detached HEAD, HEAD on the default branch, no ledger, no configuration or no base;
@@ -425,6 +437,7 @@ code" and "test and code in one shell call"; the audit reports `red` and exits 0
   - a 60-test, 20-file feature → warm under 2 minutes, cold time reported (SC-004)
   - `git stash` then `git stash pop` in another call → restored with its earlier verdict (moved
     from T016: needs the verdicts of T018/T019)
+    - red: `'born-with-code' == 'red'`; done with T019, where the verdicts are assembled
 
 **Checkpoint**: US1 delivers the guarantee; the audit can be run by hand.
 
