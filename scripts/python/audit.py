@@ -334,6 +334,18 @@ class Birth(NamedTuple):
     restored_from: int | None = None
 
 
+class NotJudged(Exception):
+    """A run the judgement depends on could not be made; the reason says why."""
+
+
+class Lifecycle(NamedTuple):
+    """Where a test's life from its birth ended: its state, the record, and why."""
+
+    state: str
+    at: int | None
+    reason: str = ""
+
+
 class Auditor:
     """Judges tests along the current branch's effective history (data-model.md)."""
 
@@ -391,10 +403,41 @@ class Auditor:
         record, previous = self.history[b], self.history[b - 1]
         if record.head != previous.head:
             committed = _git(self.worktree, "rev-parse", f"{record.head}^{{tree}}")
-            seen = self.replayer.observe(committed, file, self.deadline)
+            seen = self.observe_tree(committed, file)
             if test in (seen.outcomes or {}):
                 return Birth(b, imported=True)
         return Birth(b)
+
+    def follow(self, test: str, file: str, born: int) -> Lifecycle:
+        """Forward from the birth: its first run, and when that failed, its green check."""
+        red = False
+        for k in range(born, len(self.history)):
+            outcome = (self.observe(k, file).outcomes or {}).get(test)
+            if outcome == "failed":
+                red = True
+            elif outcome == "passed":
+                return self.green_check(test, file, k) if red else Lifecycle("first-pass", k)
+        return Lifecycle("still-red" if red else "never-run", None)
+
+    def green_check(self, test: str, file: str, g: int) -> Lifecycle:
+        """Red only if the code at g satisfies the test side as it stood before g."""
+        before = compose(
+            self.worktree,
+            self.config,
+            tests_from=self.history[g - 1].tree,
+            rest_from=self.history[g].tree,
+        )
+        seen = self.observe_tree(before, file)
+        if not seen.conclusive:
+            return Lifecycle(
+                "not-judged",
+                g,
+                "the test side from before this call does not load against its code: change "
+                "shared test support in a call of its own, before the code",
+            )
+        if (seen.outcomes or {}).get(test) == "passed":
+            return Lifecycle("red", g)
+        return Lifecycle("rewritten-to-green", g)
 
     def conclusive_before(self, t: int, file: str) -> int | None:
         """The nearest record before t whose run of the file is conclusive."""
@@ -408,4 +451,11 @@ class Auditor:
         return changed_paths(self.worktree, self.history[i - 1].tree, self.history[i].tree)
 
     def observe(self, i: int, file: str) -> Observation:
-        return self.replayer.observe(self.history[i].tree, file, self.deadline)
+        return self.observe_tree(self.history[i].tree, file)
+
+    def observe_tree(self, tree: str, file: str) -> Observation:
+        """A run's observation; a run past its deadline makes the judgement impossible."""
+        seen = self.replayer.observe(tree, file, self.deadline)
+        if seen.timed_out:
+            raise NotJudged(f"a replay of {file} exceeded its {self.deadline}-second deadline")
+        return seen

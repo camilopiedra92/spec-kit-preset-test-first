@@ -339,18 +339,31 @@ code" and "test and code in one shell call"; the audit reports `red` and exits 0
       own call stays not imported
   - a test brought by `git merge` or `git pull` → imported
     - passed on its first run (the imported rule); dropping the rule on purpose failed it, restored
-- [ ] T017 [US1] Follow a test from its birth in `scripts/python/audit.py`: run its file at every
+- [X] T017 [US1] Follow a test from its birth in `scripts/python/audit.py`: run its file at every
   record of the effective history until its first run that is not skipped, and, when that failed,
   until it passes; then the green check on the before-version (data-model "Test lifecycle"; FR-009)
   - test, red, then a source-only call → `red`
+    - red: `AttributeError: … 'Lifecycle'`, then the stub's empty lifecycle
   - a red test whose expected value is changed in the same call as the code → `rewritten-to-green`
+    - red: `red` returned (no green check yet)
   - a red test made to pass by changing only a test helper → `rewritten-to-green`
+    - first run failed on bad test data (`EXPECTED` contains `X`; the test passed at birth);
+      fixed the data; it then passed; running the green record's own tree on purpose failed it
   - a red test with a missing method that a later source call adds → `red` (scenario 6)
+    - covered by the first case: the stand-in runner reports a missing behaviour as a failure,
+      like pytest's `AttributeError` (research L7)
   - the crash the test reproduces, then the fix → `red`
+    - covered by the first case for the same reason
   - one call changing an API and a shared fixture, so the before-version does not load →
     `not-judged`, reason and remedy named
+    - red: `('rewritten-to-green', 2) == ('not-judged', 2)`; the stand-in gained `# uses <path>`
   - skipped at birth, unskipped and red later, then code → `red`
+    - passed on its first run; counting a skip as a pass on purpose failed it, restored
   - still failing at the newest record → `still-red`; only skipped → `never-run`
+    - red (never-run): `still-red` returned for a test that never ran
+  - a replay past its deadline anywhere in the judgement → `not-judged` (found during
+    implementation: a timed-out run read as "nothing seen")
+    - red: `AttributeError: … 'NotJudged'`, then `DID NOT RAISE NotJudged`
 - [ ] T018 [US1] Judge a test whose first run passed in `scripts/python/audit.py`: steps 1–4 in
   order — no-sources pass, base-overlay pass, the refactor count in a call that is not two-sided,
   then by source in the change (data-model "Judged at first run"; research R7, R13; FR-009;

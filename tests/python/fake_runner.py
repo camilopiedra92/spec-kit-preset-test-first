@@ -4,7 +4,8 @@ Each `def test_<name>():` line is a test. After it, on the same line:
   `# expects <path> <text>`  fails unless <path> exists and contains <text>
   `# skip`                   is skipped
 A file containing `import missing`, or the load probe's content, or a `# needs <path>` line
-whose path does not exist, does not load: one error case
+whose path does not exist -- in the file itself or in a shared fixture it names with
+`# uses <path>` -- does not load: one error case
 named after the module, with an empty classname, as pytest 9.1.1 reports it (research L7). A file
 that does not exist gives a report with no case, as pytest does.
 
@@ -13,6 +14,7 @@ Usage: python3 fake_runner.py <file> <junit>
 
 import re
 import sys
+import time
 from pathlib import Path
 from xml.sax.saxutils import quoteattr
 
@@ -24,7 +26,8 @@ def cases(file: Path) -> list[str]:
         return []
     text = file.read_text(errors="replace")
     module = str(file.with_suffix("")).replace("/", ".")
-    needs = re.findall(r"# needs (\S+)", text)
+    shared = [Path(p) for p in re.findall(r"# uses (\S+)", text) if Path(p).exists()]
+    needs = re.findall(r"# needs (\S+)", text + "".join(p.read_text() for p in shared))
     if "import missing" in text or "not code" in text or not all(map(_exists, needs)):
         return [
             f'<testcase classname="" name={quoteattr(module)}>'
@@ -53,6 +56,8 @@ def _holds(path: Path, text: str) -> bool:
 
 if __name__ == "__main__":
     file, junit = Path(sys.argv[1]), Path(sys.argv[2])
+    if file.exists() and "# hang" in file.read_text(errors="replace"):
+        time.sleep(3600)
     body = "".join(cases(file))
     junit.write_text(
         f'<testsuites><testsuite tests="{body.count("<testcase")}">{body}</testsuite></testsuites>'
