@@ -54,14 +54,24 @@ suites in scratch repositories), `commands/` (fragments).
 
 ## Phase 2: Foundational (the ledger records; blocks US1 and US2)
 
-- [ ] T004 Read and validate `.specify/test-first.json` in `scripts/python/ledger.py`
+- [X] T004 Read and validate `.specify/test-first.json` in `scripts/python/ledger.py`
   (data-model "Configuration"; contracts/configuration.md; FR-013)
   - a valid file with `tests`, `sources` and `run` → a configuration object
+    - red: `uv run pytest` → `NotImplementedError` from the stub `load_config`
   - `tests` empty, or not a list of strings → error naming the field
+    - red: `DID NOT RAISE ConfigError` (empty; `"tests/**"`, `[1]`, `[""]`)
   - `sources` empty → error naming the field
+    - red: `DID NOT RAISE ConfigError` (`[]`, `"src/**"`, `[3]`)
   - `run` without `{file}` → error; without `{junit}` → error; with `{root}` → accepted
+    - red: `DID NOT RAISE ConfigError` for the three; `{root}` passed on its first run (nothing
+      rejected it yet): rejecting `{root}` on purpose failed it, restored
   - the file missing → "not installed" (distinct from malformed)
+    - red: `FileNotFoundError` once `NotInstalled` was stubbed
   - invalid JSON → error with the parser's message
+    - red: `json.decoder.JSONDecodeError` escaped instead of `ConfigError`
+  - a JSON value that is not an object → error (found during implementation)
+    - passed on its first run (the check was written ahead of its test); disabling the check on
+      purpose failed it with `AttributeError: 'list' object has no attribute 'get'`, restored
 - [ ] T005 Classify paths in `scripts/python/ledger.py`: test / source / other, and mixed changes
   (data-model "Configuration", "Change"; FR-005)
   - `tests/a.py` with `tests = ["tests/**"]` → test
