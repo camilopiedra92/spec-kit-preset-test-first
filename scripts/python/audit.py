@@ -151,3 +151,80 @@ def _git(worktree: Path, *args: str) -> str:
     return subprocess.run(
         ["git", "-C", str(worktree), *args], check=True, capture_output=True, text=True
     ).stdout.strip()
+
+
+def compose(worktree: Path, config: ledger.Config, tests_from: str, rest_from: str) -> str:
+    """A tree with exactly the test-side paths of one tree and the other paths of another.
+
+    The replay variants swap whole sides, never only the source globs, so code written outside
+    them (a template, a schema) is judged too (research R5, FR-028).
+    """
+    entries = [entry for entry in _entries(worktree, tests_from) if _is_test(config, entry)] + [
+        entry for entry in _entries(worktree, rest_from) if not _is_test(config, entry)
+    ]
+    return _write_tree(worktree, entries)
+
+
+def _entries(worktree: Path, tree: str) -> list[str]:
+    """`<mode> <type> <object>\t<path>` for every file of the tree, the path unquoted (-z)."""
+    listing = _git(worktree, "ls-tree", "-r", "-z", "--full-tree", tree)
+    return [entry for entry in listing.split("\0") if entry]
+
+
+def _is_test(config: ledger.Config, entry: str) -> bool:
+    return ledger.classify(config, entry.split("\t", 1)[1]) == "test"
+
+
+def _write_tree(worktree: Path, entries: list[str]) -> str:
+    """The tree of these entries, through a temporary index; the real one is never touched."""
+    with tempfile.TemporaryDirectory(prefix="test-first-") as scratch:
+        env = {**os.environ, "GIT_INDEX_FILE": str(Path(scratch) / "index")}
+        index_info = "".join(
+            f"{meta.split()[0]} {meta.split()[2]}\t{path}\0"
+            for meta, path in (entry.split("\t", 1) for entry in entries)
+        )
+        subprocess.run(
+            ["git", "-C", str(worktree), "update-index", "-z", "--index-info"],
+            input=index_info,
+            text=True,
+            check=True,
+            env=env,
+        )
+        return subprocess.run(
+            ["git", "-C", str(worktree), "write-tree"],
+            capture_output=True,
+            text=True,
+            check=True,
+            env=env,
+        ).stdout.strip()
+
+
+def without_sources(worktree: Path, config: ledger.Config, tree: str) -> str:
+    """The tree with every source path removed (data-model.md, no-sources)."""
+    kept = [
+        entry
+        for entry in _entries(worktree, tree)
+        if ledger.classify(config, entry.split("\t", 1)[1]) != "source"
+    ]
+    return _write_tree(worktree, kept)
+
+
+# Content no language parses, as measured on 2026-10-07: pytest 9.1.1 reports it as a
+# collection failure and Vitest 5.0.3 as a file that failed to load (research L7).
+UNPARSEABLE = "\x01 this is not code {{{ ]]\n"
+
+
+def load_probe(worktree: Path, tree: str, file: str) -> str:
+    """The tree with one file's content replaced by bytes no language parses."""
+    garbage = _git_input(worktree, UNPARSEABLE, "hash-object", "-w", "--stdin")
+    entries = [
+        f"100644 blob {garbage}\t{file}" if entry.split("\t", 1)[1] == file else entry
+        for entry in _entries(worktree, tree)
+    ]
+    return _write_tree(worktree, entries)
+
+
+def _git_input(worktree: Path, data: str, *args: str) -> str:
+    return subprocess.run(
+        ["git", "-C", str(worktree), *args], input=data, capture_output=True, text=True, check=True
+    ).stdout.strip()

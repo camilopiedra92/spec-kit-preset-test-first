@@ -228,15 +228,23 @@ code" and "test and code in one shell call"; the audit reports `red` and exits 0
   - the memo directory deleted → the next audit gives the same verdicts
     - passed on its first run, and nothing short of a nondeterministic run could break it: it
       pins that the memo is only a cache (the run count shows the second audit really ran)
-- [ ] T012 [US1] Build the replay trees in `scripts/python/audit.py` with git plumbing, without
+- [X] T012 [US1] Build the replay trees in `scripts/python/audit.py` with git plumbing, without
   touching the real index: before-version of *g*, base overlay of *r*, no-sources of *r*, and the
   load probe's tree (data-model "Run", variants; research R5; FR-028)
   - before-version → every test-side path from *g*'s previous, every other path from *g*
+    - red: `AttributeError: … no attribute 'compose'`, then the stub returned the whole previous tree
   - base overlay → every test-side path from *r*, every other path from the base, a path the base
     lacks removed
+    - passed on its first run (same `compose`); swapping only source paths on purpose failed it, restored
   - a template outside `sources` changed at *r* → the base overlay has the base's template
+    - same test as the overlay (`templates/x.html` is the base's); the break above failed it
   - no-sources → every `sources` path removed, configuration files kept
+    - red: the stub returned the tree unchanged
   - load probe → the file's content replaced by bytes no language parses, nothing else changed
+    - red: the stub returned the tree unchanged
+  - paths with unusual characters (`año test.py`) are classified by their real name (found during
+    implementation: `ls-tree` quotes them without `-z`)
+    - red: the test path was taken from the rest side; NUL-separated, unquoted listing fixed it
 - [ ] T013 [US1] Decide whether a run is inconclusive in `scripts/python/audit.py`: no JUnit, or
   every case failed and the load probe on the same tree and file reports exactly the same ids; the
   probe runs only when every case failed (data-model "Run"; research R6; FR-007)
