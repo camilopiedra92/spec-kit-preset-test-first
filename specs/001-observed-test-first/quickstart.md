@@ -7,8 +7,8 @@ Prerequisites: `git`, `python3`, `jq`, `uv`, `specify` on PATH; run from the rep
    an unchanged tree adds no record, a linked worktree keeps its own ledger, a subagent's call is
    recorded with its id, each record names its branch and HEAD.
 3. The installer: `tests/install-ledger.sh` — each refusal leaves the repository unchanged; a
-   successful run is one commit of two files holding both hook entries; no resolvable default
-   branch is a refusal.
+   successful run is one commit of two files holding both hook entries; no base resolving (HEAD on
+   the default branch included) is a refusal.
 4. The audit: `tests/audit.sh` — over replayed sequences in a scratch pytest project:
    - test, then code → `red`, exit 0 (SC-002);
    - test and code in one call → `born-with-code`, exit 1 (SC-001);

@@ -6,7 +6,7 @@ Installed entries in `.claude/settings.json`:
 {"hooks": {
   "PostToolUse": [{"matcher": "*", "hooks": [{"type": "command",
     "command": "python3 \"$CLAUDE_PROJECT_DIR\"/.specify/presets/test-first/scripts/python/ledger.py"}]}],
-  "Stop": [{"hooks": [{"type": "command", "timeout": 300000,
+  "Stop": [{"hooks": [{"type": "command", "timeout": 300,
     "command": "python3 \"$CLAUDE_PROJECT_DIR\"/.specify/presets/test-first/scripts/python/audit.py --stop"}]}]
 }}
 ```
@@ -34,7 +34,8 @@ never modified.
 
 No `timeout` is set on this entry, so Claude Code's 600-second default applies; a snapshot takes
 tens of milliseconds (research L7). A hook killed mid-run leaves the ref at the old or the new
-record and at most unreachable objects, which `git gc` prunes; the next call's record then carries
+record and at most unreachable objects, which `git gc` prunes, and its temporary index, which is
+named per process and replaced by the next run's; the next call's record then carries
 the killed call's changes under the next call's name, which fails closed.
 
 ## Stop: `audit.py --stop`
@@ -49,8 +50,9 @@ Input: Claude Code's `Stop` JSON on stdin; fields read: `cwd`, `session_id`, `st
 2. Snapshot the worktree as a record (`tool` = `Stop`) if it changed.
 3. Run the audit (audit.md) within a budget of `--budget` seconds (default 120), each run under a
    60-second deadline, so its worst case is the budget plus one run and its load probe (240 s),
-   inside the entry's 300-second `timeout` — set because a Stop hook that times out lets the turn
-   end and is only noted in debug output (research L7): no new run starts after the budget is spent, and a run already stopped by a
+   inside the entry's `timeout` of 300 seconds — set because Claude Code cancels a hook that reaches
+   its timeout and discards its output, so a timed-out Stop audit would let the turn end without a
+   decision (research L7): no new run starts after the budget is spent, and a run already stopped by a
    deadline at least that long is not retried; what is left is judged by a later turn or the
    story-close audit, from the memo.
 4. If any new test has a failing verdict that is final before the end (data-model.md): exit 2;
@@ -58,4 +60,5 @@ Input: Claude Code's `Stop` JSON on stdin; fields read: `cwd`, `session_id`, `st
 5. Otherwise exit 0, with no output. Births the budget left unjudged are judged by a later turn or
    the story-close audit; nothing about them reaches Claude at this stop.
 
-A configuration or git error: exit 2 with the error on stderr.
+A malformed configuration, no resolvable base, or a git error: exit 2 with the error on stderr —
+one block per turn, like a failing verdict, so an audit that cannot run is never silent (FR-024).

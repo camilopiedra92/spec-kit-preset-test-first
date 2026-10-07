@@ -15,7 +15,8 @@ python3 .specify/presets/test-first/scripts/python/audit.py --stop [--budget <se
 - Judges the current branch's effective history (data-model.md). Refuses, exit 2, on a detached
   HEAD, HEAD on the default branch, no ledger, no configuration or no base.
 - Reads, and nothing else: its arguments (and, under `--stop`, the hook JSON on stdin); the ledger
-  ref, `HEAD`, the default-branch refs and `init.defaultBranch`; record messages and the trees they
+  ref, `HEAD`, the default-branch refs, whether an `origin` remote exists, and
+  `init.defaultBranch`; the worktree registry, to prune its own scratch worktrees; record messages and the trees they
   name, which it materializes for the configured command and never parses, except
   `.specify/test-first.json`; the JUnit files its runs write; and the memo. It never reads a file of
   a record as evidence — `tasks.md` included (FR-012). Writes only the memo,
@@ -27,8 +28,7 @@ Output, stdout: one line per new test, `<verdict> <test id> <record> <tool> <cal
 the three fields of `unobserved`, which rests on no record of its own, followed for
 `refactored` by the tests it replaced and for `born-green` by its reason; grouped by verdict, then
 a summary line `audit: <n> new tests: <count per verdict>; <pass|FAIL>`. Each failing verdict ends
-with its remedy: the redo sequence for a final one, the reason's remedy for `not-judged` and for
-`born-green` without sources (data-model.md).
+with its remedy, as data-model.md's remedy table gives it.
 
 Exit: 0 when every new test is `red`, `predates`, `refactored` or `never-run`; 1 otherwise; 2 on a usage or
 configuration error.

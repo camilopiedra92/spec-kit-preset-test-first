@@ -243,8 +243,8 @@ that the gate still runs and the composed skills read an old `tasks.md`.
 - A new test has no birth in the ledger (the ledger was installed after the test was written, or
   its records were lost): the audit reports it as unobserved and fails; it never assumes a red it
   did not see.
-- A test moved or renamed: refactored when its call replaced at least as many accepted tests as
-  it adds passing ones; predating the feature when it also passes against the base; otherwise born
+- A test moved or renamed: refactored when its call changed only test-side paths and replaced at
+  least as many accepted tests as it adds passing ones; predating the feature when it also passes against the base; otherwise born
   green, or born with its code when its call changed source. The fragment has tests renamed in
   calls of their own.
 - A test id generated from code (a parametrized case named after an enum member) that changes
@@ -332,27 +332,28 @@ that the gate still runs and the composed skills read an old `tasks.md`.
   the test side as it stood before the call that made it pass passes after that call); predates
   the feature (its first run passed, it fails without any source file, and it passes against the
   base's code); refactored (its first run passed, it fails without any source file, and its call —
-  not one that changed tests and source together — replaced at least as many accepted tests of the
+  not one that changed test-side paths and any other path together — replaced at least as many accepted tests of the
   feature as it added passing ones; it lists them);
   born with its code (its first run passed, and that call changed source); born green (its first
   run passed otherwise, or it passes without any source file); rewritten to green (its test side
   from before the call that made it pass fails after that call); still red; unobserved; not judged
-  (a replay exceeded its deadline, the order could not be told because the earlier test side does
-  not load, or its file does not load at the newest record); never run (only skipped so far).
+  (a replay exceeded its deadline; the order could not be told because the earlier test side does
+  not load; its file does not load, or its command wrote no JUnit, at the newest record; or the
+  base's run of its file was inconclusive); never run (only skipped so far).
 - **FR-010**: The audit MUST exit zero only when every new test is red, predates the feature, is
   refactored or never ran, and non-zero otherwise; it MUST list the tests that never ran.
 - **FR-011**: Every replay MUST run under a deadline that kills the command's whole process group.
 - **FR-012**: The audit MUST NOT read the agent's account of its runs (`tasks.md` or any other file
   the agent writes as evidence).
 - **FR-013**: The project's configuration — test file patterns, source file patterns, and the
-  command that runs one given test file and writes JUnit XML to a given path — MUST be given once
-  at install and committed in the repository.
+  command that runs one given test file and writes JUnit XML to a given path — MUST be given at
+  install and committed in the repository, and changed only by a commit of its own.
 - **FR-014**: Installing the ledger MUST be one commit holding only the ledger's two hook entries
   and the configuration — creating `.claude/settings.json` when it does not exist — and MUST
   refuse, leaving the repository unchanged, on: not being at the repository root with `.specify/`;
   a detached HEAD; no resolvable default branch; anything staged; a settings file that is
   uncommitted, ignored, not a regular file or marked skip-worktree; an existing entry for the
-  ledger; an incomplete configuration; test patterns matching no tracked file; `jq` missing; a
+  ledger; HEAD on the default branch; an incomplete configuration; test patterns matching no tracked file; `jq` missing; a
   commit hook rejecting the commit.
 - **FR-015**: The `speckit-implement` fragment MUST install the ledger before the first task when it
   is not installed, and MUST say so in the completion report when it cannot.
@@ -367,7 +368,7 @@ that the gate still runs and the composed skills read an old `tasks.md`.
   before the independent review, give its report to the reviewer, and prescribe the remedy of each
   failing verdict as data-model.md lists it: the redo sequence for a test born with its code, born
   green or rewritten to green; the configuration for one that passes without sources; the code,
-  in a call that changes no test, for one still red; the redo sequence for one unobserved; and the
+  in a call that changes no test-side path, for one still red; the redo sequence for one unobserved; and the
   reason's remedy for one not judged.
 - **FR-019**: The story review MUST use the project's mutation check where the project's
   constitution or CI names one, and hand-written wrong versions otherwise.
@@ -386,14 +387,18 @@ that the gate still runs and the composed skills read an old `tasks.md`.
   flaky tests as they behave on replay; that the audit's cost for compiled languages is not
   measured; that the Stop hook shows a failing verdict once per turn and does not prevent the turn
   from ending; and that the ledger stores every tracked and untracked-but-not-ignored file of the
-  worktree, an un-ignored secret included, locally, which `git push --mirror` would send.
+  worktree, an un-ignored secret included, locally, which `git push --mirror` would send, and no
+  git-ignored file; that concurrent writers in one worktree are unsupported and fail closed; and
+  that code drafted outside the worktree and brought in later is not distinguishable from code
+  written in place.
 - **FR-023**: Each rule added to or removed from a fragment MUST carry its evidence in the README
   (constitution III), and every script MUST have a test suite run in CI (constitution IV).
 - **FR-024**: At the end of every turn — except on a detached HEAD, on the default branch, or when
   a Stop hook already blocked this turn — the audit MUST run within a time budget and block the
   turn once when a new test has a verdict of born with its code, born green or rewritten to green,
-  naming each; it MUST NOT block for a test still red, never run, unobserved or not judged, nor for
-  a birth the budget left unjudged.
+  naming each, or once with its error when the audit cannot run (a malformed configuration, no
+  resolvable base, a git error); it MUST NOT block for a test still red, never run, unobserved or
+  not judged, nor for a birth the budget left unjudged.
 - **FR-025**: Every test whose first run passed MUST first be run with every source path removed
   from the replayed tree; one that still passes MUST be reported as born green, with the reason
   that it passes without any source file — before it can be considered as predating the feature

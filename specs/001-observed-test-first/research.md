@@ -343,8 +343,8 @@ does not: rebasing onto a newer main moved the base's time past the feature's ea
 ## R13. Renamed and consolidated tests
 
 **Decision**: a test whose first run passed is `refactored` — accepted, and listed with the tests it
-replaced — when it fails without the sources (R7), its record's call did not change tests and
-source together, accepted tests of the feature disappeared at the same record (from a test file that record changed, or from its own file when the record changed no
+replaced — when it fails without the sources (R7), its record's change is not two-sided
+(data-model.md, Change: test-side paths and any other path), accepted tests of the feature disappeared at the same record (from a test file that record changed, or from its own file when the record changed no
 test-side path, as when an enum rename renames parametrized ids), and the tests whose first run
 passed at that record are no more than those that disappeared. When more appear, none is
 refactored, and the fragment tells the agent to split a rename from a new test.
@@ -353,7 +353,7 @@ refactored, and the fragment tells the agent to split a rename from a new test.
 identity by name made each of those a `born-green` failure in the first version. A count is
 mechanical, language-agnostic and needs no replay against older code. The only way past it is to
 delete an accepted test in order to add an untested one, which is forging evidence, outside the
-threat model (R0). A mixed call is excluded because rewriting an accepted test together with the
+threat model (R0). A two-sided call is excluded because rewriting an accepted test together with the
 code for a new case is the defect L1 observed, under another name (fourth review). A test that comes
 back with its file exactly as it was when accepted — a stash and pop, an undone rename — keeps its
 verdict (data-model.md, Restored), so honest round trips cost nothing.
@@ -585,9 +585,11 @@ and Antigravity showed nothing test-first-specific in searches (second-hand).
   exit 2 shows stderr to Claude and cannot block; matcher `*` matches every tool;
   `${CLAUDE_PROJECT_DIR}` stays at the original root, read `cwd` for worktrees; the transcript is
   written asynchronously and can lag; "All matching hooks run in parallel"; command hooks default
-  to a 600 s timeout, settable per entry with `timeout` in milliseconds, and on events other than
-  `UserPromptSubmit` a hook that "fails or times out" lets Claude Code proceed, "and notes the
-  failure in debug output"; the Stop input carries `stop_hook_active`, "`true` when Claude Code is
+  to a 600 s timeout, settable per entry with `timeout`: "Seconds before canceling"; "Claude Code
+  cancels a `command`, `http`, or `mcp_tool` hook that reaches its `timeout`, discarding the hook's
+  output, so on most events a timed-out hook renders no decision" (an earlier WebFetch summary had
+  reported milliseconds, which is the Bash tool's `timeout`; corrected from the page's source,
+  `code.claude.com/docs/en/hooks.md`); the Stop input carries `stop_hook_active`, "`true` when Claude Code is
   already continuing as a result of a stop hook"; "after stop hooks have continued the turn eight
   times in a row, Claude Code overrides the next block and ends the turn", and "the count resets
   each time Claude calls a tool". Read 2026-10-07 (code.claude.com/docs/en/hooks).

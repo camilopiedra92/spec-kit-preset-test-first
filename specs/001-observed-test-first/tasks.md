@@ -217,7 +217,7 @@ code" and "test and code in one shell call"; the audit reports `red` and exits 0
   - skipped at birth, unskipped and red later, then code → `red`
   - still failing at the newest record → `still-red`; only skipped → `never-run`
 - [ ] T018 [US1] Judge a test whose first run passed in `scripts/python/audit.py`: steps 1–4 in
-  order — no-sources pass, base-overlay pass, the refactor count in a call that is not mixed,
+  order — no-sources pass, base-overlay pass, the refactor count in a call that is not two-sided,
   then by source in the change (data-model "Judged at first run"; research R7, R13; FR-009;
   FR-025)
   - test and code in one shell call → `born-with-code`, call named
@@ -293,6 +293,7 @@ born-with-code test is blocked once, and the next stop passes.
   - budget exhausted → no run started after it; exit 0, no output
   - the next turn → judges them from the memo
   - one turn's test and code → judged within 30 seconds (SC-004)
+  - a malformed configuration or no resolvable base → exit 2 with the error, once per turn
   - these cases end to end in `tests/audit.sh`, T021's in `tests/ledger.sh`
 
 ---
@@ -305,14 +306,14 @@ born-with-code test is blocked once, and the next stop passes.
 `speckit-implement` carries each instruction; installing from it records.
 
 - [ ] T023 [US3] `scripts/bash/install-ledger.sh`: write `.specify/test-first.json` and both hook
-  entries (`PostToolUse` matcher `*`; `Stop` with `timeout` 300000) into `.claude/settings.json`,
+  entries (`PostToolUse` matcher `*`; `Stop` with `timeout` 300, in seconds) into `.claude/settings.json`,
   creating it when absent, keeping every other
   entry, and commit exactly those two files as one commit; refuse with exit 1, the repository
   unchanged, on each condition of contracts/install-ledger.md (FR-013; FR-014; constitution IV)
   - a clean repository with tracked tests → one commit, two files, both entries, config as given
   - an existing `hooks.Stop` entry (the 1.x Stop gate) → kept, the new one added beside it
   - not at the root with `.specify/` → refused
-  - detached HEAD → refused; no resolvable default branch → refused
+  - detached HEAD → refused; HEAD on the default branch → refused; no base resolves → refused
   - something staged → refused
   - no `.claude/settings.json` → created, in the commit
   - `.claude/settings.json` uncommitted, ignored, not a regular file, or skip-worktree → refused

@@ -117,7 +117,8 @@ run stopped by its deadline is stored with that deadline, and is retried only un
 run that wrote no JUnit is not stored: it may be the environment's fault (a broken or half-synced
 installation), not the tree's. The key does not include the environment; a run recorded under a
 different environment is reused, which is the stated assumption that replays use the environment
-at audit time. Deleting the memo changes nothing but the time the next audit takes.
+at audit time. Each entry is written atomically (a temporary file renamed into place), so a killed
+audit leaves no torn entry. Deleting the memo changes nothing but the time the next audit takes.
 
 ## Finding a test's birth
 
@@ -227,15 +228,13 @@ Remedies, which the audit prints with each failing verdict:
 | Verdict | Remedy |
 |---|---|
 | `born-with-code`, `born-green` (step 4), `rewritten-to-green` | the redo sequence (below) |
-| `born-green` (step 1) | the configuration: add the code's paths to `sources`, or make `run` use the scratch worktree's code |
+| `born-green` (step 1) | the configuration, in a commit of its own (FR-013): add the code's paths to `sources`, or make `run` use the scratch worktree's code |
 | `still-red` | write the code that makes it pass, in a call that changes no test-side path |
 | `unobserved` | the redo sequence, which gives the test a birth in this ledger |
-| `not-judged` | as its reason says: a longer `--deadline`; the redo sequence after changing shared test support in a call of its own; making the file load; fixing `run` |
+| `not-judged` | as its reason says: a longer `--deadline`; the redo sequence after changing shared test support in a call of its own; making the file load; fixing `run`; for a file that does not load at the base, fixing it on the default branch or passing `--base` a commit where it loads |
 
 The Stop hook blocks only on failing verdicts that are final before the end; the story-close audit
-fails on every failing verdict. A `not-judged` test's remedy is in its reason: a longer deadline, the
-redo sequence after changing shared test support in a call of its own, or making its file load.
-A test written and committed in the same call is imported, since its record's HEAD already holds
+fails on every failing verdict. A test written and committed in the same call is imported, since its record's HEAD already holds
 it: commits go in a call of their own. The remedy for `born-with-code`, `born-green` (step 4) and
 `rewritten-to-green` is the redo sequence: remove the test — its file, when it is the file's only
 test — revert the code it covers, write the test again in a call that changes nothing else, run it
