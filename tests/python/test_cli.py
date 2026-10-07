@@ -167,3 +167,25 @@ def test_a_file_system_error_during_the_audit_exits_2_with_its_message(
 
     assert run(repo, monkeypatch) == 2
     assert "No space left on device" in capsys.readouterr().err
+
+
+def test_a_base_git_cannot_resolve_is_a_refusal_with_its_message(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    feature(repo).call({"tests/test_b.py": TEST_B})
+
+    assert run(repo, monkeypatch, "--base", "nosuchrev") == 2
+    err = capsys.readouterr().err
+    assert err.startswith("test-first audit:") and "nosuchrev" in err
+
+
+def test_a_branch_with_no_common_ancestor_is_a_refusal(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    install(repo)
+    git(repo, "checkout", "-q", "--orphan", "lonely")
+    git(repo, "commit", "-q", "-m", "unrelated history")
+    Calls(repo).call({"README.md": "origin"})
+
+    assert run(repo, monkeypatch) == 2
+    assert "Traceback" not in capsys.readouterr().err

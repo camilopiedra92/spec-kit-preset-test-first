@@ -288,3 +288,15 @@ def test_a_file_system_error_at_a_stop_blocks_with_its_message(
     err = capsys.readouterr().err
     assert err.startswith("test-first audit:")
     assert "Traceback" not in err
+
+
+def test_a_branch_with_no_common_ancestor_blocks_the_stop_with_its_error(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    feature(repo)
+    git(repo, "checkout", "-q", "--orphan", "lonely")
+    git(repo, "commit", "-q", "-m", "unrelated history")
+    Calls(repo).call({"tests/test_b.py": TEST_B})
+
+    assert stop(repo, monkeypatch) == 2
+    assert capsys.readouterr().err.startswith("test-first audit:")

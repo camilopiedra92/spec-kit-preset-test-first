@@ -256,7 +256,10 @@ class BaseError(Exception):
 def resolve_base(worktree: Path, override: str | None = None) -> str:
     """The commit new tests are new against (data-model.md, Base)."""
     if override is not None:
-        return ledger.git(worktree, "rev-parse", "--verify", f"{override}^{{commit}}")
+        given = quiet_git(worktree, "rev-parse", "--verify", "--quiet", f"{override}^{{commit}}")
+        if not given:
+            raise BaseError(f"--base {override} names no commit")
+        return given
     if "origin" in quiet_git(worktree, "remote").split():
         # Remote-tracking first: a local merge into the default branch cannot move these.
         named = quiet_git(worktree, "symbolic-ref", "--quiet", "refs/remotes/origin/HEAD")
@@ -277,7 +280,10 @@ def resolve_base(worktree: Path, override: str | None = None) -> str:
             f"HEAD is on the default branch, {branch}: nothing is new against it",
             on_default_branch=True,
         )
-    return ledger.git(worktree, "merge-base", "HEAD", default)
+    fork = quiet_git(worktree, "merge-base", "HEAD", default)
+    if not fork:
+        raise BaseError(f"HEAD shares no history with {default}: nothing is new against it")
+    return fork
 
 
 def quiet_git(worktree: Path, *args: str) -> str:
