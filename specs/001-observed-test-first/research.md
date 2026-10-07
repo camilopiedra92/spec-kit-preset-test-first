@@ -69,11 +69,9 @@ order — and concurrent writers are outside the supported workflow (FR-016).
 
 **Decision**: each record is `git commit-tree <tree> -p <previous record>` with a JSON message
 naming the time, session, subagent, tool, call, branch and HEAD commit;
-`refs/worktree/test-first/ledger` points at the newest. The tree comes from an index of the ledger's
-own, kept at `git rev-parse --git-path test-first/index` and seeded once from the worktree's
-index, then `git add -A`, `git write-tree`; each call works on a copy named after its process and
-swaps it in with a rename, so concurrent hooks share no lock and a killed hook's copy is pruned by
-the next call. The worktree's index is never written. A call that leaves the tree unchanged
+`refs/worktree/test-first/ledger` points at the newest. The tree comes from a copy of the worktree's
+index made for each call in the system's temporary location, `git add -A`, `git write-tree`. The
+worktree's index is never written. A call that leaves the tree unchanged
 adds no record. The ref moves with `git update-ref <ref> <new> <old>`, retried on a race.
 
 **Rationale**: reachable objects survive `git gc`; `refs/worktree/` is per worktree by git's
@@ -95,9 +93,15 @@ The README says so.
 - One ref per record: thousands of refs slow every ref operation and clutter `git log --all`.
 - One ref per branch: a branch created mid-session (`git checkout -b`) would start an empty chain
   and lose the uncommitted work it carried; one chain with the branch in each record keeps it (R12).
-- An index kept between calls instead of seeded each time, so untracked files are not rehashed:
-  0.03 s both ways on renta's clone (four and three runs). Not adopted; the trigger to revisit is a
-  repository whose untracked, non-ignored files make a snapshot exceed SC-003.
+- An index kept between calls instead of copied each time: adopted on 2026-10-07 for its speed on
+  a fresh clone and reverted the same day after an independent review (L7, "Kept index"). It is
+  not a cache of the real index but a second index: it goes on tracking what the real index
+  stopped tracking (a file `git rm --cached` and then ignored, secrets included) and keeps flags
+  the real index cleared (assume-unchanged, a sparse checkout's skip-worktree), so the records
+  stop being `git add -A` of the worktree; and a kill during its write left it truncated, failing
+  every later call. Keying it to the real index's identity would fix the second and the flags,
+  not a file that became ignored after it was recorded. Not adopted; the cost it saved is a fresh
+  clone's, until any git command rewrites the index.
 - Snapshot only paths matching the test and source patterns: cheaper and stores less, but a replay
   would miss untracked fixture data outside both, and a test that needs it would fail at birth —
   a false red. Rejected for that false pass.
@@ -624,23 +628,22 @@ and Antigravity showed nothing test-first-specific in searches (second-hand).
   tree and HEAD read in one `cat-file --batch-check`: medians 84–87 ms of eleven, three runs;
   against the hook before T021 alternated on the same repository, 86 against 76 ms (load
   average 3.2). An index kept between calls was measured too: no faster for the snapshot
-  (28 against 25 ms); first not adopted, for the state it keeps. That measurement was wrong for
-  the common case, see "Kept index" below.
-- **Kept index** (story 2 review, 2026-10-07, git 2.55.0, Mac16,8): the 25 ms above held only
-  because `git status` had refreshed the worktree's index. On a fresh clone of renta (861 files),
-  whose index carries the checkout's stat data, a snapshot from a copy of that index took 203 ms
-  every call (git re-hashes what it cannot trust, and the copy's refresh is thrown away); from an
-  index kept between calls, 25 ms after a 381 ms first call (nine calls each, alternated). Whole
-  hook, eleven calls each, code-only and mixed: copied index 232 and 253 ms on the fresh clone
-  (89 and 108 ms after a `git status`); kept index 78 and 79 ms on a fresh clone, 76 and 75–77 ms
-  on the 1,001-file benchmark, two runs. Adopted. The state it keeps is a cache: deleting it
-  costs one slow call. Concurrency needs no lock: each hook adds into its own copy and renames
-  it over the kept one, so the last rename wins and both reflect the worktree. The change is
-  still read by `diff-index` against the previous record's tree, not from `add -v` against the
-  kept index, so a call whose record failed after its add still shows its change to the next
-  call. One `diff-index` over both globs' pathspecs, partitioned by `classify`, against two
-  (tests, then sources when a test changed), alternated twice on the benchmark: 86–90 ms for both
-  kinds of call against 85–86 ms code-only and 103–105 ms mixed; one adopted.
+  (28 against 25 ms) on that clone, whose index `git status` had refreshed; see "Kept index".
+- **Kept index** (story 2 review, 2026-10-07, git 2.55.0, Mac16,8): on a fresh clone of renta
+  (861 files), whose index carries the checkout's stat data until git rewrites it, a snapshot
+  from a copy of that index took 203 ms every call (git re-hashes what it cannot trust, and the
+  copy's refresh is thrown away); from an index kept between calls, 25 ms after a 381 ms first
+  call (nine calls each, alternated). Adopted, then reverted after the independent review of
+  story 2 (R2's alternatives): the review showed the kept index recording a file the real index
+  had stopped tracking, missing edits behind a cleared assume-unchanged flag or a disabled
+  sparse checkout, and a hook killed during its seed leaving a truncated index that failed every
+  later call and the audit. The copy per call, with one `diff-index` over both globs' pathspecs
+  partitioned by `classify` (against two, tests then sources: 86–90 ms for both kinds of call
+  against 85–86 ms code-only and 103–105 ms mixed, alternated twice) and `locate`'s single
+  `rev-parse`; whole hook, eleven calls each, code-only and mixed: the 1,001-file benchmark
+  91 and 92 ms; renta after a `git status` 93 and 94 ms, after a commit (the installer's) 92 and
+  91 ms, as a fresh clone 232 and 231 ms. A fresh clone stays over SC-003 until any git command
+  rewrites its index (README, limits).
 - **Audit cost, SC-004** (T020, `tests/audit.sh`, 2026-10-07): a feature of 60 new tests in 20
   pytest files, each written red against a stub then given its code (41 records), pytest 9.1.1 via
   `uv run --no-project --with pytest`, Python 3.12, git 2.55.0, macOS arm64 (Mac16,8). First

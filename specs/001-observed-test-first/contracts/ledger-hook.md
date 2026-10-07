@@ -22,9 +22,9 @@ Input: Claude Code's `PostToolUse` JSON on stdin; fields read: `cwd`, `session_i
 
 1. Resolve the git worktree of `cwd`. Not in a git worktree, or its root has no
    `.specify/test-first.json`: exit 0, no output.
-2. Snapshot the worktree (data-model.md, Record), with `branch` and `head`, through the ledger's
-   own index at `git rev-parse --git-path test-first/index`, seeded once from the worktree's
-   index (research R2); if the tree equals the newest record's: exit 0.
+2. Snapshot the worktree (data-model.md, Record), with `branch` and `head`, through a copy of
+   the worktree's index in the system's temporary location (never in the repository), removed on
+   exit; if the tree equals the newest record's: exit 0.
 3. Append a record and move `refs/worktree/test-first/ledger` atomically, retrying a lost race up to
    five times.
 4. If the change is mixed: exit 2; stderr names the test paths and the source paths, and says that
@@ -38,8 +38,8 @@ never modified.
 
 No `timeout` is set on this entry, so Claude Code's 600-second default applies; a snapshot takes
 tens of milliseconds (research L7). A hook killed mid-run leaves the ref at the old or the new
-record and at most unreachable objects, which `git gc` prunes; its working copy of the kept index
-(`test-first/index.<pid>.new`) is removed by the next call once that process is gone; the next call's
+record and at most unreachable objects, which `git gc` prunes; its temporary index stays in the
+system's temporary location, outside the repository, for the system to clean; the next call's
 record then carries the killed call's changes under the next call's name, which fails closed.
 
 ## Stop: `cli.py audit --stop`
@@ -55,8 +55,9 @@ Input: Claude Code's `Stop` JSON on stdin; fields read: `cwd`, `session_id`, `st
 3. Run the audit (audit.md) within a budget of `--budget` seconds (default 120), each run under a
    60-second deadline. A load probe is a run like any other, so no run of either kind starts
    after the budget: the worst case is the budget plus one run that started just before it ran
-   out, with `run-bounded.sh`'s 5-second grace (185 s), plus the snapshot's git calls, inside the
-   entry's `timeout` of 300 seconds — set because Claude Code cancels a hook that reaches
+   out, with `run-bounded.sh`'s 5-second grace (185 s), plus git work outside any deadline — the
+   snapshot, moving and cleaning the scratch worktree before each run, reading records — which
+   takes seconds, inside the entry's `timeout` of 300 seconds — set because Claude Code cancels a hook that reaches
    its timeout and discards its output, so a timed-out Stop audit would let the turn end without a
    decision (research L7): no new run starts after the budget is spent, and a run already stopped by
    a deadline at least that long is not retried; what is left is judged by a later turn or the

@@ -131,3 +131,25 @@ def test_without_the_preset_runner_the_audit_refuses_naming_it(
 
     assert run(repo, monkeypatch) == 2
     assert "run-bounded.sh" in capsys.readouterr().err
+
+
+def test_a_git_error_during_the_audit_exits_2_with_its_message(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    feature(repo).call({"tests/test_b.py": TEST_B})
+    lock = Path(
+        git(
+            repo,
+            "rev-parse",
+            "--path-format=absolute",
+            "--git-path",
+            "refs/worktree/test-first/ledger.lock",
+        )
+    )
+    lock.write_text("held\n")
+    (repo / "src" / "b.py").write_text("B\n")  # the audit must record it first
+
+    assert run(repo, monkeypatch) == 2
+    err = capsys.readouterr().err
+    assert err.startswith("test-first audit:")
+    assert "Traceback" not in err

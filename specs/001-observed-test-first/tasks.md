@@ -97,7 +97,7 @@ suites in scratch repositories), `commands/` (fragments).
       every glob of a table matching exactly what `git ls-files ':(glob)…'` matches. Going back to
       `fnmatch` on purpose failed all three; `**/` requiring a directory failed two; restored
 - [X] T006 Snapshot the worktree as a tree in `scripts/python/ledger.py`: temporary index seeded
-  from the worktree's own (kept between calls since the story 2 review, research R2), `git add -A`, `git write-tree`; tracked and untracked-but-not-ignored
+  from the worktree's own, `git add -A`, `git write-tree`; tracked and untracked-but-not-ignored
   files; the real index and the worktree never modified (research R2; FR-001; constitution IV)
   - a clean repository → the HEAD commit's tree
     - red: `AttributeError: … no attribute 'snapshot'`, then `assert '' == 'dc7a7dd…'` from the stub
@@ -528,12 +528,21 @@ born-with-code test is blocked once, and the next stop passes.
     - red: `assert (2, …) == (0, '')`
   - found by the story 2 review: a call whose record failed after its add → its change shown by
     the next call
-    - passed on its first run; reading the change against the kept index, on purpose, failed it
-  - found by the story 2 review: a working copy left by a killed hook → pruned by the next call
-    - passed on its first run; skipping the prune, on purpose, failed it
-  - cost, after the review: an index kept between calls and one `diff-index` over both globs:
-    84–90 ms on the benchmark, 78–79 ms on a fresh clone of renta, where a copied index took
-    232 ms (research R2, "Kept index")
+    - passed on its first run; reading the change against an index kept between calls, on
+      purpose, failed it
+  - found by the second story 2 review: each snapshot follows the real index as it is at that
+    call — a file it stopped tracking and now ignores, a flag it cleared (research R2)
+    - red, against the index kept between calls that the first review's fixes had added:
+      `assert 'conf.env' in {…}`; the copy per call restored
+  - found by the second story 2 review: a file-system error (no space for the temporary index)
+    → exit 2 with the error, not a traceback
+    - red: failed before the catch existed
+  - found by the second story 2 review: a worktree path holding a newline → exit 2 naming it
+    - red: failed before the check existed (the reviewer saw `ValueError: too many values to
+      unpack`)
+  - cost, after both reviews: one `diff-index` over both globs and one `rev-parse` for the
+    worktree: 91–92 ms on the benchmark, 91–94 ms on renta once git has rewritten its index,
+    232 ms on a fresh clone until then (research L7, "Kept index")
 - [X] T022 [US2] The `Stop` entry point `cli.py audit --stop` in `scripts/python/audit.py`: exit 0 when
   not installed, detached, on the default branch, or `stop_hook_active`; snapshot (`tool` =
   `Stop`); audit within `--budget` (default 120 s) with a 60 s deadline per run and no new run
@@ -561,6 +570,9 @@ born-with-code test is blocked once, and the next stop passes.
     - the end-to-end hang check could not see a survivor (its marker was in the test file, not
       on a command line); it now reads the replay's process id; a replay without the
       process-group kill, on purpose, failed it
+  - found by the second story 2 review: a git error in a plain `audit` → exit 2 with git's
+    message
+    - passed on its first run; removing the catch, on purpose, failed it
   - found by the story 2 review: a git error during the audit → exit 2 with git's message, no
     traceback
     - red: the error escaped as a traceback

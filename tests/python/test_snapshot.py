@@ -76,3 +76,35 @@ def test_a_tracked_file_that_gitignore_matches_is_still_recorded(repo: Path) -> 
     (repo / ".gitignore").write_text("*.log\n")
 
     assert "keep.log" in paths(repo, snapshot(repo))
+
+
+def paths_of(repo: Path, tree: str) -> dict[str, str]:
+    listing = git(repo, "ls-tree", "-r", tree).splitlines()
+    return {line.split("\t")[1]: line.split()[2] for line in listing}
+
+
+def test_each_snapshot_follows_the_real_index_as_it_is_now(repo: Path) -> None:
+    """The snapshot is `git add -A` on the real index of the moment, not on one kept from an
+    earlier call: what the index tracks, and its flags, change between calls."""
+    snapshot(repo)  # an earlier call
+    (repo / ".gitignore").write_text("*.env\nlib/\n")
+    (repo / "conf.env").write_text("tracked although ignored\n")
+    git(repo, "add", "-f", "conf.env")
+    (repo / "secret.cfg").write_text("SECRET=1\n")
+    git(repo, "add", "secret.cfg")
+    git(repo, "commit", "-q", "-m", "tracked, then untracked and ignored")
+    snapshot(repo)
+    git(repo, "rm", "-q", "--cached", "secret.cfg")
+    with (repo / ".gitignore").open("a") as ignore:
+        ignore.write("secret.cfg\n")
+    git(repo, "update-index", "--assume-unchanged", "src/a.py")
+    snapshot(repo)
+    git(repo, "update-index", "--no-assume-unchanged", "src/a.py")
+    (repo / "src" / "a.py").write_text("A = 5\n")
+    (repo / "secret.cfg").write_text("SECRET=rotated\n")
+
+    recorded = paths_of(repo, snapshot(repo))
+
+    assert "conf.env" in recorded
+    assert "secret.cfg" not in recorded
+    assert recorded["src/a.py"] == git(repo, "hash-object", "src/a.py")

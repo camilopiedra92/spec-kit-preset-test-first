@@ -9,6 +9,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import NamedTuple, TypedDict
@@ -131,57 +132,27 @@ def _snapshot(
     the paths of a mixed change against the previous record's tree ([] when the change is not
     mixed, or there is no previous record).
 
-    Built in an index of the ledger's own, kept in the worktree's git directory between calls
-    and seeded once from the worktree's index, which is never touched (research R2). Kept, git's
-    refresh of it is paid once: on a fresh clone of renta (861 files) a snapshot from a copy of
-    the real index took 203 ms every call, from the kept one 25 ms after the first. `add -A -v`
-    reads the change against the previous record's tree, not against the kept index, so a
-    record that failed after its add still shows its change to the next call.
-    Each call works on a copy named after its process and swaps it in atomically, so concurrent
-    hooks never write one file; a copy a killed hook left behind is pruned by the next call.
+    Built in a copy of the worktree's index, in a temporary directory in the system's
+    temporary location, so the real index and the worktree are never touched (research R2).
+    A copy each call, not an index kept between calls: a kept one goes on tracking what the
+    real index stopped tracking, and keeps flags it cleared (research R2, "Kept index").
     """
-    kept = index.parent / "test-first" / "index"
-    kept.parent.mkdir(exist_ok=True)
-    _prune_abandoned(kept)
-    if not kept.exists() and index.exists():
-        # copy2 keeps the index's mtime: git rechecks an entry not older than the index file
-        # ("racy git"), and a fresh mtime would let a same-size edit made in the index's last
-        # second pass for unchanged (observed: 10 of 10 missed).
-        shutil.copy2(index, kept)
-    working = kept.with_name(f"index.{os.getpid()}.new")
-    if kept.exists():
-        shutil.copy2(kept, working)
-    try:
-        env = {**os.environ, "GIT_INDEX_FILE": str(working)}
+    with tempfile.TemporaryDirectory(prefix="test-first-") as scratch:
+        temporary = Path(scratch) / "index"
+        if index.exists():
+            # copy2 keeps the index's mtime: git rechecks an entry not older than the index
+            # file ("racy git"), and a fresh mtime on the copy would let a same-size edit made
+            # in the index's last second pass for unchanged (observed: 10 of 10 missed).
+            shutil.copy2(index, temporary)
+        env = {**os.environ, "GIT_INDEX_FILE": str(temporary)}
         git(worktree, "add", "-A", env=env)
         tree = git(worktree, "write-tree", env=env)
-        mixed: list[str] = []
-        if previous is not None and previous != tree:
-            # One process, pathspec-limited so git skips every directory the globs exclude.
-            diff = ["diff-index", "--cached", previous]
-            mixed = _mixed(config, _changed(worktree, diff, config.tests + config.sources, env))
-        os.replace(working, kept)
-    finally:
-        working.unlink(missing_ok=True)
-    return tree, mixed
-
-
-def _prune_abandoned(kept: Path) -> None:
-    """Remove the working copies of hooks that were killed before swapping theirs in."""
-    for left in kept.parent.glob("index.*.new"):
-        pid = left.name.split(".")[1]
-        if pid.isdigit() and not _alive(int(pid)):
-            left.unlink(missing_ok=True)
-
-
-def _alive(pid: int) -> bool:
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        return True
-    return True
+        if previous is None or previous == tree:
+            return tree, []
+        # One process, pathspec-limited so git skips every directory the globs exclude, read
+        # from this call's own index while it exists.
+        diff = ["diff-index", "--cached", previous]
+        return tree, _mixed(config, _changed(worktree, diff, config.tests + config.sources, env))
 
 
 def _mixed(config: Config, changed: list[str]) -> list[str]:
@@ -265,7 +236,11 @@ def locate(cwd: Path) -> Location | None:
         text=True,
     )
     if result.returncode == 0:
-        root, index, head, symbolic = result.stdout.splitlines()
+        lines = result.stdout.splitlines()
+        if len(lines) != 4:
+            # rev-parse prints paths unquoted, one per line: a newline in one cannot be parsed.
+            raise RecordError(f"cannot record a worktree whose path holds a newline: {cwd!r}")
+        root, index, head, symbolic = lines
         branch = (
             symbolic.removeprefix("refs/heads/") if symbolic.startswith("refs/heads/") else None
         )
@@ -275,6 +250,8 @@ def locate(cwd: Path) -> Location | None:
     )
     if unborn.returncode != 0:
         return None
+    if len(unborn.stdout.splitlines()) != 2:
+        raise RecordError(f"cannot record a worktree whose path holds a newline: {cwd!r}")
     root, index = unborn.stdout.splitlines()
     branch = git(Path(root), "symbolic-ref", "--quiet", "--short", "HEAD")
     return Location(Path(root), Path(index), branch, None)
@@ -347,7 +324,10 @@ def _message(call: Call, head: str | None, branch: str | None) -> str:
 
 def post_tool_use(payload: dict[str, str]) -> tuple[int, str]:
     """The PostToolUse hook: (exit status, stderr) for one call (contracts/ledger-hook.md)."""
-    where = locate(Path(payload["cwd"]))
+    try:
+        where = locate(Path(payload["cwd"]))
+    except RecordError as error:
+        return 2, f"test-first ledger: no record of this call: {error}\n"
     if where is None:
         return 0, ""
     try:
@@ -366,7 +346,8 @@ def post_tool_use(payload: dict[str, str]) -> tuple[int, str]:
         _, changed = _record(where, call, config)
     except subprocess.CalledProcessError as error:
         return 2, f"test-first ledger: no record of this call: {error.stderr or error}\n"
-    except RecordError as error:
+    except (RecordError, OSError) as error:
+        # OSError: the temporary index could not be made (a full disk, a read-only $TMPDIR).
         return 2, f"test-first ledger: no record of this call: {error}\n"
     if changed:
         return 2, mixed_message(config, changed)
