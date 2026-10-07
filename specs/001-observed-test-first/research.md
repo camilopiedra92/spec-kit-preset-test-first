@@ -69,8 +69,11 @@ order — and concurrent writers are outside the supported workflow (FR-016).
 
 **Decision**: each record is `git commit-tree <tree> -p <previous record>` with a JSON message
 naming the time, session, subagent, tool, call, branch and HEAD commit;
-`refs/worktree/test-first/ledger` points at the newest. The tree comes from a temporary index seeded
-from the worktree's own index, `git add -A`, `git write-tree`. A call that leaves the tree unchanged
+`refs/worktree/test-first/ledger` points at the newest. The tree comes from an index of the ledger's
+own, kept at `git rev-parse --git-path test-first/index` and seeded once from the worktree's
+index, then `git add -A`, `git write-tree`; each call works on a copy named after its process and
+swaps it in with a rename, so concurrent hooks share no lock and a killed hook's copy is pruned by
+the next call. The worktree's index is never written. A call that leaves the tree unchanged
 adds no record. The ref moves with `git update-ref <ref> <new> <old>`, retried on a race.
 
 **Rationale**: reachable objects survive `git gc`; `refs/worktree/` is per worktree by git's
@@ -602,8 +605,23 @@ and Antigravity showed nothing test-first-specific in searches (second-hand).
   tree and HEAD read in one `cat-file --batch-check`: medians 84–87 ms of eleven, three runs;
   against the hook before T021 alternated on the same repository, 86 against 76 ms (load
   average 3.2). An index kept between calls was measured too: no faster for the snapshot
-  (28 against 25 ms), though `add -v` would print the change for free; not adopted, for the
-  state it keeps and the lock contention of concurrent hooks.
+  (28 against 25 ms); first not adopted, for the state it keeps. That measurement was wrong for
+  the common case, see "Kept index" below.
+- **Kept index** (story 2 review, 2026-10-07, git 2.55.0, Mac16,8): the 25 ms above held only
+  because `git status` had refreshed the worktree's index. On a fresh clone of renta (861 files),
+  whose index carries the checkout's stat data, a snapshot from a copy of that index took 203 ms
+  every call (git re-hashes what it cannot trust, and the copy's refresh is thrown away); from an
+  index kept between calls, 25 ms after a 381 ms first call (nine calls each, alternated). Whole
+  hook, eleven calls each, code-only and mixed: copied index 232 and 253 ms on the fresh clone
+  (89 and 108 ms after a `git status`); kept index 78 and 79 ms on a fresh clone, 76 and 75–77 ms
+  on the 1,001-file benchmark, two runs. Adopted. The state it keeps is a cache: deleting it
+  costs one slow call. Concurrency needs no lock: each hook adds into its own copy and renames
+  it over the kept one, so the last rename wins and both reflect the worktree. The change is
+  still read by `diff-index` against the previous record's tree, not from `add -v` against the
+  kept index, so a call whose record failed after its add still shows its change to the next
+  call. One `diff-index` over both globs' pathspecs, partitioned by `classify`, against two
+  (tests, then sources when a test changed), alternated twice on the benchmark: 86–90 ms for both
+  kinds of call against 85–86 ms code-only and 103–105 ms mixed; one adopted.
 - **Audit cost, SC-004** (T020, `tests/audit.sh`, 2026-10-07): a feature of 60 new tests in 20
   pytest files, each written red against a stub then given its code (41 records), pytest 9.1.1 via
   `uv run --no-project --with pytest`, Python 3.12, git 2.55.0, macOS arm64 (Mac16,8). First
@@ -617,7 +635,8 @@ and Antigravity showed nothing test-first-specific in searches (second-hand).
 - **Ledger snapshot cost**: temporary index copied from the worktree's, `git add -A`,
   `git write-tree`, on renta (860 tracked files): 0.04–0.05 s, three runs. Repeated on a fresh clone
   (861 files, git 2.55.0): 0.03–0.04 s seeded each time (three runs), 0.03 s with an index kept
-  between calls after a 0.20 s first run (four runs).
+  between calls after a 0.20 s first run (four runs). Both on clones whose index `git status`
+  had refreshed; see "Kept index" for a fresh clone.
 - **Per-worktree refs and push**: `git push <remote> main` sent only `refs/heads/main`; `git push
   --mirror` also sent `refs/worktree/test-first/ledger` (git 2.55.0, scratch repositories).
 - **pytest 9.1.1 JUnit** (`--junitxml`, one scratch project): an assertion, a missing method, an

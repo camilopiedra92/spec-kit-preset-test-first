@@ -9,7 +9,6 @@ import re
 import shutil
 import subprocess
 import sys
-import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import NamedTuple, TypedDict
@@ -122,61 +121,90 @@ def _wildmatch(glob: str) -> re.Pattern[str]:
 
 def snapshot(worktree: Path, index: Path | None = None) -> str:
     """The tree of the worktree's tracked and untracked-but-not-ignored files, as on disk."""
+    if index is None:
+        index = Path(git(worktree, "rev-parse", "--path-format=absolute", "--git-path", "index"))
     return _snapshot(worktree, index, None, None)[0]
 
 
 def _snapshot(
-    worktree: Path, index: Path | None, previous: str | None, config: Config | None
+    worktree: Path, index: Path, previous: str | None, config: Config | None
 ) -> tuple[str, list[str]]:
     """The worktree's tree and, given the previous record's tree and the configuration, the
     paths of a mixed change against it ([] when the change is not mixed).
 
-    Built in a temporary index seeded from the worktree's own, in the system's temporary
-    location, so the real index and the worktree are never touched (research R2). The change
-    is read from that index while it exists: `diff-index --cached` limited by `:(glob)`
-    pathspecs skips every directory the globs exclude, 7.5 ms on a 1,000-file directory where
-    a diff of the two trees cost 20 ms of the hook's 100 (SC-003).
+    Built in an index of the ledger's own, kept in the worktree's git directory between calls
+    and seeded once from the worktree's index, which is never touched (research R2). Kept, git's
+    refresh of it is paid once: on a fresh clone of renta (861 files) a snapshot from a copy of
+    the real index took 203 ms every call, from the kept one 25 ms after the first. `add -A -v`
+    reads the change against the previous record's tree, not against the kept index, so a
+    record that failed after its add still shows its change to the next call.
+    Each call works on a copy named after its process and swaps it in atomically, so concurrent
+    hooks never write one file; a copy a killed hook left behind is pruned by the next call.
     """
-    if index is None:
-        index = Path(git(worktree, "rev-parse", "--path-format=absolute", "--git-path", "index"))
-    with tempfile.TemporaryDirectory(prefix="test-first-") as scratch:
-        temporary = Path(scratch) / "index"
-        if index.exists():
-            # copy2 keeps the index's mtime: git rechecks an entry not older than the index
-            # file ("racy git"), and a fresh mtime on the copy would let a same-size edit made
-            # in the index's last second pass for unchanged (observed: 10 of 10 missed).
-            shutil.copy2(index, temporary)
-        env = {**os.environ, "GIT_INDEX_FILE": str(temporary)}
+    kept = index.parent / "test-first" / "index"
+    kept.parent.mkdir(exist_ok=True)
+    _prune_abandoned(kept)
+    if not kept.exists() and index.exists():
+        # copy2 keeps the index's mtime: git rechecks an entry not older than the index file
+        # ("racy git"), and a fresh mtime would let a same-size edit made in the index's last
+        # second pass for unchanged (observed: 10 of 10 missed).
+        shutil.copy2(index, kept)
+    working = kept.with_name(f"index.{os.getpid()}.new")
+    if kept.exists():
+        shutil.copy2(kept, working)
+    try:
+        env = {**os.environ, "GIT_INDEX_FILE": str(working)}
         git(worktree, "add", "-A", env=env)
         tree = git(worktree, "write-tree", env=env)
-        if previous is None or config is None or previous == tree:
-            return tree, []
-        changed = _changed(worktree, previous, config.tests + config.sources, env)
-        return tree, _mixed(config, changed)
+        mixed: list[str] = []
+        if previous is not None and config is not None and previous != tree:
+            # One process, pathspec-limited so git skips every directory the globs exclude.
+            diff = ["diff-index", "--cached", previous]
+            mixed = _mixed(config, _changed(worktree, diff, config.tests + config.sources, env))
+        os.replace(working, kept)
+    finally:
+        working.unlink(missing_ok=True)
+    return tree, mixed
+
+
+def _prune_abandoned(kept: Path) -> None:
+    """Remove the working copies of hooks that were killed before swapping theirs in."""
+    for left in kept.parent.glob("index.*.new"):
+        pid = left.name.split(".")[1]
+        if pid.isdigit() and not _alive(int(pid)):
+            left.unlink(missing_ok=True)
+
+
+def _alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def _mixed(config: Config, changed: list[str]) -> list[str]:
+    """The changed test and source paths when there are both, else []."""
+    tests = _of_kind(config, "test", changed)
+    sources = _of_kind(config, "source", changed)
+    return tests + sources if tests and sources else []
 
 
 def _changed(
-    worktree: Path, previous: str, globs: tuple[str, ...], env: dict[str, str]
+    worktree: Path, diff: list[str], globs: tuple[str, ...], env: dict[str, str] | None
 ) -> list[str]:
-    """The paths under the globs' pathspecs whose index entry differs from the previous tree.
-
-    The pathspecs only narrow what git reads; each path is then classified by the globs' own
-    semantics (`classify`): a pathspec without a wildcard also matches a directory prefix,
-    which a glob does not."""
+    """The paths a git diff command lists under the globs' `:(glob)` pathspecs. The pathspecs
+    only narrow what git reads: a path's kind is decided by `classify` (a pathspec without a
+    wildcard also matches a directory prefix, which a glob does not)."""
     pathspecs = [f":(glob){glob}" for glob in globs]
-    listing = git(
-        worktree,
-        "diff-index",
-        "--cached",
-        "--no-renames",
-        "--name-only",
-        "-z",
-        previous,
-        "--",
-        *pathspecs,
-        env=env,
-    )
+    listing = git(worktree, *diff, "--no-renames", "--name-only", "-z", "--", *pathspecs, env=env)
     return [path for path in listing.split("\0") if path]
+
+
+def _of_kind(config: Config, kind: str, paths: list[str]) -> list[str]:
+    return [path for path in paths if classify(config, path) == kind]
 
 
 def git(
@@ -214,30 +242,67 @@ class RecordError(Exception):
     """A record could not be appended."""
 
 
-def record(worktree: Path, call: Call, index: Path | None = None) -> str | None:
+class Location(NamedTuple):
+    """Where a call ran: the worktree's root and index, and its branch and HEAD commit."""
+
+    root: Path
+    index_file: Path
+    branch: str | None
+    head: str | None
+
+
+def locate(cwd: Path) -> Location | None:
+    """The git worktree of `cwd`, or None outside one -- in one git process in the usual case.
+
+    `--symbolic-full-name` asks git for the branch rather than reading the HEAD file, which
+    with the reftable ref format only holds `refs/heads/.invalid`. On an unborn branch HEAD does
+    not resolve and the one call fails; that rare case asks again in two.
+    """
+    asked = ["--path-format=absolute", "--show-toplevel", "--git-path", "index"]
+    result = subprocess.run(
+        # HEAD before --symbolic-full-name, which applies to every argument after it.
+        ["git", "-C", str(cwd), "rev-parse", *asked, "HEAD", "--symbolic-full-name", "HEAD"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode == 0:
+        root, index, head, symbolic = result.stdout.splitlines()
+        branch = (
+            symbolic.removeprefix("refs/heads/") if symbolic.startswith("refs/heads/") else None
+        )
+        return Location(Path(root), Path(index), branch, head)
+    unborn = subprocess.run(
+        ["git", "-C", str(cwd), "rev-parse", *asked], capture_output=True, text=True
+    )
+    if unborn.returncode != 0:
+        return None
+    root, index = unborn.stdout.splitlines()
+    branch = git(Path(root), "symbolic-ref", "--quiet", "--short", "HEAD")
+    return Location(Path(root), Path(index), branch, None)
+
+
+def record(worktree: Path, call: Call) -> str | None:
     """Append the worktree's state as a record; None when it equals the newest record's."""
-    return _record(worktree, call, index, None)[0]
+    where = locate(worktree)
+    assert where is not None, f"{worktree} is a git worktree"
+    return _record(where, call, None)[0]
 
 
-def _record(
-    worktree: Path, call: Call, index: Path | None, config: Config | None
-) -> tuple[str | None, list[str]]:
+def _record(where: Location, call: Call, config: Config | None) -> tuple[str | None, list[str]]:
     """The new record (None when the worktree is unchanged) and, given the configuration, the
     paths of a mixed change it made.
 
-    Every git process costs milliseconds on every tool call (SC-003): an unchanged worktree
-    stops after three -- one cat-file for the newest record, its tree and HEAD, then add and
-    write-tree -- and a record adds a pathspec-limited diff-index, commit-tree and update-ref;
-    the branch is read from the worktree's HEAD file.
+    Every git process costs milliseconds on every tool call (SC-003): with `locate`'s one, an
+    unchanged worktree takes four -- cat-file for the newest record and its tree, add,
+    write-tree -- and a record adds diff-index, commit-tree and update-ref.
     """
-    if index is None:
-        index = Path(git(worktree, "rev-parse", "--path-format=absolute", "--git-path", "index"))
-    newest, newest_tree, head = _state(worktree)
-    tree, mixed = _snapshot(worktree, index, newest_tree, config)
+    worktree = where.root
+    newest, newest_tree = _state(worktree)
+    tree, mixed = _snapshot(worktree, where.index_file, newest_tree, config)
     for _ in range(RACE_RETRIES):
         if newest_tree == tree:
             return None, []
-        message = _message(call, head, _branch(worktree))
+        message = _message(call, where.head, where.branch)
         parent = ["-p", newest] if newest else []
         commit = git(worktree, "commit-tree", tree, *parent, "-m", message)
         # Compare-and-swap: moves the ref only if it still points where it was read.
@@ -249,32 +314,25 @@ def _record(
                 raise RecordError(f"cannot move {REF}: {(error.stderr or '').strip()}") from None
             # Another hook moved the ledger: append on top of its record, and judge this
             # call's change against that record (rare, so the plain tree diff is fine here).
-            newest, newest_tree, head = _state(worktree)
+            newest, newest_tree = _state(worktree)
             if config is not None and newest_tree is not None and newest_tree != tree:
-                mixed = _mixed(config, _diff_trees(worktree, newest_tree, tree, config))
+                mixed = _mixed_between(worktree, config, newest_tree, tree)
             continue
         return commit, mixed
     raise RecordError(f"{REF} kept moving: {RACE_RETRIES} attempts lost the race")
 
 
-def _state(worktree: Path) -> tuple[str | None, str | None, str | None]:
-    """The newest record, its tree, and HEAD's commit (None on an unborn branch), in one git
-    process."""
-    names = f"{REF}\n{REF}^{{tree}}\nHEAD\n"
+def _mixed_between(worktree: Path, config: Config, before: str, after: str) -> list[str]:
+    diff = ["diff-tree", "-r", before, after]
+    return _mixed(config, _changed(worktree, diff, config.tests + config.sources, None))
+
+
+def _state(worktree: Path) -> tuple[str | None, str | None]:
+    """The newest record and its tree, in one git process; (None, None) before the first."""
+    names = f"{REF}\n{REF}^{{tree}}\n"
     lines = git(worktree, "cat-file", "--batch-check=%(objectname)", input=names).splitlines()
-    newest, newest_tree, head = (None if line.endswith(" missing") else line for line in lines)
-    return newest, newest_tree, head
-
-
-def _branch(worktree: Path) -> str | None:
-    """The branch HEAD points at, None when detached. Asked of git, not read from the HEAD
-    file: with the reftable ref format that file only holds `refs/heads/.invalid`."""
-    result = subprocess.run(
-        ["git", "-C", str(worktree), "symbolic-ref", "--quiet", "--short", "HEAD"],
-        capture_output=True,
-        text=True,
-    )
-    return result.stdout.strip() or None
+    newest, newest_tree = (None if line.endswith(" missing") else line for line in lines)
+    return newest, newest_tree
 
 
 def _message(call: Call, head: str | None, branch: str | None) -> str:
@@ -290,12 +348,11 @@ def _message(call: Call, head: str | None, branch: str | None) -> str:
 
 def post_tool_use(payload: dict[str, str]) -> tuple[int, str]:
     """The PostToolUse hook: (exit status, stderr) for one call (contracts/ledger-hook.md)."""
-    located = _worktree(Path(payload["cwd"]))
-    if located is None:
+    where = locate(Path(payload["cwd"]))
+    if where is None:
         return 0, ""
-    worktree, index = located
     try:
-        config = load_config(worktree)
+        config = load_config(where.root)
     except NotInstalled:
         return 0, ""
     except ConfigError as error:
@@ -307,7 +364,7 @@ def post_tool_use(payload: dict[str, str]) -> tuple[int, str]:
         "call": payload.get("tool_use_id"),
     }
     try:
-        _, changed = _record(worktree, call, index, config)
+        _, changed = _record(where, call, config)
     except subprocess.CalledProcessError as error:
         return 2, f"test-first ledger: no record of this call: {error.stderr or error}\n"
     except RecordError as error:
@@ -315,31 +372,6 @@ def post_tool_use(payload: dict[str, str]) -> tuple[int, str]:
     if changed:
         return 2, mixed_message(config, changed)
     return 0, ""
-
-
-def _diff_trees(worktree: Path, before: str, after: str, config: Config) -> list[str]:
-    pathspecs = [f":(glob){glob}" for glob in config.tests + config.sources]
-    listing = git(
-        worktree,
-        "diff-tree",
-        "-r",
-        "-z",
-        "--no-renames",
-        "--name-only",
-        before,
-        after,
-        "--",
-        *pathspecs,
-    )
-    return [path for path in listing.split("\0") if path]
-
-
-def _mixed(config: Config, changed: list[str]) -> list[str]:
-    """The changed test and source paths when there are both, else []."""
-    kinds = {path: classify(config, path) for path in changed}
-    if {"test", "source"} <= set(kinds.values()):
-        return [path for path, kind in kinds.items() if kind != "other"]
-    return []
 
 
 def mixed_message(config: Config, changed: list[str]) -> str:
@@ -356,19 +388,6 @@ def mixed_message(config: Config, changed: list[str]) -> str:
         "write the test again in a call that changes no code, run it and see it fail, then\n"
         "restore the code. A rename or a formatter run needs nothing.\n"
     )
-
-
-def _worktree(cwd: Path) -> tuple[Path, Path] | None:
-    """The worktree's root and its index file, or None outside a git worktree."""
-    result = subprocess.run(
-        ["git", "-C", str(cwd), "rev-parse", "--path-format=absolute", *WORKTREE_AND_INDEX],
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        return None
-    root, index = result.stdout.splitlines()
-    return Path(root), Path(index)
 
 
 def main() -> int:

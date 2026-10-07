@@ -97,7 +97,7 @@ suites in scratch repositories), `commands/` (fragments).
       every glob of a table matching exactly what `git ls-files ':(glob)…'` matches. Going back to
       `fnmatch` on purpose failed all three; `**/` requiring a directory failed two; restored
 - [X] T006 Snapshot the worktree as a tree in `scripts/python/ledger.py`: temporary index seeded
-  from the worktree's own, `git add -A`, `git write-tree`; tracked and untracked-but-not-ignored
+  from the worktree's own (kept between calls since the story 2 review, research R2), `git add -A`, `git write-tree`; tracked and untracked-but-not-ignored
   files; the real index and the worktree never modified (research R2; FR-001; constitution IV)
   - a clean repository → the HEAD commit's tree
     - red: `AttributeError: … no attribute 'snapshot'`, then `assert '' == 'dc7a7dd…'` from the stub

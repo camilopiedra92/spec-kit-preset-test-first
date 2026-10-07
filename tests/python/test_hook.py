@@ -1,4 +1,5 @@
 import json
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -250,3 +251,47 @@ def test_after_a_lost_race_the_change_is_against_the_record_that_won(
     monkeypatch.setattr(ledger, "git", racing_git)
 
     assert ledger.post_tool_use(payload(repo)) == (0, "")
+
+
+def kept_index(repo: Path) -> Path:
+    return Path(git(repo, "rev-parse", "--path-format=absolute", "--git-path", "test-first/index"))
+
+
+def test_a_copy_left_by_a_killed_hook_is_pruned(repo: Path) -> None:
+    install(repo)
+    ledger.post_tool_use(payload(repo))
+    finished = subprocess.Popen(["true"])
+    finished.wait()  # reaped: its pid names no process
+    left = kept_index(repo).with_name(f"index.{finished.pid}.new")
+    left.write_text("half-written\n")
+
+    ledger.post_tool_use(payload(repo))
+
+    assert not left.exists()
+    assert list(kept_index(repo).parent.glob("index.*.new")) == []
+
+
+def test_a_change_whose_record_failed_is_shown_by_the_next_call(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    install(repo)
+    ledger.post_tool_use(payload(repo))
+    (repo / "tests" / "test_b.py").write_text("def test_b(): pass\n")
+    (repo / "src" / "b.py").write_text("B = 1\n")
+    real_git = ledger.git
+
+    def failing_update_ref(
+        worktree: Path, *args: str, env: dict[str, str] | None = None, input: str | None = None
+    ) -> str:
+        if args[0] == "update-ref":
+            raise subprocess.CalledProcessError(128, "git", stderr="fatal: disk full")
+        return real_git(worktree, *args, env=env, input=input)
+
+    monkeypatch.setattr(ledger, "git", failing_update_ref)
+    assert ledger.post_tool_use(payload(repo))[0] == 2
+    monkeypatch.setattr(ledger, "git", real_git)
+
+    status, stderr = ledger.post_tool_use(payload(repo))
+
+    assert status == 2
+    assert "src/b.py" in stderr

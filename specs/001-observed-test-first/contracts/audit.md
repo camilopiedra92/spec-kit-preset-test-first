@@ -20,8 +20,8 @@ python3 .specify/presets/test-first/scripts/python/cli.py audit --stop [--budget
   own scratch worktrees; record messages and the trees they name and the base commit's tree, which
   it materializes for the configured command and never parses, except `.specify/test-first.json`;
   the JUnit files its runs write; and the memo. It never reads a file of a record as evidence —
-  `tasks.md` included (FR-012). Writes only: the snapshot's record (git objects and the ledger
-  ref), as the hook does; the memo; a temporary directory in the system's temporary location,
+  `tasks.md` included (FR-012). Writes only: the snapshot's record (git objects, the ledger
+  ref and the ledger's kept index), as the hook does; the memo; a temporary directory in the system's temporary location,
   removed on exit; and the scratch worktree's registration in the repository's common git
   directory, removed with it. At start it prunes scratch worktrees an earlier audit left
   registered (killed or crashed), so the repository is left as found.

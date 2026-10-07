@@ -86,27 +86,42 @@ cat > "$work/time.py" << 'PY'
 import json, statistics, subprocess, sys, time
 from pathlib import Path
 repo, hook = Path(sys.argv[1]), sys.argv[2]
-times = []
-for i in range(1, 12):
+times = {"code-only": [], "mixed": []}
+for i in range(1, 23):
+    kind = "mixed" if i % 2 == 0 else "code-only"
     (repo / "src" / "a.py").write_text(f"A = {i}\n")
+    if kind == "mixed":
+        (repo / "tests" / "test_a.py").write_text(f"def test_a(): assert {i}\n")
     payload = json.dumps(
         {"cwd": str(repo), "session_id": "s", "tool_name": "Bash", "tool_use_id": f"t{i}"}
     )
     start = time.monotonic()
-    subprocess.run([sys.executable, hook, "ledger"], input=payload, text=True, check=True)
-    times.append(round((time.monotonic() - start) * 1000))
-print(int(statistics.median(times)), " ".join(map(str, times)))
+    # A mixed call exits 2 by design; any other status is the hook failing.
+    status = subprocess.run([sys.executable, hook, "ledger"], input=payload, text=True,
+                            capture_output=True).returncode
+    if status != (2 if kind == "mixed" else 0):
+        sys.exit(f"{kind} call {i}: exit {status}")
+    times[kind].append(round((time.monotonic() - start) * 1000))
+for kind, ms in times.items():
+    print(kind, int(statistics.median(ms)), " ".join(map(str, ms)))
 PY
-read -r median times < <(python3 "$work/time.py" "$repo" "$HOOK")
-echo "record on $(git -C "$repo" ls-files | wc -l | tr -d ' ') tracked files: median ${median} ms of" \
-  "${times} ($(uname -sm), $(sysctl -n hw.model 2> /dev/null || uname -n))"
-if [ "$median" -gt 100 ]; then
-  if [ -n "${CI:-}" ]; then
-    echo "note: over SC-003's 100 ms on a CI runner; enforced on the development machine"
-  else
-    problem "a record took ${median} ms, over SC-003's 100 ms"
+python3 "$work/time.py" "$repo" "$HOOK" > "$work/times" || problem "timing: $(cat "$work/times")"
+for kind in code-only mixed; do
+  read -r _ median times < <(grep "^$kind " "$work/times")
+  if [ -z "${median:-}" ]; then
+    problem "no $kind timing measured"
+    continue
   fi
-fi
+  echo "$kind record on $(git -C "$repo" ls-files | wc -l | tr -d ' ') tracked files: median ${median} ms" \
+    "of ${times} ($(uname -sm), $(sysctl -n hw.model 2> /dev/null || uname -n))"
+  if [ "$median" -gt 100 ]; then
+    if [ -n "${CI:-}" ]; then
+      echo "note: over SC-003's 100 ms on a CI runner; enforced on the development machine"
+    else
+      problem "a $kind record took ${median} ms, over SC-003's 100 ms"
+    fi
+  fi
+done
 
 # An older python3 -- the macOS one is 3.9 -- gets a message, not a traceback: the guard at the
 # top of each script runs only if the whole file still parses there.

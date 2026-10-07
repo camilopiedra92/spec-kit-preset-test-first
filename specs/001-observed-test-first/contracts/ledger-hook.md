@@ -22,9 +22,9 @@ Input: Claude Code's `PostToolUse` JSON on stdin; fields read: `cwd`, `session_i
 
 1. Resolve the git worktree of `cwd`. Not in a git worktree, or its root has no
    `.specify/test-first.json`: exit 0, no output.
-2. Snapshot the worktree (data-model.md, Record), with `branch` and `head`, through a temporary
-   index in the system's temporary location (never in the repository), removed on exit; if the
-   tree equals the newest record's: exit 0.
+2. Snapshot the worktree (data-model.md, Record), with `branch` and `head`, through the ledger's
+   own index at `git rev-parse --git-path test-first/index`, seeded once from the worktree's
+   index (research R2); if the tree equals the newest record's: exit 0.
 3. Append a record and move `refs/worktree/test-first/ledger` atomically, retrying a lost race up to
    five times.
 4. If the change is mixed: exit 2; stderr names the test paths and the source paths, and says that
@@ -38,8 +38,8 @@ never modified.
 
 No `timeout` is set on this entry, so Claude Code's 600-second default applies; a snapshot takes
 tens of milliseconds (research L7). A hook killed mid-run leaves the ref at the old or the new
-record and at most unreachable objects, which `git gc` prunes; its temporary index stays in the
-system's temporary location, outside the repository, for the system to clean; the next call's
+record and at most unreachable objects, which `git gc` prunes; its working copy of the kept index
+(`test-first/index.<pid>.new`) is removed by the next call once that process is gone; the next call's
 record then carries the killed call's changes under the next call's name, which fails closed.
 
 ## Stop: `cli.py audit --stop`
