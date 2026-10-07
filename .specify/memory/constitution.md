@@ -60,8 +60,8 @@ PATCH for a fix. What is not part of the preset is `export-ignore`.
 
 Rationale: the archive is the artifact; a file in the repository that is not export-ignored lands
 in every project that installs it. Check: `tests/compose.sh` builds the archive with `git archive`
-as GitHub does and fails if the installed preset carries this repository's `.specify/`, `.claude/`
-or `specs/`; a reviewer checks that `preset.yml`, the CHANGELOG and the tag agree.
+as GitHub does and fails if the installed preset carries this repository's `.specify/`, `.claude/`,
+`specs/` or `CLAUDE.md`; a reviewer checks that `preset.yml`, the CHANGELOG and the tag agree.
 
 ## Governance
 
