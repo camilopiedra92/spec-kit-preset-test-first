@@ -594,6 +594,43 @@ FAKE
     echo "refused a leftover Stop entry for another reason: $out"
     return 1
   }
+
+  # The commit a stop can interrupt holds no lock of the repository before its hooks: git opens
+  # each lock file before it registers it for removal on a signal (tempfile.c), so a stop in that
+  # instant would leave .git/index.lock or .git/next-index-<pid>.lock behind.
+  fresh lock-free
+  mkdir -p "$repo/.git/hooks"
+  printf '#!/bin/sh\nls .git/*.lock > /dev/null 2>&1 && touch "%s"\nexit 0\n' "$tmp/lock-held" \
+    > "$repo/.git/hooks/pre-commit"
+  chmod +x "$repo/.git/hooks/pre-commit"
+  out=$(run) || {
+    echo "the lock check's install failed: $out"
+    return 1
+  }
+  [ ! -e "$tmp/lock-held" ] || {
+    echo "the commit held a lock in the repository's .git before its hooks, which a stop could leave"
+    return 1
+  }
+
+  # Its own index is a copy of the repository's reset to HEAD, so a sparse checkout's files out
+  # of the cone stay skip-worktree there: a hook does not see them deleted.
+  fresh sparse
+  mkdir -p "$repo/far" "$repo/.git/hooks"
+  echo x > "$repo/far/x.txt"
+  git -C "$repo" add far
+  git -C "$repo" -c user.name=t -c user.email=t@t commit -q -m far
+  git -C "$repo" sparse-checkout set --cone .claude .specify
+  printf '#!/bin/sh\ngit status --porcelain > "%s"\nexit 0\n' "$tmp/hook-status" \
+    > "$repo/.git/hooks/pre-commit"
+  chmod +x "$repo/.git/hooks/pre-commit"
+  out=$(run) || {
+    echo "the sparse checkout's install failed: $out"
+    return 1
+  }
+  ! grep -q far/x.txt "$tmp/hook-status" || {
+    echo "the commit's hook saw a file out of the sparse cone as deleted: $(cat "$tmp/hook-status")"
+    return 1
+  }
 }
 
 if stop_gate; then

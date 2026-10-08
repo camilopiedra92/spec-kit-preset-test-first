@@ -741,6 +741,27 @@ and Antigravity showed nothing test-first-specific in searches (second-hand).
   3.12.12, git 2.55.0, macOS arm64 Mac16,8): after the warm audit, one turn writes a test with
   its code. The Stop took 10 s with every file replayed at the newest record, 6 s with only the
   turn's file replayed; both blocked on `born-with-code`. Directional.
+- **Installer commit and git's lock window** (v2.0.1, 2026-10-08, ubuntu 24.04 in Docker on macOS
+  arm64, git 2.43.0, Python 3.12.3): the first CI run of PR #12 failed the installer's stop test
+  with `.git/index.lock` left and both files staged. A trace (`GIT_TRACE2_EVENT`, the runner under
+  `set -x`) showed the stop reaching `git commit` 0.65 ms after it started; git 2.43's
+  `create_tempfile_mode` opens the lock before `activate_tempfile` registers its removal on a
+  signal. Stops aimed at the commit's start (as soon as its process exists, 0–1 ms later): 5 of
+  300 left the lock with the commit on the repository's index, 0 of 600 with the commit on a copy
+  of it (`GIT_INDEX_FILE` in a temporary directory). An independent review then showed the window
+  is per lock, not per process: on git 2.55 (macOS), SIGTERM at 0–45 ms into a plain
+  `git commit -- f` on a copied index still left `next-index-*.lock` (4 of 2,000) and ref locks
+  (`HEAD.lock`, `main.lock`, `packed-refs.lock`, 2 each). The commit is therefore built in an index
+  of its own and committed without a pathspec, so it takes no `next-index` lock: 0 of 600 aimed
+  stops on Linux left any `*.lock` under `.git`. That index is a copy of the repository's reset to
+  HEAD, not a `read-tree HEAD`, which a second review showed drops a sparse checkout's skip-worktree
+  bits (a hook saw files out of the cone as deleted) and every entry's stat data (the commit
+  re-hashed the worktree: 0.24 s against 0.025 s on 3,052 files). After the hooks, writing the
+  commit takes `HEAD.lock`, the branch's lock, `packed-refs.lock` and `AUTO_MERGE.lock` (deleting
+  AUTO_MERGE), and rerere's `MERGE_RR.lock`, over milliseconds (not measured): a stated limit. Considered: removing a leftover lock after a stop (cannot tell ours from another
+  process's), not passing the stop to the commit (a hanging hook would hold the installer up to the
+  300 s deadline), delaying the SIGTERM (a timing guess), signalling only the hook's processes (git
+  runs them in its own process group; the hook may itself run git).
 - **Validation in renta** (T034, 2026-10-07, Claude Code 2.1.293 in `claude -p`, Spec Kit 1.1.0,
   git 2.55.0, pytest 9.1.1 on Python 3.14.7, macOS arm64 Mac16,8): a clone of renta (861 files),
   the preset updated from 1.6.0 to this branch's archive, the ledger installed on a feature

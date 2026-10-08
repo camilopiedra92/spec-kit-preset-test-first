@@ -3,12 +3,9 @@ configuration and the ledger's two hook entries."""
 
 import argparse
 import json
-import os
-import shutil
 import signal
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 from typing import Any, NoReturn
 
@@ -111,11 +108,9 @@ def _stopped_here(said: str | None = None) -> None:
         raise SystemExit(128 + _Stop.signum)
 
 
-def _run(argv: list[str], env: dict[str, str] | None = None) -> tuple[int, str]:
+def _run(argv: list[str]) -> tuple[int, str]:
     """A process a stop passes SIGTERM to, waited for; its status and its output."""
-    child = subprocess.Popen(
-        argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env
-    )
+    child = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     _Stop.child = child
     if _Stop.signum is not None:
         child.terminate()  # stopped as it started: passed on all the same
@@ -169,17 +164,7 @@ def _checked(root: Path, config: dict[str, Any]) -> dict[str, Any]:
 def _commit(root: Path, contents: dict[Path, dict[str, Any]]) -> None:
     """Write each file and commit them, alone, as one commit. Everything was checked before;
     a failure here puts back what was there: the files, their index entries, and a directory
-    this run made.
-
-    The commit, which a stop can interrupt (its hook may hang), is built in an index of its
-    own: a copy of the index reset to HEAD, plus these files, in the scratch directory,
-    committed without a pathspec. git
-    opens each lock file before it registers it for removal on a signal (tempfile.c), so a stop
-    in that instant leaves the lock: before the hooks, the only locks the commit takes are that
-    index's, removed with the scratch directory. The repository's index is written before, by
-    `add`, to which this installer passes no stop (it refuses when another git holds the
-    index), and synced to the commit after. The locks git takes after the hooks, to write the
-    commit, keep the window (README, Limits)."""
+    this run made."""
     written = {path: json.dumps(content, indent=2) for path, content in contents.items()}
     before = {
         path: (root / path).read_bytes() if (root / path).exists() else None for path in written
@@ -187,9 +172,6 @@ def _commit(root: Path, contents: dict[Path, dict[str, Any]]) -> None:
     made = [] if (root / SETTINGS.parent).exists() else [root / SETTINGS.parent]
     paths = [str(path) for path in written]
     head = audit.quiet_git(root, "rev-parse", "--verify", "--quiet", "HEAD")
-    index = Path(ledger.git(root, "rev-parse", "--path-format=absolute", "--git-path", "index"))
-    scratch = Path(tempfile.mkdtemp(prefix="test-first-install-"))
-    own_index = {**os.environ, "GIT_INDEX_FILE": str(scratch / "index")}
     committed = False
     try:
         for directory in made:
@@ -197,28 +179,18 @@ def _commit(root: Path, contents: dict[Path, dict[str, Any]]) -> None:
         for path, text in written.items():
             (root / path).write_text(text + "\n")
         _stopped_here()
-        # Short writes, let finish: the stop is acted on just after.
+        # Let finish whatever arrives meanwhile: the stop is acted on just after.
         ledger.git(root, "add", "--", *paths)
-        # A copy reset to HEAD, not a fresh read-tree: it keeps the entries' stat data and
-        # skip-worktree bits (a sparse checkout), and copy2 the index's mtime (racy git).
-        shutil.copy2(index, scratch / "index")
-        ledger.git(root, "reset", "-q", env=own_index)
-        ledger.git(root, "add", "--", *paths, env=own_index)
         _stopped_here()
         status, output = _run(
             [
                 *("bash", str(audit.RUNNER), str(COMMIT_DEADLINE)),
-                *("git", "-C", str(root), "commit", "-q", "-m", MESSAGE),
-            ],
-            env=own_index,
+                *("git", "-C", str(root), "commit", "-q", "-m", MESSAGE, "--", *paths),
+            ]
         )
         # A post-commit hook runs after git wrote the commit: it stands whatever came after,
         # a failure, the deadline or a stop.
         committed = status == 0 or _landed(root, head, paths)
-        if committed:
-            # The repository's index takes the commit's entries (a hook may have changed
-            # them): a short write, let finish like `add`.
-            ledger.git(root, "reset", "-q", "--", *paths)
         _stopped_here(
             "committed before it was stopped, without the ledger's first record: the first "
             "tool call's record will be its origin, and the tests it writes unobserved"
@@ -249,7 +221,6 @@ def _commit(root: Path, contents: dict[Path, dict[str, Any]]) -> None:
                     (root / path).write_bytes(content)
             for directory in made:
                 directory.rmdir()
-        shutil.rmtree(scratch, ignore_errors=True)
 
 
 def _landed(root: Path, head: str, paths: list[str]) -> bool:
