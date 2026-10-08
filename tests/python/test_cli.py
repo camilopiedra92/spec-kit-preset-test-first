@@ -320,3 +320,41 @@ def test_a_budget_without_stop_is_a_usage_error(capsys: pytest.CaptureFixture[st
 
 def test_with_no_new_tests_the_summary_has_no_empty_count() -> None:
     assert audit.render([], {}).splitlines()[-1] == "audit: 0 new tests; pass"
+
+
+def test_the_story_close_audit_replays_every_file_at_the_newest_record(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls = feature(repo)
+    calls.call({"tests/test_b.py": TEST_B})
+    calls.call({"src/b.py": "B\n"})
+    stop_payload = json.dumps({"cwd": str(repo), "session_id": "s"})
+    monkeypatch.setattr("sys.stdin", io.StringIO(stop_payload))
+    assert audit.main(["--stop"]) == 0  # an earlier turn's Stop: test_b.py is remembered
+    calls.call({"notes.txt": "a later call that leaves test_b.py unchanged"})
+    replayed: list[str] = []
+    replay = audit.Replayer._replay
+
+    def watched(self: audit.Replayer, tree: str, file: str, deadline: int) -> audit.RunResult:
+        replayed.append(file)
+        return replay(self, tree, file, deadline)
+
+    monkeypatch.setattr(audit.Replayer, "_replay", watched)
+
+    assert run(repo, monkeypatch) == 0
+    assert "tests/test_b.py" in replayed
+
+
+def test_a_verdict_group_lists_its_tests_in_order_of_name(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    calls = feature(repo)
+    for name in ("m", "n"):  # n written last: most recently changed
+        calls.call({f"tests/test_{name}.py": f"def test_{name}(): # expects src/{name}.py X\n"})
+        calls.call({f"src/{name}.py": "X\n"})
+
+    run(repo, monkeypatch)
+
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[0].startswith("red tests.test_m::test_m ")
+    assert lines[1].startswith("red tests.test_n::test_n ")

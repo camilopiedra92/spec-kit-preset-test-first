@@ -120,7 +120,7 @@ class Replayer:
 
     def run(self, tree: str, file: str, deadline: int, remembered_only: bool = False) -> RunResult:
         """The file's outcomes at the tree, from the memo when this run was already made; with
-        `remembered_only`, NotRemembered rather than a new run."""
+        `remembered_only`, NotRemembered rather than a new run (see `remembered`)."""
         entry = (
             self.memo / hashlib.sha256(f"{tree}\0{file}\0{self.config.run}".encode()).hexdigest()
         )
@@ -140,9 +140,18 @@ class Replayer:
             os.replace(partial, entry)  # atomic: a killed audit leaves no torn entry
         return result
 
-    def observe(
-        self, tree: str, file: str, deadline: int, remembered_only: bool = False
-    ) -> Observation:
+    def observe(self, tree: str, file: str, deadline: int) -> Observation:
+        """The file's outcomes at the tree, and whether they say which tests exist (R6)."""
+        return self._observe(tree, file, deadline, remembered_only=False)
+
+    def remembered(self, tree: str, file: str, deadline: int) -> Observation | None:
+        """`observe` from the memo alone, or None when a run it needs was never made."""
+        try:
+            return self._observe(tree, file, deadline, remembered_only=True)
+        except NotRemembered:
+            return None
+
+    def _observe(self, tree: str, file: str, deadline: int, remembered_only: bool) -> Observation:
         """The file's outcomes at the tree, and whether they say which tests exist (R6)."""
         result = self.run(tree, file, deadline, remembered_only)
         outcomes = result.outcomes
@@ -452,12 +461,14 @@ class Auditor:
         replayer: Replayer,
         deadline: int,
         base: str | None = None,
+        stop: bool = False,
     ) -> None:
         self.worktree = worktree
         self.config = config
         self.replayer = replayer
         self.deadline = deadline
         self.base_override = base
+        self.stop = stop  # a Stop hook's audit, as opposed to the story close's
         self._base_tree: str | None = None
         # Keyed by the two trees, so an auditor limited to an earlier history (until) shares it.
         self._changes: dict[tuple[str, str], set[str]] = {}
@@ -471,7 +482,7 @@ class Auditor:
         load, or its id comes from code or data) is found by a scan forward from where it was
         last seen absent.
         """
-        touching = [i for i in range(1, len(self.history)) if file in self.change(i)]
+        touching = self.touching(file)
         for t in reversed(touching):
             at_t = self.observe(t, file)
             if not at_t.conclusive:
@@ -529,15 +540,15 @@ class Auditor:
         tests = (path for path in new_side if ledger.classify(self.config, path) == "test")
         # The most recently changed first: a Stop's budget then runs out on earlier work, which
         # earlier turns judged, and not on the file this turn wrote.
-        files = sorted(tests, key=lambda path: (-self.last_changed(path), path))
+        files = sorted(tests, key=lambda path: (-max(self.touching(path), default=0), path))
         judged: list[tuple[str, Verdict]] = []
         for file in files:
             judged.extend(self.report_file(file))
         return judged
 
-    def last_changed(self, file: str) -> int:
-        """The newest record that changed the file, or 0 (the origin) when none did."""
-        return max((i for i in range(1, len(self.history)) if file in self.change(i)), default=0)
+    def touching(self, file: str) -> list[int]:
+        """The records that changed the file, oldest first."""
+        return [i for i in range(1, len(self.history)) if file in self.change(i)]
 
     def report_file(self, file: str) -> list[tuple[str, Verdict]]:
         """The new tests of one file with their verdicts."""
@@ -564,7 +575,7 @@ class Auditor:
         """The tests the file holds at the newest record, and why they cannot be judged ("" when
         they can). When the newest run cannot say, the last run that did, if any."""
         last = len(self.history) - 1
-        if self.replayer.spent_at is not None:  # a Stop
+        if self.stop:
             remembered = self.remembered_since_change(file)
             if remembered is not None:
                 return remembered, ""
@@ -587,14 +598,10 @@ class Auditor:
         at a record that is new every turn: with many files that cost every Stop its budget
         before this turn's file was reached. A test that appears without its file changing (an
         id generated from code) waits for the story-close audit, which replays the newest."""
-        for j in range(len(self.history) - 1, self.last_changed(file) - 1, -1):
-            try:
-                seen = self.replayer.observe(
-                    self.history[j].tree, file, self.deadline, remembered_only=True
-                )
-            except NotJudged:
-                continue
-            if seen.conclusive:
+        changed = self.touching(file)
+        for j in range(len(self.history) - 1, changed[-1] - 1 if changed else -1, -1):
+            seen = self.replayer.remembered(self.history[j].tree, file, self.deadline)
+            if seen is not None and seen.conclusive:
                 return seen.outcomes or {}
         return None
 
@@ -637,7 +644,7 @@ class Auditor:
         The code beside the restored test is not compared: deleting an accepted test with its
         code to write it back beside other code is forging, outside the threat model (R0).
         """
-        touching = [i for i in range(1, b) if file in self.change(i)]
+        touching = [i for i in self.touching(file) if i < b]
         here = self._blob(b, file)
         for n, t in enumerate(touching):
             if self._blob(t, file) != here:
@@ -885,7 +892,7 @@ def _audit(
     call: ledger.Call = {"session": session or tool, "agent": None, "tool": tool, "call": None}
     ledger.record(worktree, call, config)
     with Replayer(worktree, config, budget) as replayer:
-        auditor = Auditor(worktree, config, replayer, deadline, base)
+        auditor = Auditor(worktree, config, replayer, deadline, base, stop=budget is not None)
         verdicts = auditor.report()
     return verdicts, {record.commit: record for record in auditor.history}
 
@@ -921,7 +928,7 @@ def render(
     (contracts); with `listed`, only tests with those verdicts get their line (the Stop's)."""
     lines = []
     for kind in sorted({v.kind for _, v in verdicts if listed is None or v.kind in listed}):
-        for test, verdict in verdicts:
+        for test, verdict in sorted(verdicts, key=lambda judged: judged[0]):
             if verdict.kind != kind:
                 continue
             record = records.get(verdict.record or "")

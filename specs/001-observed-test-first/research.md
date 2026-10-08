@@ -390,10 +390,15 @@ alphabetical order: with 70 files at 2 s per run the budget ran out on earlier f
 born with its code in the turn's own file came out not judged, the turn unblocked (a reviewer's
 reproduction, now a unit case on a fake clock). A Stop now takes the files most recently changed
 first, and lists a file the turn left unchanged from its newest remembered run since it last
-changed; only the turn's own files are replayed. On the 20-file feature of `tests/audit.sh`, the
+changed; what it replays is the turn's own files, plus one run at the newest record for each file
+whose tests are still red or not yet run (following them is how a later green is found). Finding
+the remembered run reads the memo back from the newest record to the file's last change, about
+5 µs a record (a reviewer's measurement), outside the budget: linear, like the other walks, and
+about 5 s at 15,000 records and 70 files (an estimate, not run). On the 20-file feature of `tests/audit.sh`, the
 Stop of a turn writing a test with its code took 10 s before and 6 s after (pytest about 0.3 s per
 run, one run each; at SC-004's 2 s per run that is roughly 54 s against 14 s, an estimate). The
-story-close audit is unchanged: it replays every file at the newest record. Its cost: a test that
+story-close audit is unchanged: it replays every file at the newest record (a test pins it), and
+its report lists each verdict's tests by name, as before. Its cost: a test that
 appears without its file changing (an id generated from code) is found at the story close, not at
 a Stop, which FR-024 allows. Considered and not taken: ordering alone (each Stop still spends its
 budget replaying files nobody touched); a Stop over the turn's records only (it would never show a

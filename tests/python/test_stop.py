@@ -346,3 +346,22 @@ def test_a_stop_replays_only_the_files_this_turn_changed(
 
     assert stop(repo, monkeypatch) == 2
     assert set(replayed) == {"tests/test_z.py"}
+
+
+def test_a_test_added_with_its_code_to_a_judged_file_blocks_the_turn(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    calls = feature(repo)
+    calls.call({"tests/test_m.py": "def test_m(): # expects src/m.py M\n"})
+    calls.call({"src/m.py": "M\n"})
+    assert stop(repo, monkeypatch) == 0  # an earlier turn: its runs of test_m.py are remembered
+    calls.call(
+        {
+            "tests/test_m.py": "def test_m(): # expects src/m.py M\n"
+            "def test_m2(): # expects src/m2.py N\n",
+            "src/m2.py": "N\n",
+        }
+    )
+
+    assert stop(repo, monkeypatch) == 2
+    assert "born-with-code tests.test_m::test_m2 " in capsys.readouterr().err

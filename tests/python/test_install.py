@@ -28,11 +28,14 @@ def project(repo: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return repo
 
 
-def test_an_install_is_one_commit_of_the_configuration_and_both_entries(project: Path) -> None:
+def test_an_install_is_one_commit_of_the_configuration_and_both_entries(
+    project: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     before = git(project, "rev-parse", "HEAD")
 
     assert install.main(ARGS) == 0
 
+    assert "stopped" not in capsys.readouterr().err
     assert git(project, "rev-parse", "HEAD~1") == before
     assert git(project, "show", "--name-only", "--format=", "HEAD").splitlines() == [
         ".claude/settings.json",

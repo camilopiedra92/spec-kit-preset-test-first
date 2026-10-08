@@ -1001,6 +1001,12 @@ gate still runs and an old `tasks.md` is read.
     from its newest remembered run; `tests/audit.sh` now times a Stop after 20 files: 10 s before,
     6 s after (research.md R12 "Revised again", L7). Considered: ordering alone, a Stop over the
     turn's records only, a smaller budget
+  - the Phase 17 review found three cases no test pinned, each passing against a wrong version:
+    the "since the file last changed" bound (a test added with its code to a judged file went
+    unblocked), the story-close audit replaying every file at the newest record, and the clean
+    install saying nothing of a stop; each now has a case, seen red against that wrong version.
+    It also proved that a file with red or never-run tests is still replayed, now stated, and the
+    report's per-verdict order now follows test names again
 - [X] T080 Correct the README: the ledger is never pushed by the preset or a plain push, but `git push --mirror` sends every worktree's ledger; and merge the machine-switch sentence into the existing "The ledger is local to each worktree" item, which says the same, per FR-022 (contradicts)
   - README: the "local to each worktree" item now holds the machine-switch case and says what
     sends the ledger and what does not; the contradicting sentence of 6aeaf81 is gone

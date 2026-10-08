@@ -61,14 +61,8 @@ def main(argv: list[str]) -> int:
         # call's record is a change and the tests it writes are born in it.
         origin: ledger.Call = {"session": "install", "agent": None, "tool": "install", "call": None}
         ledger.record(root, origin, ledger.parse_config(config))
-        if _Stop.signum is not None:
-            # The record's git ran to its end: nothing is left half done.
-            print(
-                "test-first install: stopped, but it had finished: committed, with the "
-                "ledger's first record",
-                file=sys.stderr,
-            )
-            _stopped_here()
+        # The record's git ran to its end: nothing is left half done.
+        _stopped_here("stopped, but it had finished: committed, with the ledger's first record")
     except Refused as refusal:
         print(f"test-first install: {refusal}", file=sys.stderr)
         return 1
@@ -106,8 +100,11 @@ def _stop(signum: int, frame: object) -> None:
         child.terminate()
 
 
-def _stopped_here() -> None:
+def _stopped_here(said: str | None = None) -> None:
+    """Exit as the stop asked, if one came, first saying `said` (what the stop left)."""
     if _Stop.signum is not None:
+        if said:
+            print(f"test-first install: {said}", file=sys.stderr)
         raise SystemExit(128 + _Stop.signum)
 
 
@@ -194,15 +191,12 @@ def _commit(root: Path, contents: dict[Path, dict[str, Any]]) -> None:
         # A post-commit hook runs after git wrote the commit: it stands whatever came after,
         # a failure, the deadline or a stop.
         committed = status == 0 or _landed(root, head, paths)
-        if _Stop.signum is not None:
-            if committed:
-                print(
-                    "test-first install: committed before it was stopped, without the ledger's "
-                    "first record: the first tool call's record will be its origin, and the "
-                    "tests it writes unobserved",
-                    file=sys.stderr,
-                )
-            _stopped_here()
+        _stopped_here(
+            "committed before it was stopped, without the ledger's first record: the first "
+            "tool call's record will be its origin, and the tests it writes unobserved"
+            if committed
+            else None
+        )
         if status != 0 and committed:
             print(
                 f"test-first install: committed; a post-commit hook did not finish or failed: "

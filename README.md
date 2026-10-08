@@ -64,7 +64,8 @@ observes instead:
   silent where there is nothing to judge — no configuration, no ledger, a
   detached HEAD, the default branch — and on a stop that continues a turn it
   already blocked. It takes the files changed most recently first and replays
-  only what the turn changed, the rest coming from earlier turns' runs. A birth
+  what the turn changed, plus one run for each file whose tests are still red
+  or not yet run; the rest comes from earlier turns' runs. A birth
   the budget leaves unjudged waits for the next turn or the story's audit.
   `/speckit-implement` runs the audit in full at each story's close, before
   the review.
