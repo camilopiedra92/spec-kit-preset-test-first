@@ -1034,3 +1034,11 @@ gate still runs and an old `tasks.md` is read.
     removal (R6, Vitest), the review copy's `PostToolUse` entries; the redo summary names the file
 - [X] T088 Move the CHANGELOG's narrowing of "parallel tasks [P] can run together" out of the story-review clause: it is a cycle rule per Constitution V (partial)
   - CHANGELOG: the [P] narrowing moved to the cycle rules, out of the review clause
+
+## Phase 18: Convergence
+
+- [ ] T089 Give the README's Stop cost for the 20-file feature as measured (6 s, 10 s before T079; research L7), and keep the 1–2 s figure only for the one-file project it came from, per SC-004 and Constitution III (contradicts)
+- [ ] T090 Add a README "Why" entry for writing subagents working one at a time in the feature's worktree, which narrows core's "parallel tasks [P] can run together", per Constitution III (partial)
+- [ ] T091 Say in the CHANGELOG 2.0.0 entry that the redo removes a test's file when it holds the only test, per Constitution V (partial)
+- [ ] T092 Say in the README's concurrency limit that the merged record makes a test and its code written at once `born-with-code`, per FR-022 (partial)
+- [ ] T093 Name every error the Stop blocks on in the README and the implement fragment — a configuration or git error, the preset's `run-bounded.sh` missing, an OS error such as a full disk — per FR-024 (partial)
