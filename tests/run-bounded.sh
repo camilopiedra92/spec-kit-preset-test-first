@@ -195,6 +195,21 @@ for signal in PIPE TERM INT HUP QUIT; do
   [ -z "$out" ] || problem "the command inherited an ignored SIG$signal"
 done
 
+# A signal in the first milliseconds can land between starting the command (or the watchdog)
+# and recording its pid. The runner must still return only once the command is gone.
+# Timing-dependent: 3 of 200 runs found the window before it was closed, hence 400.
+early=0
+for _ in $(seq 400); do
+  bash "$RUN" 4 sleep 9113 2> /dev/null &
+  runner=$!
+  sleep "$(printf '0.%03d' $((RANDOM % 21)))"
+  kill -TERM "$runner" 2> /dev/null
+  wait "$runner" 2> /dev/null
+  pgrep -f "^sleep 9113" > /dev/null && early=$((early + 1))
+  pkill -KILL -f "sleep 9113"
+done
+[ "$early" -eq 0 ] || problem "runner terminated as it started: returned with the command alive, $early of 400"
+
 # A caller that terminates the runner and goes away at once, its pipe on the runner's stderr
 # left with no reader: bash's report of the killed job then raises SIGPIPE in the runner, which
 # must not end it before the grace period and the group kill.

@@ -59,6 +59,13 @@ kill_group() {
 terminated=
 # shellcheck disable=SC2329  # invoked by the EXIT trap
 cleanup() {
+  # A signal can land between starting the command or the watchdog and recording its pid:
+  # `$!` still names the newest job then.
+  if [ -z "$pid" ]; then
+    pid=$!
+  elif [ -z "$watchdog" ] && [ "$!" != "$pid" ]; then
+    watchdog=$!
+  fi
   # A second signal must not cut this short: the command's group is killed below. Nor a
   # caller that stopped reading this runner's stderr: bash's report of a killed job would
   # raise SIGPIPE. Ignored here only, once the command runs with its own dispositions: an

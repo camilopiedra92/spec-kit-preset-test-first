@@ -902,5 +902,7 @@ gate still runs and an old `tasks.md` is read.
   - written after the fix (the suite stopped at T060's red first); each fails under a break on
     purpose: no forwarding of the signal (`left the repository changed`), and no landed check in
     the undo (`undid files under its commit`)
-- [ ] T062 Close `run-bounded.sh`'s windows between starting the command or the watchdog and recording its pid, so a signal at any moment leaves nothing past deadline + grace; a `tests/run-bounded.sh` case sending SIGTERM at random offsets in the first 20 ms, repeated until it goes red reliably per Constitution IV (contradicts)
-- [ ] T063 Add to the README's `install-stop-gate.sh` paragraph its refusals for a suite outliving 540 s and a commit hook outliving 300 s, and that a commit which landed stands per Constitution VI (partial)
+- [X] T062 Close `run-bounded.sh`'s windows between starting the command or the watchdog and recording its pid, so a signal at any moment leaves nothing past deadline + grace; a `tests/run-bounded.sh` case sending SIGTERM at random offsets in the first 20 ms, repeated until it goes red reliably per Constitution IV (contradicts)
+  - red: `returned with the command alive, 3 of 200`, so the case runs 400; `cleanup` falls back
+    to `$!`, which names the newest job when a signal lands before its pid is recorded; 0 of 800
+- [X] T063 Add to the README's `install-stop-gate.sh` paragraph its refusals for a suite outliving 540 s and a commit hook outliving 300 s, and that a commit which landed stands per Constitution VI (partial)

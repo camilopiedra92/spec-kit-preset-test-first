@@ -175,8 +175,11 @@ The design and what was tried and dropped are in the script's header.
 
 The installer refuses rather than guesses: a red suite, anything staged, an
 uncommitted, symlinked, ignored or skip-worktree `settings.json`, a hook or a
-Stop entry for it already there, a missing `run-bounded.sh`, or a commit hook
-that rejects its commit. To
+Stop entry for it already there, a missing `run-bounded.sh`, a suite that
+does not finish in 540 seconds, or a commit hook that rejects its commit or
+does not finish in 300. Stopped, it passes the signal on and waits for git
+before putting anything back; a commit that already landed (a `post-commit`
+hook) stands, and it says so. To
 change the command later, edit `TEST_COMMAND` in the hook. To turn the gate
 off, remove its entry under `hooks.Stop` in `.claude/settings.json` and keep
 the hook file: the file is what `/speckit-implement` looks for, so the gate
