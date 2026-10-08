@@ -17,8 +17,8 @@ of a Stop hook that gates every turn on the test suite.
 
 Up to 1.x the agent recorded its own red runs in tasks.md. In the run that
 motivated 2.0.0 (research L1), 27 of about 60 cases were recorded as passing
-on their first run, and 11 test runs came from one shell command that wrote
-a test and the code it covers together, then ran it green; the record said
+on their first run, and 11 test runs each came from one shell command that
+wrote a test and the code it covers together, then ran it green; the record said
 "passed on first run". A report written by the author is the defect. So 2.0.0
 observes instead:
 
@@ -51,7 +51,11 @@ observes instead:
   reason, such as a run that wrote no JUnit; a test file that no run could
   read is reported under its path). The remedy for the first three is
   the redo sequence: remove the test, revert its code, write the test again
-  alone, see it fail, restore the code.
+  alone, see it fail, restore the code — with a stub of the code first, in
+  a call of its own, for a test whose file did not load before its code. A
+  test born green because it passes without any source file is fixed in the
+  configuration instead, committed on its own: `run` reaches code outside the
+  replay, or `sources` misses the code the test exercises.
 - **The Stop hook.** The same audit runs at the end of every turn within a
   120-second budget, reusing every run already made, and blocks the turn once
   when a new test was born with its code, born green or rewritten to green,
@@ -86,8 +90,9 @@ from importing the real worktree's code instead of the record's. For a Node proj
 `ln -s {root}/node_modules node_modules && node_modules/.bin/vitest run {file} --reporter=junit --outputFile={junit}`.
 The installer commits the configuration and the two hook entries in
 `.claude/settings.json` as one commit, or refuses and leaves the repository
-as it was: off the feature's branch, with something staged, with a
-`settings.json` or configuration file it could not commit whole (untracked,
+as it was: outside the repository's root or without `.specify/` there, off
+the feature's branch, without a base it can resolve, with something staged,
+with a `settings.json` or configuration file it could not commit whole (untracked,
 changed, ignored, skip-worktree, a symlink or inside a symlinked directory,
 not a settings object), with a ledger entry already there, with globs git
 cannot use or that match no tracked test, without the preset's
@@ -314,7 +319,7 @@ lost):
 
 - Observed, not reported: the renta run on 1.6.0 (research L1, one feature,
   directional) — 27 of about 60 cases recorded as first-run passes, 11 test
-  runs from one command that wrote test and code together. Every spec-driven
+  runs each from one command that wrote test and code together. Every spec-driven
   framework surveyed asks for test-first and none observes it; those that
   "check" it check the agent's own report (L3). Böckeler: "a red test tells
   you the agent ran it and saw failure, not that the failure was for the
@@ -345,6 +350,18 @@ lost):
   across 100 packages ([arXiv 2510.09907](https://arxiv.org/abs/2510.09907)) —
   evidence that properties find bugs, not a measurement inside a test-first
   list, so directional (research R9).
+- The story audit's verdict counts in the completion report, per story:
+  SC-006 compares the first feature on 2.0.0 with the 27 of about 60
+  first-run passes of 1.6.0, as direction only (1.6.0 counted the agent's own
+  records), and per story is the unit the audit runs at.
+- A stub raises rather than returning a placeholder, and a task's property
+  case is written with its first case, before any code: reasoning from the
+  audit's own rule, not measured on its own. A property case written after its
+  code passes at its first run, which is `born-green` by definition (FR-009);
+  and a placeholder can satisfy a property (a total that returns 0 is never
+  negative), so the case would pass against the stub. Sentinel stubs made
+  every test fail trivially in the 2026-10-05 pair of runs below; the
+  sessions that validated 2.0.0 used a raising stub (research L7).
 - Removed, recording red runs and breaking the code on purpose to accept a
   first-run pass: the first is what the ledger observes; the second could not
   tell behaviour that existed before the task from code written a moment

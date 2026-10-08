@@ -125,15 +125,18 @@ python3 .specify/presets/test-first/scripts/python/cli.py audit
 Exit 0 is a pass. Exit 1 lists each new test with its verdict, and each
 failing verdict with its remedy: the redo sequence above for a test born
 with its code, born green or rewritten to green, or one the ledger never saw
-born (`unobserved`); for one born green because it passes without any
+born (`unobserved`), with a stub of the code written first, in a call of its
+own, when the audit says the test's file did not load before its code; for
+one born green because it passes without any
 source, the configuration, committed on its own; for `still-red`, the code
 that makes it pass, in a call that changes no test-side path; for
 `not-judged`, what its reason says. Apply them and run it again until it
 passes; a remedy outside this branch (a file that does not load on the
 default branch) goes in the completion report instead. Exit 2 is a refusal
 whose message says why. Give the last report to
-the reviewer. Without the ledger installed, say in the completion report
-that the story was not audited.
+the reviewer, and put its summary line — the count of each verdict — in the
+completion report, one per story. Without the ledger installed, say in the
+completion report that the story was not audited.
 
 The ledger's Stop hook runs the same audit at the end of every turn, within a
 budget, and blocks the turn once when a new test is born with its code, born

@@ -23,8 +23,10 @@ Option 1. A gate with no way out is the pressure under which agents edit tests t
 ImpossibleBench (arXiv 2510.20270) found a way out cut cheating from 54% to 9% for GPT-5. Every
 failing verdict has a remedy that always works (the redo sequence, or the configuration), so no
 exception list is needed; the one remedy outside the branch — a test file that does not load on
-the default branch — is reported, not looped on. The guarantee is that the agent is shown every failure every turn; the
-full report is the story-close audit's, which the implement skill runs.
+the default branch — is reported, not looped on. The guarantee is that a turn with a final failing
+verdict the Stop audit reached ends with the agent shown it once, unless another Stop hook already
+blocked that turn; births its budget did not reach wait for a later turn. The full report is the
+story-close audit's, which the implement skill runs.
 
 ## Consequences
 

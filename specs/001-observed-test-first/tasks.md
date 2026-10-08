@@ -946,17 +946,32 @@ gate still runs and an old `tasks.md` is read.
     audit 4 min 49 s before, 0.45 s after; Stop audit 0.7 s cold, 0.4 s warm (research.md R12
     "Revised", L7). Stopping at the base, a change store kept between audits and a budget check
     inside the walk were considered and not taken: they bound nothing the measurement shows
-- [ ] T070 Say in the implement fragment's completion report to list the story-close audit's verdict counts per story, so the first 2.0.0 feature yields the comparison with 1.6.0's 27 of 60 per SC-006 (missing)
-- [ ] T071 Add README "Why 2.0.0's rules, by source" entries for "a stub raises rather than returning a placeholder" and "a task's property case is written in the same call as its first case", with their source or measurement (README:384's sentinel stubs is the nearest evidence) per Constitution III and FR-023 (partial)
-- [ ] T072 Correct README:20-21 and 310-311: research L1 found 11 separate commands that each wrote test and code together, not "one shell command" per Constitution III (contradicts)
+- [X] T070 Say in the implement fragment's completion report to list the story-close audit's verdict counts per story, so the first 2.0.0 feature yields the comparison with 1.6.0's 27 of 60 per SC-006 (missing)
+  - fragment, Story audit: the summary line of each story's last audit in the completion report;
+    README source entry and CHANGELOG
+- [X] T071 Add README "Why 2.0.0's rules, by source" entries for "a stub raises rather than returning a placeholder" and "a task's property case is written in the same call as its first case", with their source or measurement (README:384's sentinel stubs is the nearest evidence) per Constitution III and FR-023 (partial)
+  - README "Why 2.0.0's rules": stated as reasoning from FR-009, not measured on its own, with
+    the 2026-10-05 sentinel-stub run and the L7 validation sessions as the evidence there is
+- [X] T072 Correct README:20-21 and 310-311: research L1 found 11 separate commands that each wrote test and code together, not "one shell command" per Constitution III (contradicts)
+  - README:20 and the L1 source entry: "11 test runs each came from one shell command"
 - [X] T073 Make the installer report a git or `OSError` failure in the ledger's first record (after the commit landed) as "committed, but the first record failed", not as an undone "git failed", per contracts/install-ledger.md; a case with an unreadable untracked file, seen red first (partial; likelihood low)
   - red: `uv run pytest tests/python/test_install.py -k first_record_says` — an unreadable
     untracked file gave "git failed: error: open(\"unreadable.txt\"): Permission denied" with the
     commit standing, and an `OSError` from the record escaped as a traceback
-- [ ] T074 Diagnose `tests/python/test_install.py::test_with_a_ledger_entry_already_there_it_refuses[Stop]`, which failed once in a full `uv run pytest` run at acae6f2 and passed alone 6 of 6, before CI's first run per Constitution IV (partial; likelihood low, one observation)
-- [ ] T075 Narrow README:49-51's remedy summary to data-model.md's: born green because it passes without sources is fixed in the configuration, and born with its code from a file that never loaded is redone with a stub; name the stub variant in the implement fragment too per FR-018 (partial)
-- [ ] T076 Add to README:85-94's installer refusals the two the code has and the list omits: not at the repository root with `.specify/`, and no resolvable base, per FR-014 (partial)
-- [ ] T077 Reword docs/decisions/0003's "the agent is shown every failure every turn" to match its consequences and README:130-138 (another hook's block, the budget) per FR-022 (contradicts)
+- [X] T074 Diagnose `tests/python/test_install.py::test_with_a_ledger_entry_already_there_it_refuses[Stop]`, which failed once in a full `uv run pytest` run at acae6f2 and passed alone 6 of 6, before CI's first run per Constitution IV (partial; likelihood low, one observation)
+  - not reproduced: 90 runs of the test under six parallel loops, the file twice while 12 other
+    pytest sessions started (pytest locks the base temp dirs in use, so their rotation is ruled
+    out), and four full runs in this session (252, 254, 256, 258 passed). The one failure ran
+    beside two other reviewers' suites and kept no traceback (`tail -3`); its cause cannot be
+    determined from here. CI prints the full traceback if it recurs
+- [X] T075 Narrow README:49-51's remedy summary to data-model.md's: born green because it passes without sources is fixed in the configuration, and born with its code from a file that never loaded is redone with a stub; name the stub variant in the implement fragment too per FR-018 (partial)
+  - README verdicts paragraph and the fragment: the stub variant of the redo sequence, and the
+    configuration for a test that passes without any source
+- [X] T076 Add to README:85-94's installer refusals the two the code has and the list omits: not at the repository root with `.specify/`, and no resolvable base, per FR-014 (partial)
+  - README installer paragraph: outside the root or without `.specify/`, and no resolvable base
+- [X] T077 Reword docs/decisions/0003's "the agent is shown every failure every turn" to match its consequences and README:130-138 (another hook's block, the budget) per FR-022 (contradicts)
+  - docs/decisions/0003: the guarantee is now once per turn for a verdict the Stop audit reached,
+    unless another Stop hook blocked first; the budget defers the rest
 - [X] T078 Refuse an out-of-range `--deadline` (0, negative, above what `run-bounded.sh` accepts) with exit 2 instead of silently using 300 or turning every file not judged; and define in contracts/audit.md the `- - -` fields printed for `never-run` and record-less `not-judged` per contracts/audit.md (partial; likelihood low)
   - red: `uv run pytest tests/python/test_cli.py -k out_of_range` — `DID NOT RAISE SystemExit` for
     `--deadline 0`, `-5`, `1000000000` and `--budget -1` (the budget added: the same range, and

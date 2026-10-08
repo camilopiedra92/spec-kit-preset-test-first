@@ -61,7 +61,9 @@ what was measured: README, "Why 2.0.0's rules, by source".
 - `speckit-implement`: a task closes when every case was taken — written and
   run as the cycle says, or stopped — instead of on a recorded red run; a
   stub raises rather than returning a placeholder, and a task's property case
-  is written with its first case; the story review receives the audit's
+  is written with its first case; each story's audit summary goes in the
+  completion report, and a test whose file did not load before its code is
+  redone with a stub first; the story review receives the audit's
   report, counts a failing verdict as a finding, removes the copy's
   `PostToolUse` entries as well as its `Stop` ones, and narrows core's
   "parallel tasks [P] can run together" for writing subagents.
