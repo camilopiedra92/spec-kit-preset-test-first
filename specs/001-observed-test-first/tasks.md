@@ -929,8 +929,13 @@ gate still runs and an old `tasks.md` is read.
     without_a_tree"` — `assert [] == ['c0', 'c1']`, `assert ['c0'] == ['c0', 'c2']`, and
     `IndexError: list index out of range` at audit.py:467 for the audit on a fresh branch
   - the walk now starts at the ledger's newest record, always where the branch stands (data-model.md,
-    Effective history); a branch fast-forwarded elsewhere and checked out compares with its own last
-    record, so the tests the move brought are imported, not born
+    Effective history)
+  - the independent review proved the first version's lineage wrong: kept at the current branch,
+    work carried back uncommitted came out `born-with-code` and a branch fast-forwarded to observed
+    work `unobserved`. The lineage now starts at the newest record's branch; red first: `assert 1 ==
+    0` for both scenarios and `['c0', 'c2'] == ['c0', 'c1', 'c2']` for the unit; the walk's check
+    for an older record on the lineage is now a first-index lookup (15,000 records over two
+    branches: 1.119 s before, 0.001 s after)
 - [X] T068 Keep a linked worktree's ledger alive across `git gc` run from another worktree: git 2.55 does not count other worktrees' `refs/worktree/*` as reachable, so `gc --prune=now` from the main worktree drops a linked worktree's records (reproduced with plain git), after which every hook call exits 2 as "5 attempts lost the race" and `git gc` in that worktree fails; choose refs that gc honours (or another way), test it with two worktrees, and correct research.md R1's claim per FR-003 (contradicts; likelihood medium)
   - red: `uv run pytest tests/python/test_record.py -k "another_worktree or pruned"` — `rev-list
     refs/worktree/test-first/ledger` exit 128 in the linked worktree after `gc --prune=now` from

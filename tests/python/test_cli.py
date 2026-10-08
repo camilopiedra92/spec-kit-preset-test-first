@@ -261,3 +261,33 @@ def test_seconds_out_of_range_are_a_usage_error(
 
     assert stopped.value.code == 2
     assert "to 999999999" in capsys.readouterr().err
+
+
+def test_work_carried_back_to_its_branch_without_a_tree_change_is_judged_where_it_was_done(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    calls = feature(repo)
+    git(repo, "checkout", "-q", "-b", "x")
+    calls.call({"tests/test_b.py": TEST_B})
+    calls.call({"src/b.py": "B\n"})
+    git(repo, "checkout", "-q", "feat")  # uncommitted work comes along: no record on feat
+
+    assert run(repo, monkeypatch) == 0
+    assert capsys.readouterr().out.startswith("red tests.test_b::test_b ")
+
+
+def test_a_branch_fast_forwarded_to_observed_work_keeps_its_verdicts(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    calls = feature(repo)
+    git(repo, "checkout", "-q", "-b", "feat2")
+    calls.call({"notes.txt": "feat2's own record"})
+    git(repo, "checkout", "-q", "feat")
+    calls.call({"tests/test_b.py": TEST_B})
+    calls.call({"src/b.py": "B\n"})
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "b")
+    git(repo, "checkout", "-q", "-B", "feat2", "feat")  # the same tree: no record
+
+    assert run(repo, monkeypatch) == 0
+    assert capsys.readouterr().out.startswith("red tests.test_b::test_b ")

@@ -314,24 +314,27 @@ class Record(NamedTuple):
     call: str | None = None
 
 
-def effective_history(records: list[Record], branch: str) -> list[Record]:
-    """The records of the branch's line of work, oldest first (data-model.md).
+def effective_history(records: list[Record]) -> list[Record]:
+    """The records of the current line of work, oldest first (data-model.md).
 
-    The ledger's newest record is where the branch stands now, whatever branch it names: the
-    audit records the worktree first, so a newest record on another branch means the branch
-    was created or checked out without changing the tree, which adds no record (FR-002).
-    Walking back from it with a current lineage: a record on the lineage is included; one off
-    it is skipped when the lineage has an older record (a visit elsewhere and back), and
-    otherwise included as the line the lineage came from.
+    The ledger's newest record is where the worktree stands now: the audit records it first, so
+    a current branch that the newest record does not name was created or checked out without
+    changing the tree, which adds no record (FR-002), and its work is the newest record's line.
+    Walking back from it with that record's branch as the lineage: a record on the lineage is
+    included; one off it is skipped when the lineage has an older record (a visit elsewhere and
+    back), and otherwise included as the line the lineage came from.
     """
     if not records:
         return []
-    lineage: str | None = branch
+    first: dict[str | None, int] = {}
+    for i, record in enumerate(records):
+        first.setdefault(record.branch, i)
+    lineage = records[-1].branch
     line = [records[-1]]
     for i in range(len(records) - 2, -1, -1):
         record = records[i]
         if record.branch != lineage:
-            if any(older.branch == lineage for older in records[:i]):
+            if first.get(lineage, i) < i:
                 continue
             lineage = record.branch
         line.append(record)
@@ -456,8 +459,7 @@ class Auditor:
         self._base_tree: str | None = None
         # Keyed by the two trees, so an auditor limited to an earlier history (until) shares it.
         self._changes: dict[tuple[str, str], set[str]] = {}
-        branch = ledger.git(worktree, "symbolic-ref", "--quiet", "--short", "HEAD")
-        self.history = effective_history(load_records(worktree), branch)
+        self.history = effective_history(load_records(worktree))
 
     def birth(self, test: str, file: str) -> Birth:
         """Where the test last appeared after being absent (data-model.md, Finding a birth).

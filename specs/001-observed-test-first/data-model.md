@@ -54,11 +54,12 @@ clone where the hook entries arrived committed) has that call's tests `unobserve
 
 ## Effective history (derived)
 
-The records that belong to branch *B*'s line of work, oldest first. Walk from the ledger's newest
-record towards the origin with a current lineage *L* = *B*. The newest record is where *B* stands
-now whatever branch it names: the audit records the worktree first, so it names another branch only
-when *B* was created or checked out without changing the tree, which adds no record. It is always
-included; from the next older one:
+The records of the current line of work, oldest first. The ledger's newest record is where the
+worktree stands now: the audit records the worktree first, so when it names a branch other than the
+current one, that branch was created or checked out without changing the tree, which adds no
+record, and its work is the newest record's line (work carried back uncommitted, a branch
+fast-forwarded to observed work). Walk from the newest record towards the origin with a current
+lineage *L* = the newest record's `branch`; it is always included, and from the next older one:
 
 - a record whose `branch` is *L* is included;
 - a record whose `branch` is not *L*, with an older record whose `branch` is *L*, is skipped (a
