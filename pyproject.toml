@@ -15,9 +15,14 @@ target-version = "py311"
 line-length = 100
 # The scripts and the test helpers are imported by module name (not a package).
 src = ["scripts/python", "tests/python"]
+# Vendored: this repository's own Spec Kit and the preset installed from its release, whose
+# source is scripts/ here; an edit under .specify/ would be overwritten by the next update.
+extend-exclude = [".specify"]
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF"]
+# PLW1510: a subprocess.run that reads the exit code says check=False, so the intent shows;
+# PYI034: a context manager's __enter__ returns Self (renta's ruff found both, 2026-10-08).
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF", "PLW1510", "PYI034"]
 
 [tool.mypy]
 python_version = "3.11"

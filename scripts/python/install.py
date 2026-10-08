@@ -151,7 +151,12 @@ def _checked(root: Path, config: dict[str, Any]) -> dict[str, Any]:
     except audit.BaseError as error:
         # The audit could never judge this branch: refused now, not at the first stop.
         raise Refused(str(error)) from None
-    if subprocess.run(["git", "-C", str(root), "diff", "--cached", "--quiet"]).returncode != 0:
+    if (
+        subprocess.run(
+            ["git", "-C", str(root), "diff", "--cached", "--quiet"], check=False
+        ).returncode
+        != 0
+    ):
         raise Refused("something is already staged, and it would land in this commit")
     for path in (SETTINGS, ledger.CONFIG):
         _committable(root, path)
@@ -327,7 +332,9 @@ def _committable(root: Path, path: Path) -> None:
     # git diff, and the commit would take the file as it is on disk.
     if flags[0].islower() or flags[0] == "S":
         raise Refused(f"{path} is marked skip-worktree or assume-unchanged; clear that first")
-    if subprocess.run(["git", "-C", str(root), "diff", "--quiet", "--", str(path)]).returncode:
+    if subprocess.run(
+        ["git", "-C", str(root), "diff", "--quiet", "--", str(path)], check=False
+    ).returncode:
         raise Refused(f"{path} has uncommitted changes; commit or discard them first")
 
 

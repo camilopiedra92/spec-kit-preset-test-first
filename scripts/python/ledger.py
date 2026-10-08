@@ -253,6 +253,7 @@ def locate(cwd: Path) -> Location | None:
             ],
             capture_output=True,
             text=True,
+            check=False,
         )
         if result.returncode != 0:
             continue
@@ -267,7 +268,7 @@ def locate(cwd: Path) -> Location | None:
         found = (newest[0], newest[1]) if newest else None
         return Location(Path(root), Path(index), branch, head, found)
     unborn = subprocess.run(
-        ["git", "-C", str(cwd), "rev-parse", *asked], capture_output=True, text=True
+        ["git", "-C", str(cwd), "rev-parse", *asked], capture_output=True, text=True, check=False
     )
     if unborn.returncode != 0:
         return None
@@ -374,6 +375,7 @@ def _target(worktree: Path, name: str) -> str | None:
         ["git", "-C", str(worktree), "symbolic-ref", "--quiet", name],
         capture_output=True,
         text=True,
+        check=False,
     )
     if result.returncode == 0:
         return result.stdout.strip()
@@ -384,7 +386,9 @@ def _target(worktree: Path, name: str) -> str | None:
 
 def _quiet(worktree: Path, *args: str) -> str | None:
     """git's output, or None when the command fails (a name that does not resolve)."""
-    result = subprocess.run(["git", "-C", str(worktree), *args], capture_output=True, text=True)
+    result = subprocess.run(
+        ["git", "-C", str(worktree), *args], capture_output=True, text=True, check=False
+    )
     return result.stdout.strip() if result.returncode == 0 else None
 
 
