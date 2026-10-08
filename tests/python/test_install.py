@@ -545,3 +545,23 @@ def test_an_installer_stopped_at_any_moment_of_its_writes_leaves_no_lock_and_no_
         git(project, "update-ref", "-d", "refs/worktree/test-first/ledger")
 
     assert broken == []
+
+
+def test_an_installer_stopped_during_its_first_record_says_it_had_finished(
+    project: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    record = ledger.record
+
+    def stopped_meanwhile(*args: ledger.Call) -> str | None:
+        install._Stop.signum = signal.SIGTERM  # as the handler marks a stop while git runs
+        return record(*args)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(ledger, "record", stopped_meanwhile)
+    monkeypatch.setattr(install._Stop, "signum", None)
+
+    with pytest.raises(SystemExit) as stopped:
+        install.main(ARGS)
+
+    assert stopped.value.code == 128 + signal.SIGTERM
+    assert "had finished" in capsys.readouterr().err
+    assert git(project, "rev-list", "--count", ledger.REF) == "1"

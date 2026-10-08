@@ -61,7 +61,14 @@ def main(argv: list[str]) -> int:
         # call's record is a change and the tests it writes are born in it.
         origin: ledger.Call = {"session": "install", "agent": None, "tool": "install", "call": None}
         ledger.record(root, origin, ledger.parse_config(config))
-        _stopped_here()
+        if _Stop.signum is not None:
+            # The record's git ran to its end: nothing is left half done.
+            print(
+                "test-first install: stopped, but it had finished: committed, with the "
+                "ledger's first record",
+                file=sys.stderr,
+            )
+            _stopped_here()
     except Refused as refusal:
         print(f"test-first install: {refusal}", file=sys.stderr)
         return 1
