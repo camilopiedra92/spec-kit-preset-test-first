@@ -19,11 +19,11 @@ tracked file; `.claude/` or `.specify/` is a symlink; `settings.json` is not a s
 (its hooks an object of events, each a list of matcher objects, each command a string); a commit
 hook rejects the commit, or does not finish within the commit's 300-second deadline (the commit
 runs under `run-bounded.sh`); the preset's `run-bounded.sh` is missing; it is terminated (SIGTERM,
-SIGHUP) during its commit. The commit is built in an index of its own (HEAD plus the two files, in
-a temporary directory, committed without a pathspec) and the repository's index is synced to it
-once it lands, so a stop before or during the commit's hooks leaves no lock in the repository;
-one in the microseconds git takes to write the commit can leave a ref lock (README, Limits). A
-commit that landed
+SIGHUP) during its commit. The commit is built in an index of its own (a copy of the repository's
+reset to HEAD, plus the two files, in a temporary directory, committed without a pathspec) and the
+repository's index is synced to it once it lands, so a stop before or during the commit's hooks
+leaves no lock in the repository; one in the milliseconds git takes to write the commit can leave
+one of the locks it takes then (README, Limits). A commit that landed
 stands even when what follows it fails, times out or is terminated (a `post-commit` hook): the
 installer says so and undoes nothing under it. If the ledger's
 first record fails after the commit, it exits 1 saying the commit stands and the first tool

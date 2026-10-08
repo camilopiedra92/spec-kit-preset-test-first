@@ -752,9 +752,13 @@ and Antigravity showed nothing test-first-specific in searches (second-hand).
   is per lock, not per process: on git 2.55 (macOS), SIGTERM at 0–45 ms into a plain
   `git commit -- f` on a copied index still left `next-index-*.lock` (4 of 2,000) and ref locks
   (`HEAD.lock`, `main.lock`, `packed-refs.lock`, 2 each). The commit is therefore built in an index
-  of its own, HEAD plus the two files, and committed without a pathspec, so it takes no
-  `next-index` lock; its ref locks come after the hooks and keep a window of microseconds, stated
-  as a limit. Considered: removing a leftover lock after a stop (cannot tell ours from another
+  of its own and committed without a pathspec, so it takes no `next-index` lock: 0 of 600 aimed
+  stops on Linux left any `*.lock` under `.git`. That index is a copy of the repository's reset to
+  HEAD, not a `read-tree HEAD`, which a second review showed drops a sparse checkout's skip-worktree
+  bits (a hook saw files out of the cone as deleted) and every entry's stat data (the commit
+  re-hashed the worktree: 0.24 s against 0.025 s on 3,052 files). After the hooks, writing the
+  commit takes `HEAD.lock`, the branch's lock, `packed-refs.lock` and `AUTO_MERGE.lock` (deleting
+  AUTO_MERGE), and rerere's `MERGE_RR.lock`, over milliseconds (not measured): a stated limit. Considered: removing a leftover lock after a stop (cannot tell ours from another
   process's), not passing the stop to the commit (a hanging hook would hold the installer up to the
   300 s deadline), delaying the SIGTERM (a timing guess), signalling only the hook's processes (git
   runs them in its own process group; the hook may itself run git).

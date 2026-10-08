@@ -172,12 +172,14 @@ def _commit(root: Path, contents: dict[Path, dict[str, Any]]) -> None:
     this run made.
 
     The commit, which a stop can interrupt (its hook may hang), is built in an index of its
-    own: HEAD plus these files, in the scratch directory, committed without a pathspec. git
+    own: a copy of the index reset to HEAD, plus these files, in the scratch directory,
+    committed without a pathspec. git
     opens each lock file before it registers it for removal on a signal (tempfile.c), so a stop
     in that instant leaves the lock: before the hooks, the only locks the commit takes are that
     index's, removed with the scratch directory. The repository's index is written before, by
-    `add`, which is never signalled (and refuses when another git holds it), and synced to the
-    commit after. Its ref locks, taken after the hooks, keep the window (README)."""
+    `add`, to which this installer passes no stop (it refuses when another git holds the
+    index), and synced to the commit after. The locks git takes after the hooks, to write the
+    commit, keep the window (README, Limits)."""
     written = {path: json.dumps(content, indent=2) for path, content in contents.items()}
     before = {
         path: (root / path).read_bytes() if (root / path).exists() else None for path in written
@@ -185,6 +187,7 @@ def _commit(root: Path, contents: dict[Path, dict[str, Any]]) -> None:
     made = [] if (root / SETTINGS.parent).exists() else [root / SETTINGS.parent]
     paths = [str(path) for path in written]
     head = audit.quiet_git(root, "rev-parse", "--verify", "--quiet", "HEAD")
+    index = Path(ledger.git(root, "rev-parse", "--path-format=absolute", "--git-path", "index"))
     scratch = Path(tempfile.mkdtemp(prefix="test-first-install-"))
     own_index = {**os.environ, "GIT_INDEX_FILE": str(scratch / "index")}
     committed = False
@@ -196,7 +199,10 @@ def _commit(root: Path, contents: dict[Path, dict[str, Any]]) -> None:
         _stopped_here()
         # Short writes, let finish: the stop is acted on just after.
         ledger.git(root, "add", "--", *paths)
-        ledger.git(root, "read-tree", "HEAD", env=own_index)
+        # A copy reset to HEAD, not a fresh read-tree: it keeps the entries' stat data and
+        # skip-worktree bits (a sparse checkout), and copy2 the index's mtime (racy git).
+        shutil.copy2(index, scratch / "index")
+        ledger.git(root, "reset", "-q", env=own_index)
         ledger.git(root, "add", "--", *paths, env=own_index)
         _stopped_here()
         status, output = _run(

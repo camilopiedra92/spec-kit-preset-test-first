@@ -583,3 +583,20 @@ def test_the_commit_a_stop_can_interrupt_holds_no_lock_of_the_repository_before_
 
     assert install.main(ARGS) == 0
     assert not held.exists()
+
+
+def test_the_commits_own_index_keeps_a_sparse_checkouts_files_out_of_the_cone(
+    project: Path,
+) -> None:
+    (project / "far").mkdir()
+    (project / "far" / "x.txt").write_text("x\n")
+    git(project, "add", "far")
+    git(project, "commit", "-q", "-m", "far")
+    git(project, "sparse-checkout", "set", "--cone", "tests", "src", ".specify", ".claude")
+    seen = project.parent / "hook-status"
+    hook = project / ".git" / "hooks" / "pre-commit"
+    hook.write_text(f'#!/bin/sh\ngit status --porcelain > "{seen}"\nexit 0\n')
+    hook.chmod(0o755)
+
+    assert install.main(ARGS) == 0
+    assert "far/x.txt" not in seen.read_text()  # not reported deleted: still skip-worktree

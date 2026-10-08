@@ -159,12 +159,15 @@ What the audit does not check, and where it does not hold:
 - Concurrent writers in one worktree are not supported, and fail closed:
   their changes land in one record, so a test and its code written at once
   are `born-with-code`.
-- An installer stopped in the instant git writes its commit can leave a ref
-  lock (`.git/HEAD.lock`, `.git/refs/heads/<branch>.lock`): git opens a lock
-  file before it registers it for removal on a signal. Its commit is built in
-  an index of its own, so no lock of the repository is held before the
-  commit's hooks, where a stop usually lands; the ref locks come after them,
-  for microseconds. git's message names the file to remove.
+- An installer stopped while git writes can leave a lock under `.git`: git
+  opens a lock file before it registers it for removal on a signal. The
+  commit, the one git process an installer passes a stop to, is built in an
+  index of its own, so it holds no lock of the repository before its hooks,
+  where a stop usually lands. Writing the commit after them takes a few
+  milliseconds and several locks (`HEAD.lock`, `refs/heads/<branch>.lock`,
+  `packed-refs.lock`, `AUTO_MERGE.lock`, rerere's `MERGE_RR.lock`); a signal
+  sent to the installer's whole process group (Ctrl-C in a terminal) also
+  reaches its short git writes. git's message names the file to remove.
 - Code drafted outside the worktree and brought in later cannot be told from
   code written in place.
 - A test that existed at the base and changed in the feature is not judged,

@@ -298,13 +298,17 @@ stop_here
 git add "$hook" "$settings"
 stop_here
 # The commit, which a stop can interrupt (its hook may hang), is built in an
-# index of its own: HEAD plus these two files, committed without a pathspec.
+# index of its own: a copy of the index reset to HEAD (keeping its stat data and
+# skip-worktree bits; cp -p keeps the mtime, for racy git), plus these two
+# files, committed without a pathspec.
 # git opens each lock file before it registers it for removal on a signal
 # (tempfile.c), so a stop in that instant leaves the lock: before the hooks,
 # the only locks the commit takes are that index's, removed with the scratch
-# directory. Its ref locks, taken after the hooks, keep the window (README).
+# directory. The locks git takes after the hooks, to write the commit, keep the
+# window (README, Limits).
 scratch=$(mktemp -d) || exit 1
-GIT_INDEX_FILE="$scratch/index" git read-tree HEAD
+cp -p "$(git rev-parse --path-format=absolute --git-path index)" "$scratch/index"
+GIT_INDEX_FILE="$scratch/index" git reset -q
 GIT_INDEX_FILE="$scratch/index" git add "$hook" "$settings"
 stop_here
 # A commit hook's own output does not say what it refused, and a commit-msg

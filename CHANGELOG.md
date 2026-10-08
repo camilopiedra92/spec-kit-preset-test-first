@@ -14,13 +14,16 @@ All notable changes to this preset are documented here. The format follows
   their commit started, could leave `.git/index.lock` behind and the two files
   staged: git opens a lock file before it registers it for removal on a
   signal (tempfile.c), and a stop is passed on to the commit, whose hook may
-  hang. The commit is now built in an index of its own (HEAD plus the two
-  files, in a temporary directory, committed without a pathspec), so no lock
-  of the repository is held before its hooks; the repository's index is
-  synced to the commit once it lands. Found by the first CI run on Linux;
-  5 of 300 stops aimed at the commit's start left the lock before (ubuntu
-  24.04, git 2.43.0). A stop in the microseconds git takes to write the
-  commit can still leave a ref lock, now a stated limit.
+  hang. The commit is now built in an index of its own (a copy of the
+  repository's reset to HEAD, keeping a sparse checkout's skip-worktree bits,
+  plus the two files, in a temporary directory, committed without a
+  pathspec), so no lock of the repository is held before its hooks; the
+  repository's index is synced to the commit once it lands. Found by the
+  first CI run on Linux; of stops aimed at the commit's start (ubuntu 24.04,
+  git 2.43.0), 5 of 300 left `index.lock` before, and 0 of 600 left any lock
+  under `.git` after. A stop in the milliseconds git takes to write the
+  commit after its hooks can still leave one of the locks it takes then, now
+  a stated limit.
 - A pre-commit hook that rewrote one of the two files and added it again left
   the index holding the version from before the hook: the index now takes
   the committed version.
