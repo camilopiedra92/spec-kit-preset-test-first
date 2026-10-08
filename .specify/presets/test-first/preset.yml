@@ -8,8 +8,8 @@ schema_version: "1.0"
 preset:
   id: "test-first"
   name: "Test-first"
-  version: "1.6.0"
-  description: "Makes tests required in /speckit-tasks, and red-green-refactor verifiable and independently reviewed in /speckit-implement"
+  version: "2.0.0"
+  description: "Makes tests required in /speckit-tasks, and in /speckit-implement records every tool call so an audit can show each new test failed before its code; stories close with that audit and an independent review"
   author: "camilopiedra92"
   repository: "https://github.com/camilopiedra92/spec-kit-preset-test-first"
   license: "MIT"
@@ -28,7 +28,7 @@ provides:
     - type: "command"
       name: "speckit.implement"
       file: "commands/speckit.implement.md"
-      description: "One red-green-refactor cycle per case of the task's test list, each red run recorded; new cases join the list; a task closes on a green suite and the project's static checks against a baseline; tool config stays the project's; each story ends with an independent review of tests and structure; the first green suite installs a Stop hook that gates every later turn on it"
+      description: "Installs the ledger, which records every tool call; one red-green-refactor cycle per case of the task's test list, test and code in separate calls; new cases join the list; a task closes on a green suite and the project's static checks against a baseline; each story closes with the audit of which tests failed before their code, then an independent review of their strength and structure; the first green suite installs a Stop hook that gates every later turn on it"
       strategy: "append"
 
     # The implement fragment runs it by its installed path, which
@@ -38,6 +38,33 @@ provides:
       name: "install-stop-gate"
       file: "scripts/bash/install-stop-gate.sh"
       description: "Commits a Claude Code Stop hook that blocks a turn ending on a red suite, once per turn"
+
+    - type: "script"
+      name: "run-bounded"
+      file: "scripts/bash/run-bounded.sh"
+      description: "Runs a command under a deadline that kills its whole process group"
+
+    # The ledger's three entry points are `python3 cli.py ledger|audit|install`;
+    # the modules it imports are listed so the installed files are accounted for.
+    - type: "script"
+      name: "cli"
+      file: "scripts/python/cli.py"
+      description: "Entry point: checks for python3 >= 3.11, then runs the ledger hook, the audit or the installer"
+
+    - type: "script"
+      name: "ledger"
+      file: "scripts/python/ledger.py"
+      description: "PostToolUse hook: records the worktree after every tool call, and tells Claude when one call changed tests and code"
+
+    - type: "script"
+      name: "audit"
+      file: "scripts/python/audit.py"
+      description: "Replays the records to judge whether each new test failed before its code; also the Stop hook"
+
+    - type: "script"
+      name: "install"
+      file: "scripts/python/install.py"
+      description: "Commits the ledger's configuration and its two Claude Code hook entries"
 
 tags:
   - "tdd"

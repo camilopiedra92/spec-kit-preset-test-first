@@ -6,6 +6,99 @@ All notable changes to this preset are documented here. The format follows
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-10-08
+
+Test-first is observed, not reported: the agent no longer writes down its
+own red runs; a hook records the worktree after every tool call and an audit
+replays the records. MAJOR because a project's workflow changes: the rules
+the implement skill gave the agent are replaced, and the next
+`/speckit-implement` commits two hook entries. Evidence for each rule, and
+what was measured: README, "Why 2.0.0's rules, by source".
+
+### Added
+
+- The ledger: a Claude Code `PostToolUse` hook (`cli.py ledger`) that
+  records the worktree as a git tree after every tool call, in a chain of
+  commits under `refs/worktree/test-first/ledger` (a symbolic ref to the
+  worktree's ledger under `refs/test-first/ledgers/`), never touching the index
+  or the worktree; it tells Claude, by exit 2, when one call changed tests
+  and code together.
+- The audit (`cli.py audit`): replays each new test's file at its birth and
+  at its first pass, in a scratch worktree under a deadline, and gives each
+  new test a verdict — `red`, `predates`, `refactored`, `born-with-code`,
+  `born-green`, `rewritten-to-green`, `still-red`, `unobserved`,
+  `not-judged`, `never-run` — with the remedy for each failing one. It reads
+  per-test outcomes from JUnit XML, so it works with any runner that runs
+  one file and writes JUnit (pytest and Vitest measured).
+- The same audit as a `Stop` hook (`cli.py audit --stop`): within a
+  120-second budget, it blocks a turn once when a new test was born with its
+  code, born green or rewritten to green, or when the audit cannot run (a
+  configuration or git error, the preset's `run-bounded.sh` missing, an OS
+  error such as a full disk); it is silent where there is nothing to judge
+  (no ledger, a detached HEAD, the default branch).
+- The installer (`cli.py install --tests … --sources … --run …`): one
+  commit of `.specify/test-first.json` and both hook entries, or a refusal
+  that leaves the repository as it was — a commit hook that rejects the
+  commit or does not finish in 300 seconds included. A commit that landed
+  stands and is reported when what follows it fails or is stopped (a
+  `post-commit` hook); the installer knows its own commit by its parent and
+  contents, which no hook rewrites. Stopped (TERM, INT, HUP, QUIT), it passes
+  the signal on to git and waits for it, so no `index.lock` is left.
+- `speckit-implement`: installs the ledger before the first task, takes
+  each case in calls the ledger can tell apart (the test, then the code;
+  renames and commits in calls of their own; writing subagents in this
+  worktree, one at a time), and closes each story with the audit before the
+  independent review, which receives its report and uses the project's
+  mutation check where its constitution or CI names one.
+- `speckit-tasks`: a task implementing an invariant the spec states gets a
+  property case over generated inputs.
+- Requires `python3` 3.11 or newer on `PATH` for the hooks; on an older one
+  each says so, and the Stop hook blocks once per turn, not every stop.
+- `run-bounded` is declared in `preset.yml`, so `specify preset info` lists
+  it with the new scripts.
+
+### Changed
+
+- `speckit-implement`: a task closes when every case was taken — written and
+  run as the cycle says, or stopped — instead of on a recorded red run; a
+  stub raises rather than returning a placeholder, and a task's property case
+  is written with its first case; each story's audit summary goes in the
+  completion report, and a test whose file did not load before its code is
+  redone with a stub first; the redo removes a test's file when it holds the
+  only test; writing subagents work one at a time in the
+  feature's worktree, narrowing core's "parallel tasks [P] can run
+  together"; the story review receives the audit's
+  report, counts a failing verdict as a finding, and removes the copy's
+  `PostToolUse` entries as well as its `Stop` ones.
+- The preset's and `speckit-implement`'s descriptions.
+- `run-bounded.sh`, terminated or interrupted itself, sends its command
+  SIGTERM and waits the grace period before SIGKILL, as its deadline does,
+  so the command can clean up (git removes its lock files); it used to send
+  SIGKILL at once. Ending, it ignores further signals and SIGPIPE, so a second
+  signal or a caller that stopped reading cannot cut its cleanup short.
+- `install-stop-gate.sh` runs the suite and its commit under `run-bounded.sh`
+  (540 and 300 seconds): a suite, pre-commit or commit-msg hook that never
+  finishes is refused, the repository as it was, while a commit that landed
+  (a `post-commit` hook failing, hanging or stopped) stands and is reported.
+  Stopped, it passes the signal on and waits for git before putting anything
+  back.
+
+### Removed
+
+- `speckit-implement`: recording each red run in tasks.md, and accepting a
+  test that passed on its first run by breaking the code on purpose. The
+  ledger observes the first; the redo sequence the audit prescribes is the
+  second, observed.
+
+### Migration from 1.x
+
+1. `specify preset update test-first --from <the v2.0.0 archive URL>`, and
+   commit the updated `.specify/presets/test-first/`.
+2. Nothing else, given `python3` 3.11 or newer where Claude Code runs: the next `/speckit-implement` on a feature branch installs
+   the ledger in a commit of its own. The 1.x Stop gate keeps running beside
+   the ledger's Stop hook, and a tasks.md written under 1.x keeps its red
+   bullets; new cases get none.
+
 ## [1.6.0] - 2026-10-06
 
 ### Added
@@ -216,7 +309,8 @@ All notable changes to this preset are documented here. The format follows
 - `tests/compose.sh` and CI composing the preset against the pinned and the
   latest Spec Kit release.
 
-[Unreleased]: https://github.com/camilopiedra92/spec-kit-preset-test-first/compare/v1.6.0...HEAD
+[Unreleased]: https://github.com/camilopiedra92/spec-kit-preset-test-first/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/camilopiedra92/spec-kit-preset-test-first/compare/v1.6.0...v2.0.0
 [1.6.0]: https://github.com/camilopiedra92/spec-kit-preset-test-first/compare/v1.5.1...v1.6.0
 [1.5.1]: https://github.com/camilopiedra92/spec-kit-preset-test-first/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/camilopiedra92/spec-kit-preset-test-first/compare/v1.4.1...v1.5.0
