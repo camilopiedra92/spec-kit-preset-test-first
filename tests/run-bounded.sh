@@ -142,7 +142,100 @@ for signal in TERM INT HUP QUIT; do
   sleep 1
   leftover 9106 && problem "runner killed by $signal: the command survived it"
 done
+# Terminated, it passes SIGTERM on before any SIGKILL, as its deadline does, so the command can
+# clean up: git removes its lock files on SIGTERM and cannot on SIGKILL.
+cleaned=$(mktemp -u)
+bash "$RUN" 30 sh -c "trap 'echo done > $cleaned; exit 0' TERM; sleep 9108 & wait" 2> /dev/null &
+runner=$!
+sleep 1
+kill -TERM "$runner"
+wait "$runner" 2> /dev/null
+sleep 1
+[ -e "$cleaned" ] || problem "runner terminated: the command got no SIGTERM to clean up with"
+rm -f "$cleaned"
+leftover 9108 && problem "runner terminated: the command survived it"
+
+# A second signal, or a SIGKILL, while it waits out the grace period must not leave a command
+# that ignores SIGTERM running past its bounds: the watchdog still holds the deadline.
+for second in TERM KILL; do
+  start=$SECONDS
+  bash "$RUN" 4 sh -c "trap '' TERM; sleep 9109; sleep 9109" 2> /dev/null &
+  runner=$!
+  sleep 1
+  kill -TERM "$runner"
+  sleep 1
+  kill -"$second" "$runner"
+  wait "$runner" 2> /dev/null
+  # The deadline (4 s) and the grace period (5 s), and a second to spare.
+  # pgrep only: `leftover` kills what it finds.
+  while pgrep -f "^sleep 9109" > /dev/null && [ $((SECONDS - start)) -lt 11 ]; do sleep 0.5; done
+  leftover 9109 && problem "runner terminated, then $second: the command outlived its bounds"
+done
+# Two signals back to back: the second can arrive before the first's handler has run. The
+# runner must still return only once the command is gone. Timing-dependent, so repeated: about
+# half of the pairs found the hole before the traps were made idempotent.
+early=0
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+  bash "$RUN" 30 sh -c "trap '' TERM INT HUP QUIT; sleep 9110; sleep 9110" 2> /dev/null &
+  runner=$!
+  sleep 1
+  for signal in TERM TERM; do kill -"$signal" "$runner" 2> /dev/null; done
+  wait "$runner" 2> /dev/null
+  pgrep -f "^sleep 9110" > /dev/null && early=$((early + 1))
+  pkill -KILL -f "sleep 9110"
+done
+[ "$early" -eq 0 ] || problem "runner terminated twice at once: returned with the command alive, $early of 10"
 set +m
+
+# The command keeps each signal's action as the runner received it: the runner ignores them only
+# for its own cleanup, since an ignored signal is inherited across exec and would change how the
+# command ends (SIGPIPE in its pipelines, SIGTERM from anyone stopping it). Compared with the same
+# command run directly: an environment can start with a signal ignored, which bash cannot reset
+# and the runner must pass on unchanged (the branch's first CI run, 2026-10-08, on GitHub Actions'
+# ubuntu runner, saw SIGPIPE and SIGQUIT survive; reproduced here with both ignored by the parent).
+for signal in PIPE TERM INT HUP QUIT; do
+  direct=$(bash -c "kill -$signal \$\$; echo survived" 2> /dev/null)
+  out=$(bash "$RUN" 5 bash -c "kill -$signal \$\$; echo survived" 2> /dev/null)
+  [ "$out" = "$direct" ] ||
+    problem "the runner changed SIG$signal for its command: directly ${direct:-killed}, through it ${out:-killed}"
+  [ -z "$direct" ] || echo "note: SIG$signal is ignored by this environment; its default is not checked here"
+done
+
+# A signal in the first milliseconds can land between starting the command (or the watchdog)
+# and recording its pid. The runner must still return only once the command is gone.
+# Timing-dependent: 3 of 200 runs found the window before it was closed, hence 400.
+early=0
+for _ in $(seq 400); do
+  bash "$RUN" 4 sleep 9113 2> /dev/null &
+  runner=$!
+  sleep "$(printf '0.%03d' $((RANDOM % 21)))"
+  kill -TERM "$runner" 2> /dev/null
+  wait "$runner" 2> /dev/null
+  pgrep -f "^sleep 9113" > /dev/null && early=$((early + 1))
+  pkill -KILL -f "sleep 9113"
+done
+[ "$early" -eq 0 ] || problem "runner terminated as it started: returned with the command alive, $early of 400"
+
+# A caller that terminates the runner and goes away at once, its pipe on the runner's stderr
+# left with no reader: bash's report of the killed job then raises SIGPIPE in the runner, which
+# must not end it before the grace period and the group kill.
+orphans=0
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+  python3 -c '
+import subprocess, sys, time
+runner = subprocess.Popen(
+    ["bash", sys.argv[1], "61", "sh", "-c", "(trap \"\" TERM; exec sleep 9111) & exec sleep 9112"],
+    stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+)
+time.sleep(1)
+runner.terminate()
+' "$RUN"
+  sleep 6.5 # the grace period, and a margin
+  pgrep -f "^sleep 9111" > /dev/null && orphans=$((orphans + 1))
+  pkill -KILL -f "sleep 911[12]"
+  pkill -KILL -f "run-bounded.sh 61 sh -c"
+done
+[ "$orphans" -eq 0 ] || problem "runner terminated by a caller that went away: the command outlived the grace, $orphans of 10"
 
 [ "$fail" -eq 0 ] && echo "ok: run-bounded"
 exit "$fail"

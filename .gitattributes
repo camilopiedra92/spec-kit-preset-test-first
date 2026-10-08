@@ -1,3 +1,11 @@
 tests/ export-ignore
 .github/ export-ignore
 .gitattributes export-ignore
+.specify/ export-ignore
+.claude/ export-ignore
+specs/ export-ignore
+CLAUDE.md export-ignore
+pyproject.toml export-ignore
+uv.lock export-ignore
+docs/ export-ignore
+.gitignore export-ignore

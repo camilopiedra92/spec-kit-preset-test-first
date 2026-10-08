@@ -1,0 +1,29 @@
+schema_version: "1.0"
+
+# Appends to the core constitution skill rather than replacing it, so upstream
+# changes to the rest of it keep arriving. The fragment carries no frontmatter:
+# a description there replaces the skill's own, which is what Claude reads to
+# decide when to invoke it. tests/compose.sh checks this against the real CLI.
+preset:
+  id: "constitution-authoring"
+  name: "Constitution authoring"
+  version: "1.2.0"
+  description: "Decides what /speckit-constitution puts in, for new and existing projects: sourced, every-change, checkable principles; the Sync Impact Report kept out of the commit"
+  author: "camilopiedra92"
+  repository: "https://github.com/camilopiedra92/spec-kit-preset-constitution-authoring"
+  license: "MIT"
+
+requires:
+  speckit_version: ">=1.1.0"
+
+provides:
+  templates:
+    - type: "command"
+      name: "speckit.constitution"
+      file: "commands/speckit.constitution.md"
+      description: "Sourced principles only, kept on amendment, asked for in a new project; every-change rules with named checks; the rest to Next Actions"
+      strategy: "append"
+
+tags:
+  - "constitution"
+  - "governance"

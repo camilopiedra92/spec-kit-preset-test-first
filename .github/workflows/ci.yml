@@ -1,7 +1,9 @@
 # Runs tests/compose.sh against the real specify CLI, pinned on every push and
 # pull request and weekly against upstream's latest release, and
 # tests/stop-gate.sh and tests/run-bounded.sh, which need no specify, alongside
-# it. The pinned run
+# it, with the Python scripts' lint, types and units. All in the one job the
+# ruleset requires (compose (pinned)), so none of them can be skipped by a
+# merge. The pinned run
 # says this commit works; the weekly one says upstream has not moved under it,
 # which is the only way a change to the core skills reaches this repo before it
 # reaches a project.
@@ -44,6 +46,10 @@ jobs:
           - speckit: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && 'none' || 'latest' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The whole history with its tags: tests/compose.sh archives the v1.6.0 tag to check
+          # a project updating from it; the default shallow fetch has no tags.
+          fetch-depth: 0
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
       - name: Install specify
         env:
@@ -56,6 +62,16 @@ jobs:
           fi
           uv tool install specify-cli --from "git+https://github.com/github/spec-kit.git@$tag"
       - run: tests/compose.sh
+      # The preset's Python scripts run on other projects' python3, so the
+      # units also run on the oldest version they support.
+      - run: uv run ruff check
+      - run: uv run ruff format --check
+      - run: uv run mypy
+      - run: uv run pytest
+      - run: uv run --isolated --python 3.11 pytest
       # These need no specify, so they say the same on both legs; they are cheap.
       - run: tests/stop-gate.sh
       - run: tests/run-bounded.sh
+      - run: tests/ledger.sh
+      - run: tests/audit.sh
+      - run: tests/install-ledger.sh

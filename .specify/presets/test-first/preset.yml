@@ -1,0 +1,45 @@
+schema_version: "1.0"
+
+# Appends to two core skills rather than replacing them, so upstream changes to
+# the rest of each skill keep arriving. The fragments carry no frontmatter: a
+# description there replaces the skill's own, which is what Claude reads to
+# decide when to invoke it. tests/compose.sh checks all of this against the
+# real CLI.
+preset:
+  id: "test-first"
+  name: "Test-first"
+  version: "1.6.0"
+  description: "Makes tests required in /speckit-tasks, and red-green-refactor verifiable and independently reviewed in /speckit-implement"
+  author: "camilopiedra92"
+  repository: "https://github.com/camilopiedra92/spec-kit-preset-test-first"
+  license: "MIT"
+
+requires:
+  speckit_version: ">=1.1.0"
+
+provides:
+  templates:
+    - type: "command"
+      name: "speckit.tasks"
+      file: "commands/speckit.tasks.md"
+      description: "Tests required; one task per behaviour with its test list from the spec, never parallel, ordered simplest first, requirement IDs cited"
+      strategy: "append"
+
+    - type: "command"
+      name: "speckit.implement"
+      file: "commands/speckit.implement.md"
+      description: "One red-green-refactor cycle per case of the task's test list, each red run recorded; new cases join the list; a task closes on a green suite and the project's static checks against a baseline; tool config stays the project's; each story ends with an independent review of tests and structure; the first green suite installs a Stop hook that gates every later turn on it"
+      strategy: "append"
+
+    # The implement fragment runs it by its installed path, which
+    # tests/compose.sh checks. Install copies the whole preset either way; this
+    # entry is what makes `specify preset info` list it.
+    - type: "script"
+      name: "install-stop-gate"
+      file: "scripts/bash/install-stop-gate.sh"
+      description: "Commits a Claude Code Stop hook that blocks a turn ending on a red suite, once per turn"
+
+tags:
+  - "tdd"
+  - "test-first"
+  - "testing"

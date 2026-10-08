@@ -7,6 +7,10 @@
 #
 # Usage:  tests/compose.sh        from the repository root
 set -euo pipefail
+# Git as CI sees it: none of the developer's global or system configuration, whose
+# core.fsmonitor would start a daemon for every scratch repository, and whose hooks,
+# signing or default branch would make a local run differ from CI's.
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 
 PRESET="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 work=$(mktemp -d)
@@ -80,6 +84,10 @@ grep -qF 'Execute test tasks before their corresponding implementation tasks' co
   problem "core speckit-implement no longer orders test tasks first; revise the fragment"
 grep -qF 'Tests before code' core/implement.md ||
   problem "core speckit-implement no longer says 'Tests before code'; revise the fragment"
+grep -qF 'parallel tasks [P] can run together' core/implement.md ||
+  problem "core speckit-implement no longer runs [P] tasks together; revise the fragment"
+grep -qF 'Setup, Tests, Core' core/implement.md ||
+  problem "core speckit-implement no longer has a 'Tests' phase; revise the fragment"
 
 quiet specify preset add --from "http://127.0.0.1:$port/preset.zip"
 
@@ -97,6 +105,15 @@ for s in tasks implement; do
   # (quotes dropped, long lines folded) whenever it composes a skill.
   [ "$(description "$skill")" = "$(description "core/$s.md")" ] ||
     problem "speckit-$s description changed: $(description "$skill")"
+done
+
+# This repository is developed with Spec Kit itself; its own .specify/, CLAUDE.md,
+# .claude/ and specs/ are export-ignore, or every project installing the
+# preset would get them under .specify/presets/test-first/. So are its Python
+# dev tooling (pyproject.toml, uv.lock) and its decision records (docs/).
+for own in .specify .claude specs CLAUDE.md pyproject.toml uv.lock docs .gitignore; do
+  [ ! -e ".specify/presets/test-first/$own" ] ||
+    problem "the installed preset carries this repository's $own"
 done
 
 # The implement fragment runs the installer by this path, so it must land
@@ -117,6 +134,88 @@ gate=.specify/presets/test-first/scripts/bash/install-stop-gate.sh
 hook=$(sed -n 's/^hook=//p' "$gate")
 tr -s ' \n' '  ' < "$skills/speckit-implement/SKILL.md" | grep -qF "\`$hook\` does not exist" ||
   problem "speckit-implement does not check for $hook, where the installer writes"
+
+# The ledger, the audit and the installer run as `python3 <installed path>/cli.py`,
+# by the fragment and by the hook entries the installer commits: the modules
+# must land beside it as committed.
+for module in cli ledger audit install; do
+  installed=.specify/presets/test-first/scripts/python/$module.py
+  cmp -s "$installed" "$PRESET/scripts/python/$module.py" ||
+    problem "$installed is not installed as committed"
+done
+cli=.specify/presets/test-first/scripts/python/cli.py
+for command in install audit; do
+  tr -s ' \n' '  ' < "$skills/speckit-implement/SKILL.md" | grep -qF "python3 $cli $command" ||
+    problem "speckit-implement does not run python3 $cli $command"
+done
+# The calls the ledger must be able to tell apart (FR-016) and the audit
+# before the review (FR-018). Joined into one line first, as above.
+for rule in "in a call that changes no source file" "in a later call that changes no test-side path" \
+  "changes only test-side paths" "Commit in a call of its own" "in this worktree, one at a time" \
+  "and before its review, run the audit"; do
+  tr -s ' \n' '  ' < "$skills/speckit-implement/SKILL.md" | grep -qF "$rule" ||
+    problem "speckit-implement no longer says: $rule"
+done
+# 2.0.0 dropped the self-recorded evidence (FR-017): the ledger observes what
+# the agent used to report, and breaking the code on purpose is the redo
+# sequence now. Joined into one line first, as above.
+for gone in "Record the red run" "Break the code it pins on purpose"; do
+  ! tr -s ' \n' '  ' < "$skills/speckit-implement/SKILL.md" | grep -qF "$gone" ||
+    problem "speckit-implement still says: $gone"
+done
+
+# A stated invariant gets a property case (FR-020), and only a stated one.
+# Joined into one line first, so rewrapping the fragment does not fail this.
+for rule in "property case" "listed with the task's first case" \
+  "Only then: a task whose behaviour has no stated invariant gets none"; do
+  tr -s ' \n' '  ' < "$skills/speckit-tasks/SKILL.md" | grep -qF "$rule" ||
+    problem "speckit-tasks no longer says: $rule"
+done
+tr -s ' \n' '  ' < "$skills/speckit-implement/SKILL.md" |
+  grep -qF "property case is written in the same call as its first case" ||
+  problem "speckit-implement does not take the property case with the first case"
+
+# Each script the fragments or the installed hooks run is declared in
+# preset.yml, which is what makes `specify preset info` list it.
+specify preset info test-first > info.txt 2>&1 || problem "specify preset info failed: $(cat info.txt)"
+for script in install-stop-gate run-bounded cli ledger audit install; do
+  grep -qE "^ +- $script \(script\):" info.txt ||
+    problem "specify preset info does not list the $script script"
+done
+
+# A project on 1.6.0 updates to this version and keeps working (FR-021,
+# SC-005): its Stop gate, committed by 1.6.0's installer, still blocks a red
+# turn and lets a green one end, and the composed skill still reads a tasks.md
+# written under 1.x.
+quiet git -C "$PRESET" archive --format=zip --prefix=spec-kit-preset-test-first/ \
+  -o "$work/www/v1.6.0.zip" v1.6.0
+mkdir "$work/migrate"
+(
+  cd "$work/migrate"
+  quiet git init -q
+  quiet git config user.email t@example.com
+  quiet git config user.name T
+  quiet specify init --here --force --integration claude --ignore-agent-tools
+  quiet specify preset add --from "http://127.0.0.1:$port/v1.6.0.zip"
+  echo green > verdict
+  quiet git add -A
+  quiet git commit -q -m "a project on 1.6.0"
+  quiet bash .specify/presets/test-first/scripts/bash/install-stop-gate.sh sh -c 'grep -q green verdict'
+  quiet specify preset update test-first --from "http://127.0.0.1:$port/preset.zip"
+  cmp -s .specify/presets/test-first/preset.yml "$PRESET/preset.yml" ||
+    problem "the update did not install this version's preset.yml"
+  stop() {
+    echo '{"stop_hook_active": false}' | CLAUDE_PROJECT_DIR=$PWD .claude/hooks/stop-gate.sh > /dev/null 2>&1
+  }
+  stop || problem "after the update, the 1.6.0 gate blocks a green turn (exit $?)"
+  echo red > verdict
+  stop
+  [ $? -eq 2 ] || problem "after the update, the 1.6.0 gate lets a red turn end"
+  tr -s ' \n' '  ' < "$skills/speckit-implement/SKILL.md" |
+    grep -qF "Its recorded red runs stay as they are; new cases get none." ||
+    problem "after the update, speckit-implement no longer reads a 1.x tasks.md"
+  [ "$fail" -eq 0 ]
+) || fail=1
 
 specify version > version.txt 2>&1 || true
 [ "$fail" -eq 0 ] && echo "ok: composes on specify $(grep -m1 -oE '[0-9]+\.[0-9]+\.[0-9]+' version.txt)"

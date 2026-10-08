@@ -12,6 +12,10 @@
 #
 # Usage:  tests/stop-gate.sh        from the repository root
 set -uo pipefail
+# Git as CI sees it: none of the developer's global or system configuration, whose
+# core.fsmonitor would start a daemon for every scratch repository, and whose hooks,
+# signing or default branch would make a local run differ from CI's.
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 
 PRESET="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
@@ -406,6 +410,139 @@ FAKE
     rm "$repo/.git/hooks/pre-commit"
     out=$(run) || {
       echo "refused a re-run after a failed commit: $out"
+      return 1
+    }
+  done
+
+  # The installer runs the suite and its commit under the runner: a suite or a commit hook that
+  # never finishes is refused at its deadline, the repository as it was and nothing left
+  # running. Shortened here by the runner committed in the repository, which passes the real
+  # one 2 seconds whatever it is asked.
+  fresh bounded
+  printf '#!/usr/bin/env bash\nshift\nexec bash "%s" 2 "$@"\n' "$PRESET/scripts/bash/run-bounded.sh" \
+    > "$repo/$runner"
+  git -C "$repo" -c user.name=t -c user.email=t@t commit -q -am "a runner with a 2-second deadline"
+  echo hang > "$tmp/verdict"
+  before=$(snapshot)
+  start=$SECONDS
+  if out=$(run); then
+    echo "gated on a suite that never finished: $out"
+    return 1
+  fi
+  echo "$out" | grep -q "did not finish" || {
+    echo "a hung suite was not refused at its deadline: $out"
+    return 1
+  }
+  [ $((SECONDS - start)) -le 12 ] && [ "$(snapshot)" = "$before" ] || {
+    echo "a hung suite took $((SECONDS - start))s or changed the repository"
+    return 1
+  }
+  if pgrep -f "^sleep 9301" > /dev/null; then
+    pkill -KILL -f "sleep 9301"
+    echo "the installer's hung suite outlived its deadline"
+    return 1
+  fi
+  echo green > "$tmp/verdict"
+  printf '#!/bin/sh\nsleep 9306\n' > "$repo/.git/hooks/pre-commit"
+  chmod +x "$repo/.git/hooks/pre-commit"
+  before=$(snapshot)
+  if out=$(run); then
+    echo "committed past a commit hook that never finished: $out"
+    return 1
+  fi
+  echo "$out" | grep -q "did not finish" && [ "$(snapshot)" = "$before" ] || {
+    echo "a hung commit hook was not refused with the repository as it was: $out"
+    return 1
+  }
+  if pgrep -f "^sleep 9306" > /dev/null; then
+    pkill -KILL -f "sleep 9306"
+    echo "the installer's hung commit hook outlived its deadline"
+    return 1
+  fi
+
+  # The installer's own commit is known by its parent and its contents, not its subject, which
+  # a prepare-commit-msg hook may rewrite: a commit that landed stands when a post-commit hook
+  # outlives the deadline.
+  fresh prefixed
+  printf '#!/usr/bin/env bash\nshift\nexec bash "%s" 2 "$@"\n' "$PRESET/scripts/bash/run-bounded.sh" \
+    > "$repo/$runner"
+  git -C "$repo" -c user.name=t -c user.email=t@t commit -q -am "a runner with a 2-second deadline"
+  printf '#!/bin/sh\nsed -i.bak "1s/^/[FEAT-1] /" "$1"\n' > "$repo/.git/hooks/prepare-commit-msg"
+  printf '#!/bin/sh\nsleep 9307\n' > "$repo/.git/hooks/post-commit"
+  chmod +x "$repo/.git/hooks/prepare-commit-msg" "$repo/.git/hooks/post-commit"
+  out=$(run)
+  pkill -KILL -f "sleep 9307"
+  subject=$(git -C "$repo" log -1 --format=%s)
+  if [ "$subject" != "[FEAT-1] Gate the end of every Claude turn on the test suite" ] ||
+    [ -n "$(git -C "$repo" status --porcelain)" ] || ! grep -q "committed" <<< "$out"; then
+    echo "a commit whose subject a hook rewrote was undone under it ($subject): $out"
+    git -C "$repo" status --porcelain
+    return 1
+  fi
+
+  # Terminated while its commit runs, the installer passes SIGTERM on and waits for git before
+  # undoing: nothing lands later, and no lock is left. Terminated in a post-commit hook, after
+  # the commit landed, it undoes nothing under it.
+  for stage in pre-commit post-commit; do
+    fresh "terminated-$stage"
+    printf '#!/bin/sh\ntouch %s\nsleep 6\n' "$tmp/started" > "$repo/.git/hooks/$stage"
+    chmod +x "$repo/.git/hooks/$stage"
+    rm -f "$tmp/started"
+    before=$(snapshot)
+    head=$(git -C "$repo" rev-parse HEAD)
+    (cd "$repo" && exec env GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t \
+      GIT_COMMITTER_EMAIL=t@t ../install-stop-gate "$tmp/bin/suite" > "$tmp/out" 2>&1) &
+    installer=$!
+    for _ in $(seq 100); do [ -e "$tmp/started" ] && break; sleep 0.1; done
+    kill -TERM "$installer"
+    wait "$installer"
+    sleep 7 # longer than the hook: anything still running would have landed by now
+    if [ "$stage" = pre-commit ]; then
+      [ "$(git -C "$repo" rev-parse HEAD)" = "$head" ] && [ "$(snapshot)" = "$before" ] &&
+        [ ! -e "$repo/.git/index.lock" ] || {
+        echo "terminated in a $stage hook, the installer left the repository changed:"
+        git -C "$repo" log --oneline -2
+        git -C "$repo" status --porcelain
+        return 1
+      }
+    else
+      [ "$(git -C "$repo" rev-parse HEAD~1)" = "$head" ] && [ -z "$(git -C "$repo" status --porcelain)" ] || {
+        echo "terminated in a $stage hook, the installer undid files under its commit:"
+        git -C "$repo" status --porcelain
+        return 1
+      }
+    fi
+  done
+
+  # Stopped at any moment of its writes -- during `git add` included -- it leaves no index.lock,
+  # and the repository either as it was or with its commit standing. Timing-dependent, so
+  # repeated at offsets of 0-5 ms after its first write; SIGQUIT (Ctrl-\) as well.
+  for signal in TERM QUIT; do
+    fresh "stopped-$signal"
+    printf '#!/bin/sh\nsleep 0.3\n' > "$repo/.git/hooks/pre-commit"
+    chmod +x "$repo/.git/hooks/pre-commit"
+    head=$(git -C "$repo" rev-parse HEAD)
+    clean=$(git -C "$repo" status --porcelain --untracked-files=all)
+    broken=0
+    for attempt in $(seq 40); do
+      (cd "$repo" && exec env GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t \
+        GIT_COMMITTER_EMAIL=t@t ../install-stop-gate "$tmp/bin/suite" > /dev/null 2>&1) &
+      installer=$!
+      while kill -0 "$installer" 2> /dev/null && [ ! -e "$repo/.claude/hooks/stop-gate.sh" ]; do :; done
+      sleep "$(printf '0.%03d' $((attempt % 6)))"
+      kill -"$signal" "$installer" 2> /dev/null
+      wait "$installer" 2> /dev/null
+      sleep 0.5 # a commit hook still running would land by now
+      status=$(git -C "$repo" status --porcelain --untracked-files=all)
+      if [ -e "$repo/.git/index.lock" ] || [ "$status" != "$clean" ]; then
+        broken=$((broken + 1))
+      fi
+      [ "$(git -C "$repo" rev-parse HEAD)" = "$head" ] || git -C "$repo" reset -q --hard "$head"
+      rm -rf "$repo/.claude/hooks" "$repo/.git/index.lock"
+      git -C "$repo" checkout -q -- .claude/settings.json
+    done
+    [ "$broken" -eq 0 ] || {
+      echo "stopped by SIG$signal during its writes: a lock or a half state left, $broken of 40"
       return 1
     }
   done
