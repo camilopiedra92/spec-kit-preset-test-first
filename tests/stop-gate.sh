@@ -510,6 +510,39 @@ FAKE
     fi
   done
 
+  # Stopped at any moment of its writes -- during `git add` included -- it leaves no index.lock,
+  # and the repository either as it was or with its commit standing. Timing-dependent, so
+  # repeated at offsets of 0-5 ms after its first write; SIGQUIT (Ctrl-\) as well.
+  for signal in TERM QUIT; do
+    fresh "stopped-$signal"
+    printf '#!/bin/sh\nsleep 0.3\n' > "$repo/.git/hooks/pre-commit"
+    chmod +x "$repo/.git/hooks/pre-commit"
+    head=$(git -C "$repo" rev-parse HEAD)
+    clean=$(git -C "$repo" status --porcelain --untracked-files=all)
+    broken=0
+    for attempt in $(seq 40); do
+      (cd "$repo" && exec env GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t \
+        GIT_COMMITTER_EMAIL=t@t ../install-stop-gate "$tmp/bin/suite" > /dev/null 2>&1) &
+      installer=$!
+      while kill -0 "$installer" 2> /dev/null && [ ! -e "$repo/.claude/hooks/stop-gate.sh" ]; do :; done
+      sleep "$(printf '0.%03d' $((attempt % 6)))"
+      kill -"$signal" "$installer" 2> /dev/null
+      wait "$installer" 2> /dev/null
+      sleep 0.5 # a commit hook still running would land by now
+      status=$(git -C "$repo" status --porcelain --untracked-files=all)
+      if [ -e "$repo/.git/index.lock" ] || [ "$status" != "$clean" ]; then
+        broken=$((broken + 1))
+      fi
+      [ "$(git -C "$repo" rev-parse HEAD)" = "$head" ] || git -C "$repo" reset -q --hard "$head"
+      rm -rf "$repo/.claude/hooks" "$repo/.git/index.lock"
+      git -C "$repo" checkout -q -- .claude/settings.json
+    done
+    [ "$broken" -eq 0 ] || {
+      echo "stopped by SIG$signal during its writes: a lock or a half state left, $broken of 40"
+      return 1
+    }
+  done
+
   # Reverting the feature that installed the gate removes both its files.
   # That is not a decision about the gate, so the next run installs it again,
   # whatever else was deleted before it.

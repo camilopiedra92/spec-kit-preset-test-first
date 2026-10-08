@@ -42,10 +42,10 @@ class _Parser(argparse.ArgumentParser):
 
 
 def main(argv: list[str]) -> int:
-    # Terminated (an agent's command timing out) or hung up: exit through the commit's undo,
-    # which a signal's default action would skip. SIGKILL cannot be caught.
-    for signum in (signal.SIGTERM, signal.SIGHUP):
-        signal.signal(signum, _terminated)
+    # Stopped (an agent's command timing out, a hang-up, Ctrl-C or Ctrl-\\): the stop is
+    # deferred to a moment no git process holds a lock (_Stop). SIGKILL cannot be caught.
+    for signum in (signal.SIGTERM, signal.SIGHUP, signal.SIGINT, signal.SIGQUIT):
+        signal.signal(signum, _stop)
     parser = _Parser(prog="cli.py install")
     parser.add_argument("--tests", nargs="+", required=True, help="globs of the test side")
     parser.add_argument("--sources", nargs="+", required=True, help="globs of the code")
@@ -55,11 +55,13 @@ def main(argv: list[str]) -> int:
         root = _root(Path.cwd())
         config = {"tests": args.tests, "sources": args.sources, "run": args.run}
         settings = _checked(root, config)
+        _stopped_here()  # before the first write: nothing to put back
         _commit(root, {ledger.CONFIG: config, SETTINGS: settings})
         # The ledger's first record: the worktree as the install leaves it, so the first tool
         # call's record is a change and the tests it writes are born in it.
         origin: ledger.Call = {"session": "install", "agent": None, "tool": "install", "call": None}
         ledger.record(root, origin, ledger.parse_config(config))
+        _stopped_here()
     except Refused as refusal:
         print(f"test-first install: {refusal}", file=sys.stderr)
         return 1
@@ -78,8 +80,41 @@ def main(argv: list[str]) -> int:
     return 0
 
 
-def _terminated(signum: int, frame: object) -> None:
-    raise SystemExit(128 + signum)
+class _Stop:
+    """A stop deferred while the install writes. A signal only marks it, and passes SIGTERM to
+    the runner of the commit, which can wait on a hook, and is waited for. Raising inside a
+    subprocess call would have it SIGKILL git, and even SIGTERM to `git add` left its
+    index.lock behind (3 stops in 120), breaking the repository: the short git writes are
+    let finish. The stop is acted on between steps (`_stopped_here`), when no git process
+    holds a lock."""
+
+    signum: int | None = None
+    child: subprocess.Popen[str] | None = None
+
+
+def _stop(signum: int, frame: object) -> None:
+    _Stop.signum = signum
+    child = _Stop.child
+    if child is not None and child.poll() is None:
+        child.terminate()
+
+
+def _stopped_here() -> None:
+    if _Stop.signum is not None:
+        raise SystemExit(128 + _Stop.signum)
+
+
+def _run(argv: list[str]) -> tuple[int, str]:
+    """A process a stop passes SIGTERM to, waited for; its status and its output."""
+    child = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    _Stop.child = child
+    if _Stop.signum is not None:
+        child.terminate()  # stopped as it started: passed on all the same
+    try:
+        stdout, stderr = child.communicate()
+    finally:
+        _Stop.child = None
+    return child.returncode, (stderr + stdout).strip()
 
 
 def _checked(root: Path, config: dict[str, Any]) -> dict[str, Any]:
@@ -139,50 +174,44 @@ def _commit(root: Path, contents: dict[Path, dict[str, Any]]) -> None:
             directory.mkdir()
         for path, text in written.items():
             (root / path).write_text(text + "\n")
+        _stopped_here()
+        # Let finish whatever arrives meanwhile: the stop is acted on just after.
         ledger.git(root, "add", "--", *paths)
-        commit = subprocess.Popen(
+        _stopped_here()
+        status, output = _run(
             [
                 *("bash", str(audit.RUNNER), str(COMMIT_DEADLINE)),
                 *("git", "-C", str(root), "commit", "-q", "-m", MESSAGE, "--", *paths),
-            ],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
+            ]
         )
-        try:
-            stdout, stderr = commit.communicate()
-        except BaseException:
-            # Stopped by a signal: SIGTERM, not subprocess's SIGKILL, so git removes its lock
-            # files before the undo below needs the index.
-            commit.terminate()
-            commit.wait()
-            raise
-        if commit.returncode != 0 and _landed(root, head, paths):
-            # A post-commit hook runs after git wrote the commit: it stands whatever came after.
+        # A post-commit hook runs after git wrote the commit: it stands whatever came after,
+        # a failure, the deadline or a stop.
+        committed = status == 0 or _landed(root, head, paths)
+        if _Stop.signum is not None:
+            if committed:
+                print(
+                    "test-first install: committed before it was stopped, without the ledger's "
+                    "first record: the first tool call's record will be its origin, and the "
+                    "tests it writes unobserved",
+                    file=sys.stderr,
+                )
+            _stopped_here()
+        if status != 0 and committed:
             print(
-                "test-first install: committed; a post-commit hook did not finish or failed: "
-                + (stderr + stdout).strip(),
+                f"test-first install: committed; a post-commit hook did not finish or failed: "
+                f"{output}",
                 file=sys.stderr,
             )
-        elif commit.returncode == audit.TIMED_OUT:
+        elif status == audit.TIMED_OUT:
             raise Refused(
                 f"the commit did not finish within its {COMMIT_DEADLINE}-second deadline: a "
                 "pre-commit or commit-msg hook that hangs"
             )
-        elif commit.returncode != 0:
-            output = (stderr + stdout).strip()
+        elif status != 0:
             raise Refused(f"the commit was refused (a pre-commit or commit-msg hook?): {output}")
-        committed = True
     finally:
-        if not committed and _landed(root, head, paths):
-            # Terminated after git wrote the commit (in a post-commit hook): it stands.
-            print(
-                "test-first install: committed before it was stopped, without the ledger's first "
-                "record: the first tool call's record will be its origin, and the tests it "
-                "writes unobserved",
-                file=sys.stderr,
-            )
-        elif not committed:
+        if not committed:
+            # Not through _run: a stop arriving now must not interrupt the undo.
             subprocess.run(["git", "-C", str(root), "reset", "-q", "--", *paths], check=False)
             for path, content in before.items():
                 if content is None:

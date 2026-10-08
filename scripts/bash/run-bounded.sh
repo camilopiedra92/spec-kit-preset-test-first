@@ -46,6 +46,7 @@ flags=$(mktemp -d) || exit 1
 fired=$flags/fired
 pid=
 watchdog=
+starting_watchdog=
 # One kill reaches the members that exist when it runs; a child forked at that
 # instant survives it (on macOS, in about a quarter of runs of a fork loop).
 # Repeated until the group is empty, capped because a leader not yet reaped
@@ -63,7 +64,7 @@ cleanup() {
   # `$!` still names the newest job then.
   if [ -z "$pid" ]; then
     pid=$!
-  elif [ -z "$watchdog" ] && [ "$!" != "$pid" ]; then
+  elif [ -n "$starting_watchdog" ]; then
     watchdog=$!
   fi
   # A second signal must not cut this short: the command's group is killed below. Nor a
@@ -107,6 +108,7 @@ trap 'trap "" TERM INT HUP QUIT PIPE; terminated=1; exit 131' QUIT
 set -m
 "$@" &
 pid=$!
+starting_watchdog=1
 (
   sleep "$seconds"
   : > "$fired"
@@ -115,6 +117,7 @@ pid=$!
   kill -KILL -- "-$pid"
 ) 2> /dev/null &
 watchdog=$!
+starting_watchdog=
 # Quiets bash's report of how the job ended ("Terminated: 15"); the command's
 # own stderr is unaffected. A runner stopped from outside still prints one.
 wait "$pid" 2> /dev/null

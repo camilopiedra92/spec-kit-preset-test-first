@@ -906,3 +906,18 @@ gate still runs and an old `tasks.md` is read.
   - red: `returned with the command alive, 3 of 200`, so the case runs 400; `cleanup` falls back
     to `$!`, which names the newest job when a signal lands before its pid is recorded; 0 of 800
 - [X] T063 Add to the README's `install-stop-gate.sh` paragraph its refusals for a suite outliving 540 s and a commit hook outliving 300 s, and that a commit which landed stands per Constitution VI (partial)
+
+## Phase 15: Convergence
+
+- [X] T064 Give both installers one deferred stop from before their first write until the commit is decided: SIGTERM, SIGINT, SIGHUP and SIGQUIT only mark the run stopped and pass SIGTERM to the git or runner process in progress, which is waited for; the stop is acted on between steps, when no git process holds a lock — replacing the per-window handling of T049, T061 and T062's callers; cases seen red first with SIGTERM at random offsets around `git add`, asserting no `index.lock` and the repository as it was or the commit standing, and one for SIGQUIT per Constitution IV (contradicts)
+  - red: install.py failed for SIGTERM and SIGQUIT (pytest, 30 stops at 0–9 ms); the gate
+    installer left a lock or a half state in 38 of 40 stops against the committed script, 0
+    after; the held-lock unit now uses a real `index.lock` instead of patching `ledger.git`
+  - found doing it: SIGTERM passed to `git add` itself left its `index.lock` in 3 of 120 stops;
+    the short git writes are let finish and the stop acted on just after, SIGTERM going only to
+    the commit's runner; 0 of 240 since (a scratch reproduction keeping each stop's output)
+- [X] T065 Make `run-bounded.sh`'s `$!` fallback apply only while the watchdog is started but not yet recorded, not after its normal end per Constitution IV (partial)
+  - seen in a `bash -x` trace: after a normal end, cleanup reset the reaped watchdog's pid and
+    killed its group id again; with the marker it does not. Not testable otherwise: harm needs
+    that id reused within microseconds
+- [X] T066 Say in the CHANGELOG 2.0.0 entry that a hanging pre-commit or commit-msg hook is refused with nothing left behind, that a commit which landed stands and is reported, that the installers recognise their own commit by parent and contents, and that a stopped installer passes the signal on and waits for git per Constitution V (partial)

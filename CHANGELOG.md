@@ -36,7 +36,12 @@ what was measured: README, "Why 2.0.0's rules, by source".
   (no ledger, a detached HEAD, the default branch).
 - The installer (`cli.py install --tests … --sources … --run …`): one
   commit of `.specify/test-first.json` and both hook entries, or a refusal
-  that leaves the repository as it was.
+  that leaves the repository as it was — a commit hook that rejects the
+  commit or does not finish in 300 seconds included. A commit that landed
+  stands and is reported when what follows it fails or is stopped (a
+  `post-commit` hook); the installer knows its own commit by its parent and
+  contents, which no hook rewrites. Stopped (TERM, INT, HUP, QUIT), it passes
+  the signal on to git and waits for it, so no `index.lock` is left.
 - `speckit-implement`: installs the ledger before the first task, takes
   each case in calls the ledger can tell apart (the test, then the code;
   renames and commits in calls of their own; writing subagents in this
@@ -66,8 +71,11 @@ what was measured: README, "Why 2.0.0's rules, by source".
   SIGKILL at once. Ending, it ignores further signals and SIGPIPE, so a second
   signal or a caller that stopped reading cannot cut its cleanup short.
 - `install-stop-gate.sh` runs the suite and its commit under `run-bounded.sh`
-  (540 and 300 seconds): a suite or commit hook that never finishes is
-  refused, the repository as it was.
+  (540 and 300 seconds): a suite, pre-commit or commit-msg hook that never
+  finishes is refused, the repository as it was, while a commit that landed
+  (a `post-commit` hook failing, hanging or stopped) stands and is reported.
+  Stopped, it passes the signal on and waits for git before putting anything
+  back.
 
 ### Removed
 

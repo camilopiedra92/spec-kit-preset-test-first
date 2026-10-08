@@ -125,33 +125,43 @@ else
 fi
 # The hook blocks every turn whose suite is red, so a suite that is red today
 # would block every turn from the first one.
+# A stop (TERM, INT, HUP, QUIT) is deferred from here to the end: it only
+# marks the run stopped and passes SIGTERM to the runner in progress, and is
+# acted on between steps, when no git process holds a lock. A git command in
+# the foreground finishes before bash runs the trap; one killed mid-write
+# would leave its index.lock and break the repository.
+stopped=
+child=
+for signal in TERM INT HUP QUIT; do
+  # shellcheck disable=SC2064  # the signal's number is fixed now, on purpose
+  trap "stopped=\$((128 + $(kill -l "$signal"))); [ -z \"\$child\" ] || kill -TERM \"\$child\" 2> /dev/null" "$signal"
+done
+stop_here() {
+  [ -z "$stopped" ] || exit "$stopped"
+}
 # Runs a command under the runner, with job control so the command keeps its
 # INT and QUIT dispositions (a background job without it starts with both
-# ignored). A signal ending this script is passed on as SIGTERM, and the
-# runner, which gives its command the grace period, is waited for before the
-# undo runs: git removes its lock files on SIGTERM. Sets `status`.
-stopped=
+# ignored); a stop reaches it as SIGTERM and it is waited for. Sets `status`.
 bounded() {
-  local child
   set -m
   bash "$runner" "$@" &
   child=$!
   set +m
-  trap 'stopped=1; kill -TERM "$child" 2> /dev/null' TERM INT HUP
+  [ -z "$stopped" ] || kill -TERM "$child" 2> /dev/null # stopped as it started
   status=0
   # A trapped signal interrupts `wait`; the runner is waited for until it exits.
   until wait "$child"; do
     status=$?
     kill -0 "$child" 2> /dev/null || break
   done
-  trap - TERM INT HUP
-  [ -z "$stopped" ] || exit 143
+  child=
 }
 
 # To a file, as the hook does: a process that left the suite's group would hold
 # a pipe, and with it this script, open past the deadline.
 log=$(mktemp) || exit 1
 bounded "$suite_deadline" "$@" > "$log" 2>&1
+stop_here
 out=$(cat "$log")
 rm -f "$log"
 if [ "$status" -eq 124 ]; then
@@ -279,15 +289,19 @@ EOF
 chmod +x "$hook"
 printf '%s\n' "$merged" > "$settings"
 
+stop_here
 # Only these two paths, whatever else is staged by now (the suite ran since
 # the staged check).
 git add "$hook" "$settings"
+stop_here
 # A commit hook's own output does not say what it refused, and a commit-msg
 # policy will refuse every attempt; the caller needs to know which it was.
 bounded "$commit_deadline" git commit -q -m "$message" \
   -m "Written by install-stop-gate: a Stop hook runs \`$words\` and blocks a red turn once." \
   -m "To turn it off, remove its entry under hooks.Stop in .claude/settings.json and keep $hook: deleting it makes /speckit-implement install the gate again." \
   -- "$hook" "$settings"
+# Stopped: the undo keeps a commit that landed, and says so.
+stop_here
 # A post-commit hook runs after git wrote the commit: it stands whatever came
 # after it.
 if [ "$status" -ne 0 ] && landed; then

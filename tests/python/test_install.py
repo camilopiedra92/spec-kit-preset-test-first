@@ -1,4 +1,5 @@
 import json
+import signal
 import subprocess
 import sys
 import time
@@ -276,24 +277,16 @@ def test_a_settings_file_that_is_not_a_settings_object_is_refused(
 
 
 def test_a_git_error_while_committing_is_a_refusal_that_leaves_everything_as_it_was(
-    project: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    project: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    real_git = ledger.git
+    lock = project / ".git" / "index.lock"
+    before = state(project)
+    lock.write_text("")  # another git holds the index
 
-    def locked(
-        worktree: Path, *args: str, env: dict[str, str] | None = None, input: str | None = None
-    ) -> str:
-        if args[0] != "add":
-            return real_git(worktree, *args, env=env, input=input)
-        (project / ".git" / "index.lock").write_text("")  # another git holds the index
-        try:
-            return real_git(worktree, *args, env=env, input=input)
-        finally:
-            (project / ".git" / "index.lock").unlink()
-
-    monkeypatch.setattr(ledger, "git", locked)
-
-    assert "index.lock" in refused(project, capsys)
+    assert install.main(ARGS) == 1
+    lock.unlink()
+    assert state(project) == before
+    assert "index.lock" in capsys.readouterr().err
 
 
 def test_the_install_starts_the_ledger_at_the_worktree_it_leaves(project: Path) -> None:
@@ -472,3 +465,49 @@ def test_a_hook_that_rewrites_the_subject_does_not_hide_the_installs_commit(
     assert git(project, "log", "-1", "--format=%s").startswith("[FEAT-1] ")
     assert git(project, "status", "--porcelain") == ""  # nothing undone under the commit
     assert "committed" in capsys.readouterr().err
+
+
+def _install_stopped_at(project: Path, offset: float, signum: int) -> int:
+    """Runs the installer, signalled `offset` seconds after its first write."""
+    cli = Path(install.__file__).with_name("cli.py")
+    config = project / ".specify" / "test-first.json"
+    proc = subprocess.Popen(
+        [sys.executable, str(cli), "install", *ARGS],
+        cwd=project,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    for _ in range(2000):
+        if config.exists() or proc.poll() is not None:
+            break
+        time.sleep(0.001)
+    time.sleep(offset)
+    proc.send_signal(signum)
+    return proc.wait(timeout=30)
+
+
+@pytest.mark.parametrize("signum", [signal.SIGTERM, signal.SIGQUIT])
+def test_an_installer_stopped_at_any_moment_of_its_writes_leaves_no_lock_and_no_half_state(
+    signum: int, project: Path
+) -> None:
+    hook = project / ".git" / "hooks" / "pre-commit"
+    hook.write_text("#!/bin/sh\nsleep 0.3\n")
+    hook.chmod(0o755)
+    head = git(project, "rev-parse", "HEAD")
+    clean = git(project, "status", "--porcelain", "--untracked-files=all")
+    broken = []
+    for attempt in range(30):
+        _install_stopped_at(project, (attempt % 10) / 1000, signum)
+        lock = (project / ".git" / "index.lock").exists()
+        landed = git(project, "rev-parse", "HEAD") != head
+        status = git(project, "status", "--porcelain", "--untracked-files=all")
+        if lock or (not landed and status != clean) or (landed and status != clean):
+            broken.append((attempt, lock, landed, status))
+        if landed:
+            git(project, "reset", "-q", "--hard", head)
+        for path in (".claude", ".specify/test-first.json"):
+            subprocess.run(["rm", "-rf", str(project / path)], check=True)
+        (project / ".git" / "index.lock").unlink(missing_ok=True)
+        git(project, "update-ref", "-d", "refs/worktree/test-first/ledger")
+
+    assert broken == []
