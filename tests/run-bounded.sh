@@ -187,12 +187,18 @@ done
 [ "$early" -eq 0 ] || problem "runner terminated twice at once: returned with the command alive, $early of 10"
 set +m
 
-# The command keeps each signal's default action: the runner ignores them only for its own
-# cleanup, since an ignored signal is inherited across exec and would change how the command
-# ends (SIGPIPE in its pipelines, SIGTERM from anyone stopping it).
+# The command keeps each signal's action as the runner received it: the runner ignores them only
+# for its own cleanup, since an ignored signal is inherited across exec and would change how the
+# command ends (SIGPIPE in its pipelines, SIGTERM from anyone stopping it). Compared with the same
+# command run directly: an environment can start with a signal ignored, which bash cannot reset
+# and the runner must pass on unchanged (the branch's first CI run, 2026-10-08, on GitHub Actions'
+# ubuntu runner, saw SIGPIPE and SIGQUIT survive; reproduced here with both ignored by the parent).
 for signal in PIPE TERM INT HUP QUIT; do
+  direct=$(bash -c "kill -$signal \$\$; echo survived" 2> /dev/null)
   out=$(bash "$RUN" 5 bash -c "kill -$signal \$\$; echo survived" 2> /dev/null)
-  [ -z "$out" ] || problem "the command inherited an ignored SIG$signal"
+  [ "$out" = "$direct" ] ||
+    problem "the runner changed SIG$signal for its command: directly ${direct:-killed}, through it ${out:-killed}"
+  [ -z "$direct" ] || echo "note: SIG$signal is ignored by this environment; its default is not checked here"
 done
 
 # A signal in the first milliseconds can land between starting the command (or the watchdog)
