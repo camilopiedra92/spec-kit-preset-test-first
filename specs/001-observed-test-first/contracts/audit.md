@@ -12,7 +12,7 @@ python3 .specify/presets/test-first/scripts/python/cli.py audit --stop [--budget
 - `--budget`: with `--stop` only, whole seconds from 0 (judge only from runs already made) to
   999999999, see
   [ledger-hook.md](ledger-hook.md).
-- Seconds outside that range are a usage error.
+- Seconds outside that range, and `--budget` without `--stop`, are usage errors.
 - Takes a snapshot first (a record with `tool` = `audit` or `Stop`) when the worktree differs from
   the newest record, so edits made between calls are judged.
 - Judges the current branch's effective history (data-model.md). Refuses, exit 2, on a detached
@@ -36,7 +36,8 @@ the three fields of a verdict that rests on no record of its own (`unobserved`, 
 tests no run could read), and for `<call>` of a record no tool call made (the install's, an
 audit's own snapshot), followed for
 `refactored` by the tests it replaced and for `born-green` by its reason; grouped by verdict, then
-a summary line `audit: <n> new tests: <count per verdict>; <pass|FAIL>`. Each failing verdict ends
+a summary line `audit: <n> new tests: <count per verdict>; <pass|FAIL>` (`audit: 0 new tests; pass`
+when there are none). Each failing verdict ends
 with its remedy, as data-model.md's remedy table gives it.
 
 Exit: 0 when every new test is `red`, `predates`, `refactored` or `never-run`; 1 otherwise; 2 on a

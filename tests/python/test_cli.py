@@ -308,3 +308,15 @@ def test_a_birth_whose_head_commit_is_gone_is_not_judged_alone(
     out = capsys.readouterr().out
     assert out.startswith("not-judged tests.test_b::test_b ")
     assert "no longer exists" in out
+
+
+def test_a_budget_without_stop_is_a_usage_error(capsys: pytest.CaptureFixture[str]) -> None:
+    with pytest.raises(SystemExit) as stopped:
+        audit.main(["--budget", "5"])
+
+    assert stopped.value.code == 2
+    assert "--stop" in capsys.readouterr().err
+
+
+def test_with_no_new_tests_the_summary_has_no_empty_count() -> None:
+    assert audit.render([], {}).splitlines()[-1] == "audit: 0 new tests; pass"

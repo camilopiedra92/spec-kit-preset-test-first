@@ -815,12 +815,12 @@ def main(argv: list[str]) -> int:
         "--deadline", type=seconds_from(1), help="seconds per replay (300; 60 with --stop)"
     )
     parser.add_argument("--stop", action="store_true", help="run as the Stop hook (JSON on stdin)")
-    parser.add_argument(
-        "--budget", type=seconds_from(0), default=120, help="with --stop: seconds in all"
-    )
+    parser.add_argument("--budget", type=seconds_from(0), help="with --stop: seconds in all (120)")
     args = parser.parse_args(argv)
+    if args.budget is not None and not args.stop:
+        parser.error("--budget applies only with --stop")
     if args.stop:
-        return _stop(args.budget, args.deadline or 60)
+        return _stop(120 if args.budget is None else args.budget, args.deadline or 60)
     try:
         worktree, config = _preconditions(Path.cwd(), args.base)
     except Refusal as refusal:
@@ -936,7 +936,8 @@ def render(
     counts = Counter(verdict.kind for _, verdict in verdicts)
     tally = ", ".join(f"{kind} {count}" for kind, count in sorted(counts.items()))
     outcome = "pass" if exit_status(verdicts) == 0 else "FAIL"
-    lines.append(f"audit: {len(verdicts)} new tests: {tally}; {outcome}")
+    counted = f": {tally}" if tally else ""
+    lines.append(f"audit: {len(verdicts)} new tests{counted}; {outcome}")
     return "\n".join(lines)
 
 

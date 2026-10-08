@@ -1015,7 +1015,9 @@ gate still runs and an old `tasks.md` is read.
 - [X] T084 Describe in contracts/ledger-hook.md the states a killed hook can now leave — a dangling per-worktree name, reused by the next record, and a prune cut short — and cover the dangling-name reuse with a test per Constitution IV (partial)
   - the dangling-name case passed at once (the behaviour existed since T068); with the reuse
     removed from `_claim` it failed (`rev-parse` exit 128 on the dangling name), then restored
-- [ ] T085 Refuse `--budget` without `--stop` as a usage error, and print `audit: 0 new tests; pass` without an empty count slot, per contracts/audit.md (partial; likelihood low)
+- [X] T085 Refuse `--budget` without `--stop` as a usage error, and print `audit: 0 new tests; pass` without an empty count slot, per contracts/audit.md (partial; likelihood low)
+  - red: `uv run pytest tests/python/test_cli.py -k "budget_without or no_empty"` — `DID NOT RAISE
+    SystemExit`, and `'audit: 0 new tests: ; pass'`
 - [ ] T086 Replace the stale reason "removed with it" for subagents in worktrees of their own (implement fragment, README "Not adopted"): since T068 a removed worktree's ledger is deleted at the next ledger's creation; the reason that holds is that each has a ledger of its own per FR-016 (contradicts)
 - [ ] T087 Add README "Why 2.0.0's rules" entries for: renames and consolidations in calls that change only test-side paths; commits in calls of their own; the redo removing the file when it holds the only test (Vitest); removing the review copy's `PostToolUse` entries; and name the file removal in README's redo summary, per Constitution III and FR-018 (partial)
 - [ ] T088 Move the CHANGELOG's narrowing of "parallel tasks [P] can run together" out of the story-review clause: it is a cycle rule per Constitution V (partial)
