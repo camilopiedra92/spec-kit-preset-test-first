@@ -6,7 +6,7 @@ All notable changes to this preset are documented here. The format follows
 
 ## [Unreleased]
 
-## [2.0.0] - 2026-10-07
+## [2.0.0] - 2026-10-08
 
 Test-first is observed, not reported: the agent no longer writes down its
 own red runs; a hook records the worktree after every tool call and an audit
