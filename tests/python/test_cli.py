@@ -247,3 +247,17 @@ def test_an_audits_git_processes_do_not_grow_with_the_ledger(
     long = git_processes_of_an_audit(fresh("long"), monkeypatch, 40)
 
     assert long == short
+
+
+@pytest.mark.parametrize(
+    "args",
+    [["--deadline", "0"], ["--deadline", "-5"], ["--deadline", "1000000000"], ["--budget", "-1"]],
+)
+def test_seconds_out_of_range_are_a_usage_error(
+    args: list[str], capsys: pytest.CaptureFixture[str]
+) -> None:
+    with pytest.raises(SystemExit) as stopped:
+        audit.main(args)
+
+    assert stopped.value.code == 2
+    assert "1 to 999999999" in capsys.readouterr().err

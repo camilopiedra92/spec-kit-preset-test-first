@@ -7,9 +7,11 @@ python3 .specify/presets/test-first/scripts/python/cli.py audit --stop [--budget
 
 - `--base`: default as data-model.md, Base: the merge base with the remote-tracking default
   branch, so a local merge into the default branch does not move it.
-- `--deadline`: per run, whole seconds, default 300 (60 under `--stop`); passed to
-  `run-bounded.sh`.
-- `--budget`: with `--stop` only, see [ledger-hook.md](ledger-hook.md).
+- `--deadline`: per run, whole seconds from 1 to 999999999 (`run-bounded.sh`'s range), default
+  300 (60 under `--stop`); passed to `run-bounded.sh`.
+- `--budget`: with `--stop` only, whole seconds from 1 to 999999999, see
+  [ledger-hook.md](ledger-hook.md).
+- Seconds outside that range are a usage error.
 - Takes a snapshot first (a record with `tool` = `audit` or `Stop`) when the worktree differs from
   the newest record, so edits made between calls are judged.
 - Judges the current branch's effective history (data-model.md). Refuses, exit 2, on a detached
@@ -28,7 +30,10 @@ python3 .specify/presets/test-first/scripts/python/cli.py audit --stop [--budget
 
 Output, stdout: one line per new test, `<verdict> <test id> <record> <tool> <call>` — for a file no
 run could read, its path in place of the test id (data-model.md, Verdict) — with `-` for
-the three fields of `unobserved`, which rests on no record of its own, followed for
+the three fields of a verdict that rests on no record of its own (`unobserved`, `never-run`, and a
+`not-judged` whose reason is not one record's: a replay past its deadline, the budget, a file whose
+tests no run could read), and for `<call>` of a record no tool call made (the install's, an
+audit's own snapshot), followed for
 `refactored` by the tests it replaced and for `born-green` by its reason; grouped by verdict, then
 a summary line `audit: <n> new tests: <count per verdict>; <pass|FAIL>`. Each failing verdict ends
 with its remedy, as data-model.md's remedy table gives it.

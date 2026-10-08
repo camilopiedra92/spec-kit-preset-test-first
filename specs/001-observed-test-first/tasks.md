@@ -957,4 +957,9 @@ gate still runs and an old `tasks.md` is read.
 - [ ] T075 Narrow README:49-51's remedy summary to data-model.md's: born green because it passes without sources is fixed in the configuration, and born with its code from a file that never loaded is redone with a stub; name the stub variant in the implement fragment too per FR-018 (partial)
 - [ ] T076 Add to README:85-94's installer refusals the two the code has and the list omits: not at the repository root with `.specify/`, and no resolvable base, per FR-014 (partial)
 - [ ] T077 Reword docs/decisions/0003's "the agent is shown every failure every turn" to match its consequences and README:130-138 (another hook's block, the budget) per FR-022 (contradicts)
-- [ ] T078 Refuse an out-of-range `--deadline` (0, negative, above what `run-bounded.sh` accepts) with exit 2 instead of silently using 300 or turning every file not judged; and define in contracts/audit.md the `- - -` fields printed for `never-run` and record-less `not-judged` per contracts/audit.md (partial; likelihood low)
+- [X] T078 Refuse an out-of-range `--deadline` (0, negative, above what `run-bounded.sh` accepts) with exit 2 instead of silently using 300 or turning every file not judged; and define in contracts/audit.md the `- - -` fields printed for `never-run` and record-less `not-judged` per contracts/audit.md (partial; likelihood low)
+  - red: `uv run pytest tests/python/test_cli.py -k out_of_range` — `DID NOT RAISE SystemExit` for
+    `--deadline 0`, `-5`, `1000000000` and `--budget -1` (the budget added: the same range, and
+    a negative one judged nothing)
+  - contracts/audit.md now names every verdict printed with `- - -`, and the `-` call of a
+    record no tool call made

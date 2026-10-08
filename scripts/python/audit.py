@@ -757,14 +757,22 @@ def exit_status(verdicts: list[tuple[str, Verdict]]) -> int:
     return 0 if all(verdict.kind in passing for _, verdict in verdicts) else 1
 
 
+def seconds(text: str) -> int:
+    """Whole seconds in the range run-bounded.sh takes, or a usage error (exit 2)."""
+    value = int(text) if text.lstrip("-").isdigit() else 0
+    if not 1 <= value <= 999_999_999:
+        raise argparse.ArgumentTypeError(f"{text!r}: seconds are 1 to 999999999")
+    return value
+
+
 def main(argv: list[str]) -> int:
     """The audit's command line (contracts/audit.md), and the Stop hook with `--stop`
     (contracts/ledger-hook.md)."""
     parser = argparse.ArgumentParser(prog="audit.py", description=__doc__)
     parser.add_argument("--base", help="the commit new tests are new against")
-    parser.add_argument("--deadline", type=int, help="seconds per replay (300; 60 with --stop)")
+    parser.add_argument("--deadline", type=seconds, help="seconds per replay (300; 60 with --stop)")
     parser.add_argument("--stop", action="store_true", help="run as the Stop hook (JSON on stdin)")
-    parser.add_argument("--budget", type=int, default=120, help="with --stop: seconds in all")
+    parser.add_argument("--budget", type=seconds, default=120, help="with --stop: seconds in all")
     args = parser.parse_args(argv)
     if args.stop:
         return _stop(args.budget, args.deadline or 60)
