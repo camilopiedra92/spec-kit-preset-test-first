@@ -118,7 +118,11 @@ What the audit does not check, and where it does not hold:
 - A test added to an unchanged test file by a change elsewhere (generated
   cases) is not found as new.
 - Tests arriving with commits the ledger did not see written (a merge, a
-  cherry-pick), or written and committed in one call, are `unobserved`.
+  cherry-pick), or written and committed in one call, are `unobserved`. The
+  ledger stays on the machine that recorded it — it holds uncommitted and
+  untracked files, so it is never pushed — and a feature continued on
+  another machine or clone starts a new one: finish a feature where it
+  started.
 - Test and code brought in together by one call that copies rather than
   writes (`git checkout <rev> -- <path>`, a patch) are `born-with-code`.
 - A `--run` that imports the real worktree's code instead of the record's —
