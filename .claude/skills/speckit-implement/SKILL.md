@@ -247,38 +247,90 @@ Report final status with summary of completed work.
   the timer; the Stop gate's deadline and the review's runner bound that.
 - This replaces "Execute test tasks before their corresponding implementation
   tasks", the "Tests" phase and "Tests before code" above: the order is per
-  case, inside each behaviour task.
+  case, inside each behaviour task, and the machine observes it.
+
+## Ledger
+
+Whether each test failed before its code is not something this run reports:
+a hook records the worktree after every tool call, and an audit replays the
+records. Before the first task, where `.specify/` sits at the root of the git
+repository and `.specify/test-first.json` does not exist, install it from
+that root, on the feature's branch:
+
+```bash
+python3 .specify/presets/test-first/scripts/python/cli.py install \
+  --tests '<glob>'... --sources '<glob>'... --run '<command>'
+```
+
+- `--tests`: every path on the test side — test files and their helpers,
+  fixtures and shared configuration (`conftest.py`, `tests/**`, `**/*.test.ts`).
+  `--sources`: the project's code. Globs are git's (`**/` matches no directory
+  or any). Take both from the plan's project structure.
+- `--run`: a command that runs the one test file `{file}` and writes JUnit XML
+  to `{junit}`. It runs in a scratch worktree holding only the record's
+  files, so it reuses the real worktree's environment through `{root}`, and
+  must not import the real worktree's code: for pytest in a uv project
+  `PYTHONPATH=src UV_PROJECT_ENVIRONMENT={root}/.venv uv run --no-sync python -m pytest -q -p no:cacheprovider --junitxml={junit} {file}`
+  (`PYTHONPATH=src` puts the record's package ahead of the editable install);
+  for Vitest
+  `ln -s {root}/node_modules node_modules && node_modules/.bin/vitest run {file} --reporter=junit --outputFile={junit}`.
+  Its exit status is ignored; only the JUnit file is read. A runner that
+  cannot run one file (Go) is not supported.
+- It makes a commit of its own holding only `.specify/test-first.json` and
+  `.claude/settings.json`. If it refuses, or the plan does not say enough to
+  write the three flags, do not work around it: carry on without it and put
+  the reason in the completion report.
+
+The records hold what each call changed, so the cycle below is made of
+calls. A call is one tool use: one write, one edit, one shell command.
+
+## Cycle
+
 - One cycle at a time: take the next case from the task's test list, write
   it as a test, make it pass, then refactor. Never write a test ahead of the
   case in progress. A tasks.md from an earlier version of this preset — a
   test task followed by the task that makes it pass — is read as one task
   whose list holds the cases its test task names; mark both checkboxes when
-  it closes.
-- Run the new test before writing the code it covers, and confirm it fails
-  because the behaviour is missing. An import error, a collection error or a
-  missing module proves the test was found, not that it exercises anything:
-  stub the code under test until the test runs and fails from inside. Record
-  the red run in tasks.md as a plain bullet indented under the case, never a
-  checkbox (under the task, in a tasks.md from an earlier version): the
-  command and the failure line you saw. That is the evidence
-  the cycle went red first.
-- A new test that passes on its first run has not been watched failing. Break
-  the code it pins on purpose, watch the test fail for the expected reason,
-  restore the code, and record that failure and that the behaviour already
-  existed. If breaking the code does not make it fail, fix the test: it does
-  not exercise what it names.
+  it closes. Its recorded red runs stay as they are; new cases get none.
+- Write the case's test in a call that changes no source file, and run it.
+  It must fail from inside: an import error, a collection error or a missing
+  module proves the test was found, not that it exercises anything. Stub the
+  code under test, in a call of its own that changes no test, until the test
+  runs and fails from inside. A stub raises (`NotImplementedError`, or the
+  language's equivalent) rather than returning a placeholder: a placeholder
+  can satisfy a property. A task's property case is written in the same call
+  as its first case, before any code exists.
+- Then write the least code that makes it pass, in a later call that changes
+  no test-side path, and run the whole suite. A test changed in the same call
+  as the code that makes it pass is the defect the audit exists to find.
+- A new test that passes on its first run either pins behaviour the feature
+  already had before this feature, which the audit accepts by itself, or was
+  written after its code. Do not break the code to show it can fail. If its
+  code was written in this feature, in this session or an earlier one, take
+  the redo sequence: remove the test — its file, when it is
+  the file's only test — revert the code it covers, write the test again in a
+  call that changes nothing else, run it and see it fail, then restore the
+  code.
 - A case's expected result comes from the specification, through the task's
   test list: never change it, or the test that encodes it, to reach green.
   If you believe an expected result is wrong, stop that case: remove its
   test if you wrote it, so the suite stays green and the Stop gate keeps
   meaning a real failure; mark the case in the list `stopped: possible spec
   gap` with the reason, and list it in the completion report.
-- Then write the least code that makes it pass, and run the whole suite.
 - With the suite green, refactor what this cycle left — duplication it added,
   in the code or the tests, a special case the behaviour does not need, a
   function now doing two things, and names that no longer say what they mean.
-  Structure only, never behaviour; run the whole suite after each step. If
-  the cycle left nothing to clean, move on.
+  Structure only, never behaviour; run the whole suite after each step. A
+  test renamed, moved or consolidated (several cases into one parametrized
+  test) changes in a call that changes only test-side paths — not tasks.md,
+  not a file a run leaves behind. If the cycle left
+  nothing to clean, move on.
+- Commit in a call of its own: a test written and committed in one call
+  reaches the ledger already in HEAD, as if it came from elsewhere.
+- A subagent that writes code or tests works in this worktree, one at a time:
+  a worktree of its own records into a ledger of its own, which this
+  worktree's audit never reads, and two writers at once land in one record. This narrows "parallel tasks [P] can
+  run together" above: tasks marked `[P]` still run one after another.
 - A case found while implementing — an edge case, a failure mode — does not go
   into the test in progress. Add it to the test list of the task whose
   behaviour it belongs to, marked as found during implementation, and take it
@@ -287,12 +339,44 @@ Report final status with summary of completed work.
   mid-run follow creation, not execution order — citing the requirement it
   falls under. If no requirement covers it, it is a gap in the spec: do not
   decide the behaviour; carry on, and list the gap in the completion report.
-- A task is marked `[X]` when every case on its list has been taken — a
-  recorded red run, or marked stopped — after a run you saw with no test
-  failure and no static-check finding beyond the baseline, and with `git
-  status --porcelain --ignored` listing none of the files the task created as
-  ignored. The list stays in tasks.md: the story review reads it. If anything
-  is red when you stop, say so and show the output.
+- A task is marked `[X]` when every case on its list has been taken — its
+  test written and run as above, or marked stopped — after a run you saw with
+  no test failure and no static-check finding beyond the baseline, and with
+  `git status --porcelain --ignored` listing none of the files the task
+  created as ignored. The list stays in tasks.md: the story review reads it.
+  If anything is red when you stop, say so and show the output.
+
+## Story audit
+
+When a user story's last task closes, and before its review, run the audit
+from the repository root:
+
+```bash
+python3 .specify/presets/test-first/scripts/python/cli.py audit
+```
+
+Exit 0 is a pass. Exit 1 lists each new test with its verdict, and each
+failing verdict with its remedy: the redo sequence above for a test born
+with its code, born green or rewritten to green, or one the ledger never saw
+born (`unobserved`), with a stub of the code written first, in a call of its
+own, when the audit says the test's file did not load before its code; for
+one born green because it passes without any
+source, the configuration, committed on its own; for `still-red`, the code
+that makes it pass, in a call that changes no test-side path; for
+`not-judged`, what its reason says. Apply them and run it again until it
+passes; a remedy outside this branch (a file that does not load on the
+default branch) goes in the completion report instead. Exit 2 is a refusal
+whose message says why. Give the last report to
+the reviewer, and put its summary line — the count of each verdict — in the
+completion report, one per story. Without the ledger installed, say in the
+completion report that the story was not audited.
+
+The ledger's Stop hook runs the same audit at the end of every turn, within a
+budget, and blocks the turn once when a new test is born with its code, born
+green or rewritten to green: apply that test's remedy before going on. It
+also blocks once when the audit cannot run (a configuration or git error,
+the preset's `run-bounded.sh` missing, an OS error such as a full disk), with
+the error.
 
 ## Project setup
 
@@ -318,20 +402,25 @@ per story, not per task: a task is too small to show how its tests fall short
 together with its neighbours', and the story is the unit the spec gives an
 independent test. Work after the last story (polish) is reviewed the same way
 before the run is reported complete. Give the reviewer the commits for that
-story, the feature directory, and this brief:
+story, the feature directory, the story audit's last report, and this brief:
 
 - Judge the code against `spec.md` (only the story under review), `plan.md`,
-  the contracts and `.specify/memory/constitution.md`.
-- For each behaviour, write a plausible wrong version in a scratch copy and run
-  the suite. A wrong version the suite still passes is a test gap. First
+  the contracts and `.specify/memory/constitution.md`. The audit says each
+  test failed before its code; it does not say the tests are strong enough
+  to catch a wrong version. That is this review's.
+- Where the project's constitution names a mutation check, or its CI runs
+  one (mutmut, Stryker, PIT, cargo-mutants), run it over the story's changes:
+  each surviving mutant is a test gap, unless it is equivalent to the code,
+  which you say and justify. Otherwise, for each behaviour, write a plausible
+  wrong version in a scratch copy and run the suite. A wrong version the suite still passes is a test gap. First
   break something obvious in the copy and watch the suite fail. If it still
   passes, the copy is running the original: an environment copied with the
   repo keeps absolute paths to it (uv's editable `.pth`, script shebangs).
   Rebuild the environment inside the copy (`rm -rf .venv && uv sync` for uv)
   or use a fresh clone, and repeat the check. A Claude session started in the
-  copy runs the copy's Stop gate, which would ask it to fix the wrong
-  version: remove the gate's entry under `hooks.Stop` in the copy's
-  `.claude/settings.json` first. Run every
+  copy runs the copy's hooks — the Stop gate would ask it to fix the wrong
+  version: remove the entries under `hooks.Stop` and `hooks.PostToolUse` in
+  the copy's `.claude/settings.json` first. Run every
   wrong version from a clean build state: a cache keyed on timestamps can
   serve the previous version (Python's bytecode is, to the second — delete every `__pycache__`
   in the copy, `find . -name __pycache__ -prune -exec rm -rf {} +`, and run
@@ -359,7 +448,7 @@ story, the feature directory, and this brief:
   runs already decides.
 - Compare each task's tests with its test list: an expected result that
   differs from the list's, or a listed case with no test that is not marked
-  stopped, is a finding.
+  stopped, is a finding. A failing verdict in the audit's report is one too.
 - Prove every finding with a concrete input, observed against expected, and
   label anything unproven. Do not edit the repository.
 
@@ -377,7 +466,10 @@ saw is green and `.claude/hooks/stop-gate.sh` does not exist, before going on,
 from that root. A gate of its own is a `hooks.Stop` entry in
 `.claude/settings.json` whose command — read the script it runs, not only the
 entry — runs the suite, or a fast subset of it, and exits 2 when it is red; a
-Stop hook that runs tests only to notify or log is not one.
+Stop hook that runs tests only to notify or log is not one. It is a second
+Stop hook beside the ledger's, and they answer different questions: the gate
+whether the suite is green, the ledger's audit whether each new test failed
+before its code. Claude Code runs both at every stop.
 
 ```bash
 bash .specify/presets/test-first/scripts/bash/install-stop-gate.sh <test command>
