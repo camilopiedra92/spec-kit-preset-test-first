@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import NamedTuple, TypedDict
@@ -191,7 +192,11 @@ def git(
     ).stdout.strip()
 
 
+# Per worktree, a symbolic ref to the ledger itself in the common refs: git gc counts every
+# common ref as reachable from any worktree, but not another worktree's refs/worktree/*, so a
+# gc run elsewhere would prune a linked worktree's records (research R2).
 REF = "refs/worktree/test-first/ledger"
+LEDGERS = "refs/test-first/ledgers/"
 RACE_RETRIES = 5
 # update-ref's words for a ref that moved since it was read; anything else (a held lock, a full
 # disk) is not a race and is reported as it is.
@@ -291,6 +296,8 @@ def _record(where: Location, call: Call, config: Config) -> tuple[str | None, li
     worktree = where.root
     newest, newest_tree = where.newest if where.newest is not None else _state(worktree)
     tree, mixed = _snapshot(worktree, where.index_file, newest_tree, config)
+    if newest is None:  # the first record
+        _claim(worktree)
     for _ in range(RACE_RETRIES):
         if newest_tree == tree:
             return None, []
@@ -312,6 +319,44 @@ def _record(where: Location, call: Call, config: Config) -> tuple[str | None, li
             continue
         return commit, mixed
     raise RecordError(f"{REF} kept moving: {RACE_RETRIES} attempts lost the race")
+
+
+def _claim(worktree: Path) -> None:
+    """Point REF at a ledger of this worktree's own, once: the first record creates it through
+    REF. A name already set by a run stopped before its first record is kept."""
+    if _symbolic_target(worktree, REF) is not None:
+        return
+    _prune(worktree)
+    git(worktree, "symbolic-ref", REF, LEDGERS + uuid.uuid4().hex)
+
+
+def _prune(worktree: Path) -> None:
+    """Delete the ledgers no worktree points at any more (a removed worktree's), so its states
+    do not outlive it. Listed before the worktrees' names are read: a ledger is created after
+    the name pointing at it, so one listed here is never taken for an orphan."""
+    listed = git(worktree, "for-each-ref", "--format=%(refname) %(objectname)", LEDGERS)
+    if not listed:
+        return
+    common = Path(git(worktree, "rev-parse", "--path-format=absolute", "--git-common-dir"))
+    linked = common / "worktrees"
+    prefixes = ["main-worktree/"] + (
+        [f"worktrees/{entry.name}/" for entry in linked.iterdir()] if linked.is_dir() else []
+    )
+    live = {_symbolic_target(worktree, prefix + REF) for prefix in prefixes}
+    orphans = [line.split(" ") for line in listed.splitlines() if line.split(" ")[0] not in live]
+    if orphans:
+        # Each deleted only if it still holds what was listed.
+        commands = "".join(f"delete {name} {value}\n" for name, value in orphans)
+        git(worktree, "update-ref", "--stdin", input=commands)
+
+
+def _symbolic_target(worktree: Path, name: str) -> str | None:
+    result = subprocess.run(
+        ["git", "-C", str(worktree), "symbolic-ref", "--quiet", name],
+        capture_output=True,
+        text=True,
+    )
+    return result.stdout.strip() if result.returncode == 0 else None
 
 
 def _mixed_between(worktree: Path, config: Config, before: str, after: str) -> list[str]:

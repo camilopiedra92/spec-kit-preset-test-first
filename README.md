@@ -25,7 +25,10 @@ observes instead:
 - **The ledger.** A Claude Code `PostToolUse` hook records the worktree after
   every tool call — every tracked and untracked-but-not-ignored file, as on
   disk — as a git tree in a chain of commits under the per-worktree ref
-  `refs/worktree/test-first/ledger`. It works on a copy of the index, so the
+  `refs/worktree/test-first/ledger`, a symbolic ref to the worktree's ledger
+  under `refs/test-first/ledgers/`, which a `git gc` run from any worktree
+  keeps; a removed worktree's ledger is deleted when the next one is created.
+  It works on a copy of the index, so the
   real index and the worktree are never touched. When one call changed test
   and source files together it says so to Claude (exit 2, which shows stderr
   and blocks nothing): a test written with the code that satisfies it will
@@ -138,7 +141,8 @@ What the audit does not check, and where it does not hold:
   reach.
 - The ledger stores every tracked and untracked-but-not-ignored file of the
   worktree, an un-ignored secret included, as git objects in the local
-  repository; `git push --mirror` would send them. No git-ignored file.
+  repository; `git push --mirror`, from any worktree, would send every
+  worktree's ledger. No git-ignored file.
 - Concurrent writers in one worktree are not supported, and fail closed:
   their changes land in one record.
 - Code drafted outside the worktree and brought in later cannot be told from

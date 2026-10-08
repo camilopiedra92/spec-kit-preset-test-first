@@ -28,7 +28,8 @@ the installer (research R16).
 **Primary Dependencies**: none at runtime beyond `git` and `python3`. Development: ruff, mypy, pytest and pytest-timeout
 in a uv dev group (no packaging).
 
-**Storage**: git objects and one per-worktree ref, `refs/worktree/test-first/ledger`; the replay
+**Storage**: git objects and one per-worktree symbolic ref, `refs/worktree/test-first/ledger`, to
+the worktree's ledger under `refs/test-first/ledgers/` (research R2); the replay
 memo under the worktree's git directory (`git rev-parse --git-path test-first/runs`); the project
 configuration in `.specify/test-first.json`.
 

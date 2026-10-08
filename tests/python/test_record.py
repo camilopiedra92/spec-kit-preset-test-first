@@ -152,3 +152,41 @@ def test_a_held_lock_is_reported_as_such_not_as_a_lost_race(repo: Path) -> None:
 
     with pytest.raises(ledger.RecordError, match="lock"):
         ledger.record(repo, CALL, CONFIG)
+
+
+def test_a_linked_worktrees_records_survive_gc_run_from_another_worktree(
+    repo: Path, tmp_path: Path
+) -> None:
+    # git 2.55 does not count other worktrees' refs/worktree/* as reachable (research R2).
+    linked = tmp_path / "linked"
+    git(repo, "worktree", "add", "-q", "-b", "other", str(linked))
+    first = ledger.record(linked, CALL, CONFIG)
+    (linked / "src" / "a.py").write_text("A = 9\n")
+    second = ledger.record(linked, CALL, CONFIG)
+
+    git(repo, "gc", "-q", "--prune=now")
+
+    assert chain(linked) == [second, first]
+    assert git(linked, "cat-file", "-t", f"{first}^{{tree}}") == "tree"
+
+
+def test_a_removed_worktrees_ledger_is_pruned_when_another_ledger_is_created(
+    repo: Path, tmp_path: Path
+) -> None:
+    kept, removed = tmp_path / "kept", tmp_path / "removed"
+    git(repo, "worktree", "add", "-q", "-b", "kept", str(kept))
+    git(repo, "worktree", "add", "-q", "-b", "removed", str(removed))
+    ledger.record(kept, CALL, CONFIG)
+    ledger.record(removed, CALL, CONFIG)
+    assert len(git(repo, "for-each-ref", "refs/test-first/").splitlines()) == 2
+    git(repo, "worktree", "remove", "--force", str(removed))
+
+    ledger.record(repo, CALL, CONFIG)
+
+    ledgers = git(repo, "for-each-ref", "--format=%(refname)", "refs/test-first/").splitlines()
+    assert sorted(ledgers) == sorted(
+        [
+            git(kept, "symbolic-ref", ledger.REF),
+            git(repo, "symbolic-ref", ledger.REF),
+        ]
+    )

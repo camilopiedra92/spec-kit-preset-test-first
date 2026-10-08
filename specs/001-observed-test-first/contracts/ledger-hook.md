@@ -26,7 +26,8 @@ Input: Claude Code's `PostToolUse` JSON on stdin; fields read: `cwd`, `session_i
    the worktree's index in the system's temporary location (never in the repository), removed on
    exit; if the tree equals the newest record's: exit 0.
 3. Append a record and move `refs/worktree/test-first/ledger` atomically, retrying a lost race up to
-   five times.
+   five times. Before the worktree's first record, that name is made a symbolic ref to
+   `refs/test-first/ledgers/<random id>`, after deleting the ledgers no worktree points at.
 4. If the change is mixed: exit 2; stderr names the test paths and the source paths, and says that
    a test added or changed in this call together with the code that satisfies it will fail the
    audit, and how to redo it.

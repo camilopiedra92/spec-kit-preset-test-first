@@ -65,17 +65,18 @@ first call's hook takes its snapshot, their changes land in one record under the
 Judging them together fails closed — a test and its code written concurrently were not written in
 order — and concurrent writers are outside the supported workflow (FR-016).
 
-## R2. The ledger is a chain of commits under a per-worktree ref
+## R2. The ledger is a chain of commits under a per-worktree name
 
 **Decision**: each record is `git commit-tree <tree> -p <previous record>` with a JSON message
 naming the time, session, subagent, tool, call, branch and HEAD commit;
-`refs/worktree/test-first/ledger` points at the newest. The tree comes from a copy of the worktree's
+`refs/worktree/test-first/ledger` points at the newest, through a symbolic ref to
+`refs/test-first/ledgers/<random id>` (below, "Revised"). The tree comes from a copy of the worktree's
 index made for each call in the system's temporary location, `git add -A`, `git write-tree`. The
 worktree's index is never written. A call that leaves the tree unchanged
 adds no record. The ref moves with `git update-ref <ref> <new> <old>`, retried on a race.
 
 **Rationale**: reachable objects survive `git gc`; `refs/worktree/` is per worktree by git's
-definition, so a linked worktree keeps its own ledger and removing the worktree removes it;
+definition, so a linked worktree keeps its own ledger;
 `update-ref` with the old value is atomic; `git log refs/worktree/test-first/ledger` inspects it.
 Measured on a clone of renta (861 tracked files, git 2.55.0): 0.03–0.04 s per snapshot.
 
@@ -84,6 +85,28 @@ state, because a replay needs the support files a test reads (fixture data, a ne
 only paths the configuration names. Those objects stay in the local repository. A plain `git push`
 does not send `refs/worktree/…`; `git push --mirror` does (both observed 2026-10-07, git 2.55.0).
 The README says so.
+
+**Revised (convergence pass 8, T068)**: a plain `refs/worktree/` ref did not survive a `git gc`
+run from another worktree: git 2.55.0 keeps objects reachable from common refs, every worktree's
+HEAD, index and reflogs, but not from another worktree's `refs/worktree/*` (nor `refs/bisect/*`),
+so `git -C <main> gc --prune=now` deleted a linked worktree's records, after which every hook
+call failed (observed 2026-10-07, scratch repositories, plain git). The per-worktree name is now a
+symbolic ref to `refs/test-first/ledgers/<id>`: a common ref, kept by a gc from any worktree, while
+each worktree still resolves its own name; `update-ref` through the symbolic ref keeps the
+compare-and-swap, and a dangling one is created through by the first record's `create` (all
+observed, git 2.55.0). The random id, not the worktree's name, because git reuses a removed
+worktree's name for the next one, which would inherit its records. The cost: a removed
+worktree no longer takes its ledger with it, so the first record of each new ledger deletes the
+ledgers no worktree's name points at (listed before the names are read, so a ledger being
+created is never taken for one), and `git push --mirror` from any worktree sends every
+worktree's ledger. Considered and not taken:
+- Keeping `refs/worktree/` with a reflog (`update-ref --create-reflog`): other worktrees'
+  reflogs are kept by gc (observed), but only while their entries last — `gc.reflogExpire`, 90
+  days by default, and `git reflog expire --expire=now --all` from any worktree empties them — so
+  the guarantee would rest on configuration the project owns.
+- `gc.recentObjectsHook` naming the ledgers' objects: configuration written into each clone,
+  which the project owns (not tried).
+- Detecting the loss and starting a new ledger: loses the records it exists to keep.
 
 **Alternatives considered**:
 - A JSONL file plus loose tree objects: unreachable objects are pruned by gc after two weeks by
@@ -297,13 +320,13 @@ is the same act, observed by the machine instead of narrated.
 - A separate agent writing tests: the only direct comparison found no gain at 3–8.5 times the
   tokens (Böckeler; n=2 per arm, directional).
 - An LLM-judged guard on every write (Probity, TDD Guard): R1.
-- Code-writing subagents in worktrees of their own: each worktree's ledger is removed with it, so
+- Code-writing subagents in worktrees of their own: each worktree has a ledger of its own, so
   the tests merged back would be unobserved (R14). The fragment keeps writers in the feature's
   worktree, one at a time.
 - Pushing the ledger so CI can run the audit: the records hold uncommitted and untracked files,
   which a project may not want on its remote, and CI would need each record's environment as the
   local audit does. The guarantee stays local, at the Stop hook and the story close (R12); a
-  project that wants it remotely can push `refs/worktree/…` itself.
+  project that wants it remotely can push `refs/test-first/ledgers/…` itself.
 
 ## R11. Python toolchain for this repository
 

@@ -43,6 +43,10 @@ Invariants: a record's tree differs from its parent's (FR-002); records are only
 ## Ledger
 
 The chain reachable from `refs/worktree/test-first/ledger` in one worktree, oldest first when read.
+That name is per worktree and symbolic: it points at the ledger itself, `refs/test-first/ledgers/<id>`
+with a random id, set by the worktree's first record, because `git gc` counts common refs as
+reachable from every worktree and another worktree's `refs/worktree/*` not at all. A ledger no
+worktree points at (its worktree was removed) is deleted when the next ledger is created.
 Its oldest record is the **origin**: nothing is born there, because the state before it was not
 observed. The installer writes it (`tool` = `install`), the worktree as the install leaves it, so
 the first tool call's record is a change; a worktree whose ledger starts at a tool call instead (a

@@ -19,7 +19,8 @@ what was measured: README, "Why 2.0.0's rules, by source".
 
 - The ledger: a Claude Code `PostToolUse` hook (`cli.py ledger`) that
   records the worktree as a git tree after every tool call, in a chain of
-  commits under `refs/worktree/test-first/ledger`, never touching the index
+  commits under `refs/worktree/test-first/ledger` (a symbolic ref to the
+  worktree's ledger under `refs/test-first/ledgers/`), never touching the index
   or the worktree; it tells Claude, by exit 2, when one call changed tests
   and code together.
 - The audit (`cli.py audit`): replays each new test's file at its birth and
