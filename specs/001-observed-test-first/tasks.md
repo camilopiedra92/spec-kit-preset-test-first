@@ -891,3 +891,16 @@ gate still runs and an old `tasks.md` is read.
     gains no knob only tests use; it also gets T054's own-commit check for a `post-commit` hook
 - [X] T059 Say in the README that a commit which landed stands when what follows it fails or is stopped, and have the installer, stopped after its commit landed, also say that the first tool call's record will be the ledger's origin per FR-014 (partial)
   - red: `assert b'origin' in b'test-first install: committed before it was stopped\n'`
+
+## Phase 14: Convergence
+
+- [X] T060 Identify the installers' own commit by what no commit hook can rewrite — HEAD's parent is the recorded HEAD and HEAD holds exactly the blobs written for the installer's paths — instead of its subject, in `install.py` and `install-stop-gate.sh`; cases seen red first with a `prepare-commit-msg` hook that prefixes the subject and a hung `post-commit` hook, ended by the deadline and by termination per Constitution IV (contradicts)
+  - red: `assert 'D .claude/se...' == ''` (install.py) and `a commit whose subject a hook rewrote
+    was undone under it` (install-stop-gate.sh); the termination case fails against the subject
+    check
+- [X] T061 Make `install-stop-gate.sh`, terminated while its suite or commit runs, pass SIGTERM on to the runner and wait for it before undoing, then undo only when its own commit did not land; `tests/stop-gate.sh` cases seen red first for termination during a slow `pre-commit` and during a hung `post-commit` per Constitution IV (contradicts)
+  - written after the fix (the suite stopped at T060's red first); each fails under a break on
+    purpose: no forwarding of the signal (`left the repository changed`), and no landed check in
+    the undo (`undid files under its commit`)
+- [ ] T062 Close `run-bounded.sh`'s windows between starting the command or the watchdog and recording its pid, so a signal at any moment leaves nothing past deadline + grace; a `tests/run-bounded.sh` case sending SIGTERM at random offsets in the first 20 ms, repeated until it goes red reliably per Constitution IV (contradicts)
+- [ ] T063 Add to the README's `install-stop-gate.sh` paragraph its refusals for a suite outliving 540 s and a commit hook outliving 300 s, and that a commit which landed stands per Constitution VI (partial)

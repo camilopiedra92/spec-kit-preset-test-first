@@ -456,6 +456,60 @@ FAKE
     return 1
   fi
 
+  # The installer's own commit is known by its parent and its contents, not its subject, which
+  # a prepare-commit-msg hook may rewrite: a commit that landed stands when a post-commit hook
+  # outlives the deadline.
+  fresh prefixed
+  printf '#!/usr/bin/env bash\nshift\nexec bash "%s" 2 "$@"\n' "$PRESET/scripts/bash/run-bounded.sh" \
+    > "$repo/$runner"
+  git -C "$repo" -c user.name=t -c user.email=t@t commit -q -am "a runner with a 2-second deadline"
+  printf '#!/bin/sh\nsed -i.bak "1s/^/[FEAT-1] /" "$1"\n' > "$repo/.git/hooks/prepare-commit-msg"
+  printf '#!/bin/sh\nsleep 9307\n' > "$repo/.git/hooks/post-commit"
+  chmod +x "$repo/.git/hooks/prepare-commit-msg" "$repo/.git/hooks/post-commit"
+  out=$(run)
+  pkill -KILL -f "sleep 9307"
+  subject=$(git -C "$repo" log -1 --format=%s)
+  if [ "$subject" != "[FEAT-1] Gate the end of every Claude turn on the test suite" ] ||
+    [ -n "$(git -C "$repo" status --porcelain)" ] || ! grep -q "committed" <<< "$out"; then
+    echo "a commit whose subject a hook rewrote was undone under it ($subject): $out"
+    git -C "$repo" status --porcelain
+    return 1
+  fi
+
+  # Terminated while its commit runs, the installer passes SIGTERM on and waits for git before
+  # undoing: nothing lands later, and no lock is left. Terminated in a post-commit hook, after
+  # the commit landed, it undoes nothing under it.
+  for stage in pre-commit post-commit; do
+    fresh "terminated-$stage"
+    printf '#!/bin/sh\ntouch %s\nsleep 6\n' "$tmp/started" > "$repo/.git/hooks/$stage"
+    chmod +x "$repo/.git/hooks/$stage"
+    rm -f "$tmp/started"
+    before=$(snapshot)
+    head=$(git -C "$repo" rev-parse HEAD)
+    (cd "$repo" && exec env GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t \
+      GIT_COMMITTER_EMAIL=t@t ../install-stop-gate "$tmp/bin/suite" > "$tmp/out" 2>&1) &
+    installer=$!
+    for _ in $(seq 100); do [ -e "$tmp/started" ] && break; sleep 0.1; done
+    kill -TERM "$installer"
+    wait "$installer"
+    sleep 7 # longer than the hook: anything still running would have landed by now
+    if [ "$stage" = pre-commit ]; then
+      [ "$(git -C "$repo" rev-parse HEAD)" = "$head" ] && [ "$(snapshot)" = "$before" ] &&
+        [ ! -e "$repo/.git/index.lock" ] || {
+        echo "terminated in a $stage hook, the installer left the repository changed:"
+        git -C "$repo" log --oneline -2
+        git -C "$repo" status --porcelain
+        return 1
+      }
+    else
+      [ "$(git -C "$repo" rev-parse HEAD~1)" = "$head" ] && [ -z "$(git -C "$repo" status --porcelain)" ] || {
+        echo "terminated in a $stage hook, the installer undid files under its commit:"
+        git -C "$repo" status --porcelain
+        return 1
+      }
+    fi
+  done
+
   # Reverting the feature that installed the gate removes both its files.
   # That is not a decision about the gate, so the next run installs it again,
   # whatever else was deleted before it.

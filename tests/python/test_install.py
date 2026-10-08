@@ -413,6 +413,10 @@ def test_an_installer_terminated_in_a_post_commit_hook_leaves_the_commit_standin
     started = project.parent / "started"
     hook.write_text(f"#!/bin/sh\ntouch {started}\nsleep 30\n")
     hook.chmod(0o755)
+    # A subject a hook rewrote must not hide the install's own commit either.
+    prefix = project / ".git" / "hooks" / "prepare-commit-msg"
+    prefix.write_text("#!/bin/sh\nsed -i.bak '1s/^/[FEAT-1] /' \"$1\"\n")
+    prefix.chmod(0o755)
     before = git(project, "rev-parse", "HEAD")
     cli = Path(install.__file__).with_name("cli.py")
     proc = subprocess.Popen(
@@ -449,3 +453,22 @@ def test_another_commit_moving_head_is_not_taken_for_the_installs(
     assert "committed" not in err.replace("not committed", "")
     assert git(project, "log", "-1", "--format=%s") == "concurrent"
     assert git(project, "status", "--porcelain") == ""
+
+
+def test_a_hook_that_rewrites_the_subject_does_not_hide_the_installs_commit(
+    project: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    hooks = project / ".git" / "hooks"
+    (hooks / "prepare-commit-msg").write_text("#!/bin/sh\nsed -i.bak '1s/^/[FEAT-1] /' \"$1\"\n")
+    (hooks / "post-commit").write_text("#!/bin/sh\nsleep 30\n")
+    for hook in hooks.iterdir():
+        hook.chmod(0o755)
+    monkeypatch.setattr(install, "COMMIT_DEADLINE", 2)
+    before = git(project, "rev-parse", "HEAD")
+
+    install.main(ARGS)
+
+    assert git(project, "rev-parse", "HEAD~1") == before
+    assert git(project, "log", "-1", "--format=%s").startswith("[FEAT-1] ")
+    assert git(project, "status", "--porcelain") == ""  # nothing undone under the commit
+    assert "committed" in capsys.readouterr().err

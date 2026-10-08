@@ -125,12 +125,33 @@ else
 fi
 # The hook blocks every turn whose suite is red, so a suite that is red today
 # would block every turn from the first one.
+# Runs a command under the runner, with job control so the command keeps its
+# INT and QUIT dispositions (a background job without it starts with both
+# ignored). A signal ending this script is passed on as SIGTERM, and the
+# runner, which gives its command the grace period, is waited for before the
+# undo runs: git removes its lock files on SIGTERM. Sets `status`.
+stopped=
+bounded() {
+  local child
+  set -m
+  bash "$runner" "$@" &
+  child=$!
+  set +m
+  trap 'stopped=1; kill -TERM "$child" 2> /dev/null' TERM INT HUP
+  status=0
+  # A trapped signal interrupts `wait`; the runner is waited for until it exits.
+  until wait "$child"; do
+    status=$?
+    kill -0 "$child" 2> /dev/null || break
+  done
+  trap - TERM INT HUP
+  [ -z "$stopped" ] || exit 143
+}
+
 # To a file, as the hook does: a process that left the suite's group would hold
 # a pipe, and with it this script, open past the deadline.
 log=$(mktemp) || exit 1
-# `|| status=$?`: under set -e a failing command would end the script here.
-status=0
-bash "$runner" "$suite_deadline" "$@" > "$log" 2>&1 || status=$?
+bounded "$suite_deadline" "$@" > "$log" 2>&1
 out=$(cat "$log")
 rm -f "$log"
 if [ "$status" -eq 124 ]; then
@@ -156,6 +177,11 @@ done
 undo() {
   local d
   [ "$committed" -eq 1 ] && return
+  # Stopped after git wrote the commit (in a post-commit hook): it stands.
+  if landed; then
+    echo "install-stop-gate: committed before it was stopped" >&2
+    return
+  fi
   git reset -q -- "$hook" "$settings" 2> /dev/null || true
   rm -f "$hook"
   if git ls-files --error-unmatch "$settings" > /dev/null 2>&1; then
@@ -166,6 +192,18 @@ undo() {
   for d in "${made_dirs[@]+"${made_dirs[@]}"}"; do rmdir "$d" 2> /dev/null || true; done
 }
 trap undo EXIT
+# This script's own commit: its parent is the HEAD recorded before it, and it
+# holds what this run wrote at both paths. Not its subject, which a
+# prepare-commit-msg hook may rewrite; any other move of HEAD is not this
+# commit.
+head=$(git rev-parse --verify --quiet HEAD)
+landed() {
+  local path
+  [ "$(git log -1 --format=%P HEAD 2> /dev/null)" = "$head" ] || return 1
+  for path in "$hook" "$settings"; do
+    [ "$(git rev-parse --verify --quiet "HEAD:$path")" = "$(git hash-object -- "$path")" ] || return 1
+  done
+}
 
 # Each argument in single quotes, a quote inside one closed and reopened
 # around an escaped quote: nothing in it is expanded when the hook runs, and
@@ -246,16 +284,13 @@ printf '%s\n' "$merged" > "$settings"
 git add "$hook" "$settings"
 # A commit hook's own output does not say what it refused, and a commit-msg
 # policy will refuse every attempt; the caller needs to know which it was.
-head=$(git rev-parse --verify --quiet HEAD)
-status=0
-bash "$runner" "$commit_deadline" git commit -q -m "$message" \
+bounded "$commit_deadline" git commit -q -m "$message" \
   -m "Written by install-stop-gate: a Stop hook runs \`$words\` and blocks a red turn once." \
   -m "To turn it off, remove its entry under hooks.Stop in .claude/settings.json and keep $hook: deleting it makes /speckit-implement install the gate again." \
-  -- "$hook" "$settings" || status=$?
-# A post-commit hook runs after git wrote the commit: this script's own commit
-# (its parent the HEAD recorded above, its subject this message) stands
-# whatever came after it; any other move of HEAD is not this commit.
-if [ "$status" -ne 0 ] && [ "$(git log -1 --format='%P%n%s' HEAD)" = "$head"$'\n'"$message" ]; then
+  -- "$hook" "$settings"
+# A post-commit hook runs after git wrote the commit: it stands whatever came
+# after it.
+if [ "$status" -ne 0 ] && landed; then
   echo "install-stop-gate: committed; a post-commit hook did not finish or failed" >&2
 elif [ "$status" -eq 124 ]; then
   echo "install-stop-gate: the commit did not finish in ${commit_deadline}s: a pre-commit or" >&2

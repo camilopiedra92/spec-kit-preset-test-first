@@ -157,7 +157,7 @@ def _commit(root: Path, contents: dict[Path, dict[str, Any]]) -> None:
             commit.terminate()
             commit.wait()
             raise
-        if commit.returncode != 0 and _landed(root, head):
+        if commit.returncode != 0 and _landed(root, head, paths):
             # A post-commit hook runs after git wrote the commit: it stands whatever came after.
             print(
                 "test-first install: committed; a post-commit hook did not finish or failed: "
@@ -174,7 +174,7 @@ def _commit(root: Path, contents: dict[Path, dict[str, Any]]) -> None:
             raise Refused(f"the commit was refused (a pre-commit or commit-msg hook?): {output}")
         committed = True
     finally:
-        if not committed and _landed(root, head):
+        if not committed and _landed(root, head, paths):
             # Terminated after git wrote the commit (in a post-commit hook): it stands.
             print(
                 "test-first install: committed before it was stopped, without the ledger's first "
@@ -193,13 +193,18 @@ def _commit(root: Path, contents: dict[Path, dict[str, Any]]) -> None:
                 directory.rmdir()
 
 
-def _landed(root: Path, head: str) -> bool:
-    """Whether this install's commit was written, whatever happened after it: HEAD is a commit
-    whose parent is `head` and whose subject is this installer's. Any other move of HEAD (a
-    hook or another process committing) is not this install's commit."""
-    shown = audit.quiet_git(root, "log", "-1", "--format=%P%n%s", "HEAD")
-    parents, _, subject = shown.partition("\n")
-    return parents == head and subject == MESSAGE
+def _landed(root: Path, head: str, paths: list[str]) -> bool:
+    """Whether this install's commit was written, whatever happened after it: HEAD's parent is
+    `head` and HEAD holds, at each path, the blob of what this run wrote there (hashed with the
+    path's filters). Not the subject: a prepare-commit-msg hook may rewrite it. Any other move
+    of HEAD (a hook or another process committing) is not this install's commit."""
+    if audit.quiet_git(root, "log", "-1", "--format=%P", "HEAD") != head:
+        return False
+    return all(
+        audit.quiet_git(root, "rev-parse", "--verify", "--quiet", f"HEAD:{path}")
+        == audit.quiet_git(root, "hash-object", "--", path)
+        for path in paths
+    )
 
 
 def _settings(path: Path) -> dict[str, Any]:
