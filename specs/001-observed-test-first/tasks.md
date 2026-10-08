@@ -989,3 +989,16 @@ gate still runs and an old `tasks.md` is read.
     the first version refused 0 and broke two Stop units, caught by the full suite run)
   - contracts/audit.md now names every verdict printed with `- - -`, and the `-` call of a
     record no tool call made
+
+## Phase 17: Convergence
+
+- [ ] T079 Make the Stop audit judge the test files changed most recently first, so the budget runs out on old files rather than on this turn's: today every Stop replays every file differing from the base at the newest record, alphabetically, and with 70 files at about 2 s per run a test born with its code in `tests/test_z.py` came out `not-judged` and the turn was not blocked; a case seen red first, and SC-004's Stop measured on a feature of many files per FR-024 and SC-004 (partial; likelihood medium for large features)
+- [ ] T080 Correct the README: the ledger is never pushed by the preset or a plain push, but `git push --mirror` sends every worktree's ledger; and merge the machine-switch sentence into the existing "The ledger is local to each worktree" item, which says the same, per FR-022 (contradicts)
+- [ ] T081 Make `_prune` refuse with a RecordError when a worktree's name cannot be read (`symbolic-ref` exit 128), instead of taking its live ledger for an orphan and deleting it per Constitution IV (contradicts; likelihood theoretical)
+- [ ] T082 Make the installer, stopped while its first record runs, say that the commit stands and what the stop left, as it does for a stop during the commit, per FR-014 and contracts/install-ledger.md (partial; likelihood low)
+- [ ] T083 Judge a test whose birth record's HEAD commit no longer exists (amended away and pruned) as not judged with that reason, instead of failing the whole audit with "git failed", per data-model.md "Imported tests" and Constitution IV (partial; likelihood low)
+- [ ] T084 Describe in contracts/ledger-hook.md the states a killed hook can now leave — a dangling per-worktree name, reused by the next record, and a prune cut short — and cover the dangling-name reuse with a test per Constitution IV (partial)
+- [ ] T085 Refuse `--budget` without `--stop` as a usage error, and print `audit: 0 new tests; pass` without an empty count slot, per contracts/audit.md (partial; likelihood low)
+- [ ] T086 Replace the stale reason "removed with it" for subagents in worktrees of their own (implement fragment, README "Not adopted"): since T068 a removed worktree's ledger is deleted at the next ledger's creation; the reason that holds is that each has a ledger of its own per FR-016 (contradicts)
+- [ ] T087 Add README "Why 2.0.0's rules" entries for: renames and consolidations in calls that change only test-side paths; commits in calls of their own; the redo removing the file when it holds the only test (Vitest); removing the review copy's `PostToolUse` entries; and name the file removal in README's redo summary, per Constitution III and FR-018 (partial)
+- [ ] T088 Move the CHANGELOG's narrowing of "parallel tasks [P] can run together" out of the story-review clause: it is a cycle rule per Constitution V (partial)
