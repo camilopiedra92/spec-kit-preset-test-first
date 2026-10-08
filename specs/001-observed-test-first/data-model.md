@@ -90,7 +90,9 @@ A test is **imported** when its birth record's `head` differs from its previous'
 of its file on the tree of that `head` commit reports it: it arrived with commits this ledger did
 not see being written (a merge, a fast-forward, a pull, a cherry-pick). It is `unobserved`. Tests
 the agent wrote and then committed are never imported, because they appeared in an earlier record,
-before the commit.
+before the commit. When that `head` commit no longer exists (amended or rebased away, then pruned
+by gc), whether the test came with it cannot be told: the test is `not-judged`, with that reason,
+and the rest of the audit goes on.
 
 ## Base
 

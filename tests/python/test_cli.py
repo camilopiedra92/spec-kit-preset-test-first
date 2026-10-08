@@ -291,3 +291,20 @@ def test_a_branch_fast_forwarded_to_observed_work_keeps_its_verdicts(
 
     assert run(repo, monkeypatch) == 0
     assert capsys.readouterr().out.startswith("red tests.test_b::test_b ")
+
+
+def test_a_birth_whose_head_commit_is_gone_is_not_judged_alone(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    calls = feature(repo)
+    git(repo, "commit", "-q", "--allow-empty", "-m", "soon amended")
+    calls.call({"tests/test_b.py": TEST_B})  # born on that commit
+    calls.call({"src/b.py": "B\n"})
+    git(repo, "commit", "-q", "--amend", "--allow-empty", "-m", "amended")
+    git(repo, "reflog", "expire", "--expire=now", "--all")
+    git(repo, "gc", "-q", "--prune=now")  # the birth record's HEAD no longer exists
+
+    assert run(repo, monkeypatch) == 1
+    out = capsys.readouterr().out
+    assert out.startswith("not-judged tests.test_b::test_b ")
+    assert "no longer exists" in out

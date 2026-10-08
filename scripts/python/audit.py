@@ -509,7 +509,13 @@ class Auditor:
         written: b's HEAD moved and the new HEAD's own tree already holds the test."""
         record, previous = self.history[b], self.history[b - 1]
         if record.head is not None and record.head != previous.head:
-            committed = ledger.git(self.worktree, "rev-parse", f"{record.head}^{{tree}}")
+            committed = quiet_git(self.worktree, "rev-parse", "--verify", f"{record.head}^{{tree}}")
+            if not committed:
+                raise NotJudged(
+                    f"the commit HEAD was on at its birth, {record.head}, no longer exists "
+                    "(amended or rebased away, then pruned), so whether the test came with it "
+                    "cannot be told: redo the test"
+                )
             seen = self.observe_tree(committed, file)
             if test in (seen.outcomes or {}):
                 return Birth(b, imported=True)

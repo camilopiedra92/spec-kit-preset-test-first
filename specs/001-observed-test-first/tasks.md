@@ -1009,7 +1009,9 @@ gate still runs and an old `tasks.md` is read.
 - [X] T082 Make the installer, stopped while its first record runs, say that the commit stands and what the stop left, as it does for a stop during the commit, per FR-014 and contracts/install-ledger.md (partial; likelihood low)
   - red: `uv run pytest tests/python/test_install.py -k had_finished` — `'had finished' in ''`: exit
     143 with nothing said while the commit and the first record stood
-- [ ] T083 Judge a test whose birth record's HEAD commit no longer exists (amended away and pruned) as not judged with that reason, instead of failing the whole audit with "git failed", per data-model.md "Imported tests" and Constitution IV (partial; likelihood low)
+- [X] T083 Judge a test whose birth record's HEAD commit no longer exists (amended away and pruned) as not judged with that reason, instead of failing the whole audit with "git failed", per data-model.md "Imported tests" and Constitution IV (partial; likelihood low)
+  - red: `uv run pytest tests/python/test_cli.py -k head_commit_is_gone` — `assert 2 == 1`, the
+    whole audit failing with "git failed: ... unknown revision"
 - [X] T084 Describe in contracts/ledger-hook.md the states a killed hook can now leave — a dangling per-worktree name, reused by the next record, and a prune cut short — and cover the dangling-name reuse with a test per Constitution IV (partial)
   - the dangling-name case passed at once (the behaviour existed since T068); with the reuse
     removed from `_claim` it failed (`rev-parse` exit 128 on the dangling name), then restored
