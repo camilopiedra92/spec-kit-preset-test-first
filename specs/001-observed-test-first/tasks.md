@@ -1002,10 +1002,15 @@ gate still runs and an old `tasks.md` is read.
     6 s after (research.md R12 "Revised again", L7). Considered: ordering alone, a Stop over the
     turn's records only, a smaller budget
 - [ ] T080 Correct the README: the ledger is never pushed by the preset or a plain push, but `git push --mirror` sends every worktree's ledger; and merge the machine-switch sentence into the existing "The ledger is local to each worktree" item, which says the same, per FR-022 (contradicts)
-- [ ] T081 Make `_prune` refuse with a RecordError when a worktree's name cannot be read (`symbolic-ref` exit 128), instead of taking its live ledger for an orphan and deleting it per Constitution IV (contradicts; likelihood theoretical)
+- [X] T081 Make `_prune` refuse with a RecordError when a worktree's name cannot be read (`symbolic-ref` exit 128), instead of taking its live ledger for an orphan and deleting it per Constitution IV (contradicts; likelihood theoretical)
+  - red: `uv run pytest tests/python/test_record.py -k cannot_read` — `DID NOT RAISE RecordError`,
+    the linked worktree's live ledger deleted; `symbolic-ref` exit 1 is absent, any other exit a
+    RecordError, for the worktree's own name too
 - [ ] T082 Make the installer, stopped while its first record runs, say that the commit stands and what the stop left, as it does for a stop during the commit, per FR-014 and contracts/install-ledger.md (partial; likelihood low)
 - [ ] T083 Judge a test whose birth record's HEAD commit no longer exists (amended away and pruned) as not judged with that reason, instead of failing the whole audit with "git failed", per data-model.md "Imported tests" and Constitution IV (partial; likelihood low)
-- [ ] T084 Describe in contracts/ledger-hook.md the states a killed hook can now leave — a dangling per-worktree name, reused by the next record, and a prune cut short — and cover the dangling-name reuse with a test per Constitution IV (partial)
+- [X] T084 Describe in contracts/ledger-hook.md the states a killed hook can now leave — a dangling per-worktree name, reused by the next record, and a prune cut short — and cover the dangling-name reuse with a test per Constitution IV (partial)
+  - the dangling-name case passed at once (the behaviour existed since T068); with the reuse
+    removed from `_claim` it failed (`rev-parse` exit 128 on the dangling name), then restored
 - [ ] T085 Refuse `--budget` without `--stop` as a usage error, and print `audit: 0 new tests; pass` without an empty count slot, per contracts/audit.md (partial; likelihood low)
 - [ ] T086 Replace the stale reason "removed with it" for subagents in worktrees of their own (implement fragment, README "Not adopted"): since T068 a removed worktree's ledger is deleted at the next ledger's creation; the reason that holds is that each has a ledger of its own per FR-016 (contradicts)
 - [ ] T087 Add README "Why 2.0.0's rules" entries for: renames and consolidations in calls that change only test-side paths; commits in calls of their own; the redo removing the file when it holds the only test (Vitest); removing the review copy's `PostToolUse` entries; and name the file removal in README's redo summary, per Constitution III and FR-018 (partial)

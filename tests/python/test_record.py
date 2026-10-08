@@ -231,3 +231,32 @@ def test_an_orphan_that_moved_after_it_was_listed_is_not_deleted(
 
     assert ledger.record(repo, CALL, CONFIG) is not None
     assert git(repo, "for-each-ref", "--format=%(refname)", name) == name
+
+
+def test_a_worktree_name_git_cannot_read_stops_the_prune_instead_of_taking_an_orphan(
+    repo: Path, tmp_path: Path
+) -> None:
+    linked = tmp_path / "linked"
+    git(repo, "worktree", "add", "-q", "-b", "linked", str(linked))
+    ledger.record(linked, CALL, CONFIG)
+    live = git(linked, "symbolic-ref", ledger.REF)
+    name = repo / ".git" / "worktrees" / "linked" / "refs" / "worktree" / "test-first" / "ledger"
+    name.chmod(0)  # git: "No such ref", exit 128 -- not "absent", exit 1
+    try:
+        with pytest.raises(ledger.RecordError):
+            ledger.record(repo, CALL, CONFIG)
+    finally:
+        name.chmod(0o644)
+
+    assert git(repo, "for-each-ref", "--format=%(refname)", live) == live
+
+
+def test_a_name_left_dangling_by_a_killed_run_is_where_the_first_record_lands(
+    repo: Path,
+) -> None:
+    left = ledger.LEDGERS + "left-by-a-killed-run"
+    git(repo, "symbolic-ref", ledger.REF, left)  # named, but its first record never landed
+
+    first = ledger.record(repo, CALL, CONFIG)
+
+    assert git(repo, "rev-parse", left) == first

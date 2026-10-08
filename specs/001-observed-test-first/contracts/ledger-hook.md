@@ -42,6 +42,10 @@ tens of milliseconds (research L7). A hook killed mid-run leaves the ref at the 
 record and at most unreachable objects, which `git gc` prunes; its temporary index stays in the
 system's temporary location, outside the repository, for the system to clean; the next call's
 record then carries the killed call's changes under the next call's name, which fails closed.
+Killed before a worktree's first record, it can also leave the per-worktree name pointing at a
+ledger not yet created, where the next record lands; or a prune cut short, some removed
+worktrees' ledgers deleted and the rest left for the next ledger's creation. A worktree's name
+that git cannot read stops the prune with an error rather than being taken for absent.
 
 ## Stop: `cli.py audit --stop`
 

@@ -335,7 +335,7 @@ def _record(where: Location, call: Call, config: Config) -> tuple[str | None, li
 def _claim(worktree: Path) -> None:
     """Point REF at a ledger of this worktree's own, once: the first record creates it through
     REF. A name already set by a run stopped before its first record is kept."""
-    if _quiet(worktree, "symbolic-ref", "--quiet", REF) is not None:
+    if _target(worktree, REF) is not None:
         return
     _prune(worktree)
     git(worktree, "symbolic-ref", REF, LEDGERS + uuid.uuid4().hex)
@@ -353,7 +353,7 @@ def _prune(worktree: Path) -> None:
     prefixes = ["main-worktree/"] + (
         [f"worktrees/{entry.name}/" for entry in linked.iterdir()] if linked.is_dir() else []
     )
-    live = {_quiet(worktree, "symbolic-ref", "--quiet", prefix + REF) for prefix in prefixes}
+    live = {_target(worktree, prefix + REF) for prefix in prefixes}
     for name, value in (line.split(" ") for line in listed.splitlines()):
         if name in live:
             continue
@@ -365,6 +365,21 @@ def _prune(worktree: Path) -> None:
             # Anything else (a held lock) is reported.
             if _quiet(worktree, "rev-parse", "--verify", "--quiet", name) == value:
                 raise
+
+
+def _target(worktree: Path, name: str) -> str | None:
+    """What the symbolic ref `name` points at, or None when there is none. A name git cannot
+    read is refused: taken for absent, the prune would delete the live ledger behind it."""
+    result = subprocess.run(
+        ["git", "-C", str(worktree), "symbolic-ref", "--quiet", name],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode == 0:
+        return result.stdout.strip()
+    if result.returncode == 1:  # absent, or not a symbolic ref
+        return None
+    raise RecordError(f"cannot read {name}: {result.stderr.strip()}")
 
 
 def _quiet(worktree: Path, *args: str) -> str | None:
