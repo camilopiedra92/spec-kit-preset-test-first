@@ -595,12 +595,12 @@ FAKE
     return 1
   }
 
-  # The commit a stop can interrupt never holds the repository's index lock: git creates a lock
-  # file before it registers the handler that removes it on a signal (tempfile.c, git 2.43), so a
-  # stop in that instant would leave .git/index.lock behind.
+  # The commit a stop can interrupt holds no lock of the repository before its hooks: git opens
+  # each lock file before it registers it for removal on a signal (tempfile.c), so a stop in that
+  # instant would leave .git/index.lock or .git/next-index-<pid>.lock behind.
   fresh lock-free
   mkdir -p "$repo/.git/hooks"
-  printf '#!/bin/sh\n[ -e .git/index.lock ] && touch "%s"\nexit 0\n' "$tmp/lock-held" \
+  printf '#!/bin/sh\nls .git/*.lock > /dev/null 2>&1 && touch "%s"\nexit 0\n' "$tmp/lock-held" \
     > "$repo/.git/hooks/pre-commit"
   chmod +x "$repo/.git/hooks/pre-commit"
   out=$(run) || {
@@ -608,7 +608,7 @@ FAKE
     return 1
   }
   [ ! -e "$tmp/lock-held" ] || {
-    echo "the commit held the repository's .git/index.lock, which a stop could leave behind"
+    echo "the commit held a lock in the repository's .git before its hooks, which a stop could leave"
     return 1
   }
 }

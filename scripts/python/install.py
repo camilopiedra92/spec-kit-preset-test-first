@@ -169,7 +169,15 @@ def _checked(root: Path, config: dict[str, Any]) -> dict[str, Any]:
 def _commit(root: Path, contents: dict[Path, dict[str, Any]]) -> None:
     """Write each file and commit them, alone, as one commit. Everything was checked before;
     a failure here puts back what was there: the files, their index entries, and a directory
-    this run made."""
+    this run made.
+
+    The commit, which a stop can interrupt (its hook may hang), is built in an index of its
+    own: HEAD plus these files, in the scratch directory, committed without a pathspec. git
+    opens each lock file before it registers it for removal on a signal (tempfile.c), so a stop
+    in that instant leaves the lock: before the hooks, the only locks the commit takes are that
+    index's, removed with the scratch directory. The repository's index is written before, by
+    `add`, which is never signalled (and refuses when another git holds it), and synced to the
+    commit after. Its ref locks, taken after the hooks, keep the window (README)."""
     written = {path: json.dumps(content, indent=2) for path, content in contents.items()}
     before = {
         path: (root / path).read_bytes() if (root / path).exists() else None for path in written
@@ -177,8 +185,8 @@ def _commit(root: Path, contents: dict[Path, dict[str, Any]]) -> None:
     made = [] if (root / SETTINGS.parent).exists() else [root / SETTINGS.parent]
     paths = [str(path) for path in written]
     head = audit.quiet_git(root, "rev-parse", "--verify", "--quiet", "HEAD")
-    index = Path(ledger.git(root, "rev-parse", "--path-format=absolute", "--git-path", "index"))
     scratch = Path(tempfile.mkdtemp(prefix="test-first-install-"))
+    own_index = {**os.environ, "GIT_INDEX_FILE": str(scratch / "index")}
     committed = False
     try:
         for directory in made:
@@ -186,20 +194,17 @@ def _commit(root: Path, contents: dict[Path, dict[str, Any]]) -> None:
         for path, text in written.items():
             (root / path).write_text(text + "\n")
         _stopped_here()
-        # Let finish whatever arrives meanwhile: the stop is acted on just after.
+        # Short writes, let finish: the stop is acted on just after.
         ledger.git(root, "add", "--", *paths)
+        ledger.git(root, "read-tree", "HEAD", env=own_index)
+        ledger.git(root, "add", "--", *paths, env=own_index)
         _stopped_here()
-        # The commit a stop can interrupt works on a copy of the index: git creates a lock
-        # before it registers the handler that removes it on a signal (tempfile.c), so a stop
-        # in that instant leaves the lock -- here the copy's, removed with the scratch
-        # directory, never the repository's index.lock. copy2 keeps the mtime (racy git).
-        shutil.copy2(index, scratch / "index")
         status, output = _run(
             [
                 *("bash", str(audit.RUNNER), str(COMMIT_DEADLINE)),
-                *("git", "-C", str(root), "commit", "-q", "-m", MESSAGE, "--", *paths),
+                *("git", "-C", str(root), "commit", "-q", "-m", MESSAGE),
             ],
-            env={**os.environ, "GIT_INDEX_FILE": str(scratch / "index")},
+            env=own_index,
         )
         # A post-commit hook runs after git wrote the commit: it stands whatever came after,
         # a failure, the deadline or a stop.

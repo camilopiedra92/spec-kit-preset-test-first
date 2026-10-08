@@ -571,14 +571,14 @@ def test_an_installer_stopped_during_its_first_record_says_it_had_finished(
     assert git(project, "rev-list", "--count", ledger.REF) == "1"
 
 
-def test_the_commit_a_stop_can_interrupt_never_holds_the_repositorys_index_lock(
+def test_the_commit_a_stop_can_interrupt_holds_no_lock_of_the_repository_before_its_hooks(
     project: Path,
 ) -> None:
-    # git creates a lock file before it registers the handler that removes it on a signal
-    # (tempfile.c, git 2.43): a stop in that instant would leave .git/index.lock behind.
-    held = project.parent / "index-lock-held"
+    # git opens each lock file before it registers it for removal on a signal (tempfile.c):
+    # a stop in that instant would leave .git/index.lock or .git/next-index-<pid>.lock behind.
+    held = project.parent / "lock-held"
     hook = project / ".git" / "hooks" / "pre-commit"
-    hook.write_text(f'#!/bin/sh\n[ -e .git/index.lock ] && touch "{held}"\nexit 0\n')
+    hook.write_text(f'#!/bin/sh\nls .git/*.lock > /dev/null 2>&1 && touch "{held}"\nexit 0\n')
     hook.chmod(0o755)
 
     assert install.main(ARGS) == 0

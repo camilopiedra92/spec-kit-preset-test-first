@@ -748,9 +748,16 @@ and Antigravity showed nothing test-first-specific in searches (second-hand).
   `create_tempfile_mode` opens the lock before `activate_tempfile` registers its removal on a
   signal. Stops aimed at the commit's start (as soon as its process exists, 0–1 ms later): 5 of
   300 left the lock with the commit on the repository's index, 0 of 600 with the commit on a copy
-  of it (`GIT_INDEX_FILE` in a temporary directory). Considered: removing a leftover lock after a
-  stop (cannot tell ours from another process's), not passing the stop to the commit (a hanging
-  hook would hold the installer up to the 300 s deadline), delaying the SIGTERM (a timing guess).
+  of it (`GIT_INDEX_FILE` in a temporary directory). An independent review then showed the window
+  is per lock, not per process: on git 2.55 (macOS), SIGTERM at 0–45 ms into a plain
+  `git commit -- f` on a copied index still left `next-index-*.lock` (4 of 2,000) and ref locks
+  (`HEAD.lock`, `main.lock`, `packed-refs.lock`, 2 each). The commit is therefore built in an index
+  of its own, HEAD plus the two files, and committed without a pathspec, so it takes no
+  `next-index` lock; its ref locks come after the hooks and keep a window of microseconds, stated
+  as a limit. Considered: removing a leftover lock after a stop (cannot tell ours from another
+  process's), not passing the stop to the commit (a hanging hook would hold the installer up to the
+  300 s deadline), delaying the SIGTERM (a timing guess), signalling only the hook's processes (git
+  runs them in its own process group; the hook may itself run git).
 - **Validation in renta** (T034, 2026-10-07, Claude Code 2.1.293 in `claude -p`, Spec Kit 1.1.0,
   git 2.55.0, pytest 9.1.1 on Python 3.14.7, macOS arm64 Mac16,8): a clone of renta (861 files),
   the preset updated from 1.6.0 to this branch's archive, the ledger installed on a feature

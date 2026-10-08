@@ -297,19 +297,21 @@ stop_here
 # the staged check).
 git add "$hook" "$settings"
 stop_here
-# The commit a stop can interrupt works on a copy of the index: git creates a
-# lock before it registers the handler that removes it on a signal (tempfile.c),
-# so a stop in that instant leaves the lock -- here the copy's, removed with
-# the scratch directory, never the repository's index.lock. cp -p keeps the
-# mtime (racy git).
+# The commit, which a stop can interrupt (its hook may hang), is built in an
+# index of its own: HEAD plus these two files, committed without a pathspec.
+# git opens each lock file before it registers it for removal on a signal
+# (tempfile.c), so a stop in that instant leaves the lock: before the hooks,
+# the only locks the commit takes are that index's, removed with the scratch
+# directory. Its ref locks, taken after the hooks, keep the window (README).
 scratch=$(mktemp -d) || exit 1
-cp -p "$(git rev-parse --path-format=absolute --git-path index)" "$scratch/index"
+GIT_INDEX_FILE="$scratch/index" git read-tree HEAD
+GIT_INDEX_FILE="$scratch/index" git add "$hook" "$settings"
+stop_here
 # A commit hook's own output does not say what it refused, and a commit-msg
 # policy will refuse every attempt; the caller needs to know which it was.
 bounded "$commit_deadline" env GIT_INDEX_FILE="$scratch/index" git commit -q -m "$message" \
   -m "Written by install-stop-gate: a Stop hook runs \`$words\` and blocks a red turn once." \
-  -m "To turn it off, remove its entry under hooks.Stop in .claude/settings.json and keep $hook: deleting it makes /speckit-implement install the gate again." \
-  -- "$hook" "$settings"
+  -m "To turn it off, remove its entry under hooks.Stop in .claude/settings.json and keep $hook: deleting it makes /speckit-implement install the gate again."
 # Stopped: the undo keeps a commit that landed, and says so.
 stop_here
 # A post-commit hook runs after git wrote the commit: it stands whatever came
