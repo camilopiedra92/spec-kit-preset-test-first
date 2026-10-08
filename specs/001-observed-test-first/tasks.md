@@ -975,6 +975,7 @@ gate still runs and an old `tasks.md` is read.
 - [X] T078 Refuse an out-of-range `--deadline` (0, negative, above what `run-bounded.sh` accepts) with exit 2 instead of silently using 300 or turning every file not judged; and define in contracts/audit.md the `- - -` fields printed for `never-run` and record-less `not-judged` per contracts/audit.md (partial; likelihood low)
   - red: `uv run pytest tests/python/test_cli.py -k out_of_range` — `DID NOT RAISE SystemExit` for
     `--deadline 0`, `-5`, `1000000000` and `--budget -1` (the budget added: the same range, and
-    a negative one judged nothing)
+    a negative one judged nothing; its range starts at 0, which judges from runs already made:
+    the first version refused 0 and broke two Stop units, caught by the full suite run)
   - contracts/audit.md now names every verdict printed with `- - -`, and the `-` call of a
     record no tool call made

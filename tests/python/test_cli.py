@@ -260,4 +260,4 @@ def test_seconds_out_of_range_are_a_usage_error(
         audit.main(args)
 
     assert stopped.value.code == 2
-    assert "1 to 999999999" in capsys.readouterr().err
+    assert "to 999999999" in capsys.readouterr().err

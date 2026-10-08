@@ -9,7 +9,8 @@ python3 .specify/presets/test-first/scripts/python/cli.py audit --stop [--budget
   branch, so a local merge into the default branch does not move it.
 - `--deadline`: per run, whole seconds from 1 to 999999999 (`run-bounded.sh`'s range), default
   300 (60 under `--stop`); passed to `run-bounded.sh`.
-- `--budget`: with `--stop` only, whole seconds from 1 to 999999999, see
+- `--budget`: with `--stop` only, whole seconds from 0 (judge only from runs already made) to
+  999999999, see
   [ledger-hook.md](ledger-hook.md).
 - Seconds outside that range are a usage error.
 - Takes a snapshot first (a record with `tool` = `audit` or `Stop`) when the worktree differs from

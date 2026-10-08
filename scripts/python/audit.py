@@ -16,6 +16,7 @@ import sys
 import tempfile
 import time
 from collections import Counter
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, NamedTuple
 from xml.etree import ElementTree
@@ -757,12 +758,17 @@ def exit_status(verdicts: list[tuple[str, Verdict]]) -> int:
     return 0 if all(verdict.kind in passing for _, verdict in verdicts) else 1
 
 
-def seconds(text: str) -> int:
-    """Whole seconds in the range run-bounded.sh takes, or a usage error (exit 2)."""
-    value = int(text) if text.lstrip("-").isdigit() else 0
-    if not 1 <= value <= 999_999_999:
-        raise argparse.ArgumentTypeError(f"{text!r}: seconds are 1 to 999999999")
-    return value
+def seconds_from(least: int) -> Callable[[str], int]:
+    """Whole seconds from `least` to run-bounded.sh's 999999999, or a usage error (exit 2): a
+    deadline of 0 kills every run, while a budget of 0 judges from the runs already made."""
+
+    def seconds(text: str) -> int:
+        value = int(text) if text.isdigit() else -1
+        if not least <= value <= 999_999_999:
+            raise argparse.ArgumentTypeError(f"{text!r}: seconds are {least} to 999999999")
+        return value
+
+    return seconds
 
 
 def main(argv: list[str]) -> int:
@@ -770,9 +776,13 @@ def main(argv: list[str]) -> int:
     (contracts/ledger-hook.md)."""
     parser = argparse.ArgumentParser(prog="audit.py", description=__doc__)
     parser.add_argument("--base", help="the commit new tests are new against")
-    parser.add_argument("--deadline", type=seconds, help="seconds per replay (300; 60 with --stop)")
+    parser.add_argument(
+        "--deadline", type=seconds_from(1), help="seconds per replay (300; 60 with --stop)"
+    )
     parser.add_argument("--stop", action="store_true", help="run as the Stop hook (JSON on stdin)")
-    parser.add_argument("--budget", type=seconds, default=120, help="with --stop: seconds in all")
+    parser.add_argument(
+        "--budget", type=seconds_from(0), default=120, help="with --stop: seconds in all"
+    )
     args = parser.parse_args(argv)
     if args.stop:
         return _stop(args.budget, args.deadline or 60)
