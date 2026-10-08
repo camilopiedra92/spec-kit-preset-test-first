@@ -741,6 +741,16 @@ and Antigravity showed nothing test-first-specific in searches (second-hand).
   3.12.12, git 2.55.0, macOS arm64 Mac16,8): after the warm audit, one turn writes a test with
   its code. The Stop took 10 s with every file replayed at the newest record, 6 s with only the
   turn's file replayed; both blocked on `born-with-code`. Directional.
+- **Installer commit and git's lock window** (v2.0.1, 2026-10-08, ubuntu 24.04 in Docker on macOS
+  arm64, git 2.43.0, Python 3.12.3): the first CI run of PR #12 failed the installer's stop test
+  with `.git/index.lock` left and both files staged. A trace (`GIT_TRACE2_EVENT`, the runner under
+  `set -x`) showed the stop reaching `git commit` 0.65 ms after it started; git 2.43's
+  `create_tempfile_mode` opens the lock before `activate_tempfile` registers its removal on a
+  signal. Stops aimed at the commit's start (as soon as its process exists, 0–1 ms later): 5 of
+  300 left the lock with the commit on the repository's index, 0 of 600 with the commit on a copy
+  of it (`GIT_INDEX_FILE` in a temporary directory). Considered: removing a leftover lock after a
+  stop (cannot tell ours from another process's), not passing the stop to the commit (a hanging
+  hook would hold the installer up to the 300 s deadline), delaying the SIGTERM (a timing guess).
 - **Validation in renta** (T034, 2026-10-07, Claude Code 2.1.293 in `claude -p`, Spec Kit 1.1.0,
   git 2.55.0, pytest 9.1.1 on Python 3.14.7, macOS arm64 Mac16,8): a clone of renta (861 files),
   the preset updated from 1.6.0 to this branch's archive, the ledger installed on a feature

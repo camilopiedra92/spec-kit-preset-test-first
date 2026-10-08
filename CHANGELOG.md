@@ -6,6 +6,20 @@ All notable changes to this preset are documented here. The format follows
 
 ## [Unreleased]
 
+## [2.0.1] - 2026-10-08
+
+### Fixed
+
+- Both installers (`cli.py install` and `install-stop-gate.sh`), stopped as
+  their commit started, could leave `.git/index.lock` behind and the two files
+  staged: git creates a lock file before it registers the handler that
+  removes it on a signal (tempfile.c), and a stop is passed on to the commit,
+  whose hook may hang. The commit now works on a copy of the index in a
+  temporary directory, so that lock is the copy's, removed with it, and the
+  repository's index is synced to the commit after it lands. Found by the
+  first CI run on Linux; 5 of 300 stops aimed at the commit's start left the
+  lock before, 0 of 600 after (ubuntu 24.04, git 2.43.0).
+
 ## [2.0.0] - 2026-10-08
 
 Test-first is observed, not reported: the agent no longer writes down its

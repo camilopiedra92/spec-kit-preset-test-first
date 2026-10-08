@@ -180,15 +180,18 @@ fi
 # this one left behind. Only directories this run created are removed, deepest
 # first.
 committed=0
+scratch=
 made_dirs=()
 for d in .claude .claude/hooks; do
   [ -d "$d" ] || made_dirs=("$d" "${made_dirs[@]+"${made_dirs[@]}"}")
 done
 undo() {
   local d
+  [ -z "$scratch" ] || rm -rf "$scratch"
   [ "$committed" -eq 1 ] && return
   # Stopped after git wrote the commit (in a post-commit hook): it stands.
   if landed; then
+    git reset -q -- "$hook" "$settings" 2> /dev/null || true
     echo "install-stop-gate: committed before it was stopped" >&2
     return
   fi
@@ -294,9 +297,16 @@ stop_here
 # the staged check).
 git add "$hook" "$settings"
 stop_here
+# The commit a stop can interrupt works on a copy of the index: git creates a
+# lock before it registers the handler that removes it on a signal (tempfile.c),
+# so a stop in that instant leaves the lock -- here the copy's, removed with
+# the scratch directory, never the repository's index.lock. cp -p keeps the
+# mtime (racy git).
+scratch=$(mktemp -d) || exit 1
+cp -p "$(git rev-parse --path-format=absolute --git-path index)" "$scratch/index"
 # A commit hook's own output does not say what it refused, and a commit-msg
 # policy will refuse every attempt; the caller needs to know which it was.
-bounded "$commit_deadline" git commit -q -m "$message" \
+bounded "$commit_deadline" env GIT_INDEX_FILE="$scratch/index" git commit -q -m "$message" \
   -m "Written by install-stop-gate: a Stop hook runs \`$words\` and blocks a red turn once." \
   -m "To turn it off, remove its entry under hooks.Stop in .claude/settings.json and keep $hook: deleting it makes /speckit-implement install the gate again." \
   -- "$hook" "$settings"
@@ -315,5 +325,7 @@ elif [ "$status" -ne 0 ]; then
   echo "                   its output is above; nothing is left behind" >&2
   exit 1
 fi
+# The repository's index takes the commit's entries (a hook may have changed them).
+git reset -q -- "$hook" "$settings"
 committed=1
 echo "install-stop-gate: committed $hook and $settings"

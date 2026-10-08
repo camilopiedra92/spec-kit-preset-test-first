@@ -594,6 +594,23 @@ FAKE
     echo "refused a leftover Stop entry for another reason: $out"
     return 1
   }
+
+  # The commit a stop can interrupt never holds the repository's index lock: git creates a lock
+  # file before it registers the handler that removes it on a signal (tempfile.c, git 2.43), so a
+  # stop in that instant would leave .git/index.lock behind.
+  fresh lock-free
+  mkdir -p "$repo/.git/hooks"
+  printf '#!/bin/sh\n[ -e .git/index.lock ] && touch "%s"\nexit 0\n' "$tmp/lock-held" \
+    > "$repo/.git/hooks/pre-commit"
+  chmod +x "$repo/.git/hooks/pre-commit"
+  out=$(run) || {
+    echo "the lock check's install failed: $out"
+    return 1
+  }
+  [ ! -e "$tmp/lock-held" ] || {
+    echo "the commit held the repository's .git/index.lock, which a stop could leave behind"
+    return 1
+  }
 }
 
 if stop_gate; then

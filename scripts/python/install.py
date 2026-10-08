@@ -3,9 +3,12 @@ configuration and the ledger's two hook entries."""
 
 import argparse
 import json
+import os
+import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any, NoReturn
 
@@ -108,9 +111,11 @@ def _stopped_here(said: str | None = None) -> None:
         raise SystemExit(128 + _Stop.signum)
 
 
-def _run(argv: list[str]) -> tuple[int, str]:
+def _run(argv: list[str], env: dict[str, str] | None = None) -> tuple[int, str]:
     """A process a stop passes SIGTERM to, waited for; its status and its output."""
-    child = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    child = subprocess.Popen(
+        argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env
+    )
     _Stop.child = child
     if _Stop.signum is not None:
         child.terminate()  # stopped as it started: passed on all the same
@@ -172,6 +177,8 @@ def _commit(root: Path, contents: dict[Path, dict[str, Any]]) -> None:
     made = [] if (root / SETTINGS.parent).exists() else [root / SETTINGS.parent]
     paths = [str(path) for path in written]
     head = audit.quiet_git(root, "rev-parse", "--verify", "--quiet", "HEAD")
+    index = Path(ledger.git(root, "rev-parse", "--path-format=absolute", "--git-path", "index"))
+    scratch = Path(tempfile.mkdtemp(prefix="test-first-install-"))
     committed = False
     try:
         for directory in made:
@@ -182,15 +189,25 @@ def _commit(root: Path, contents: dict[Path, dict[str, Any]]) -> None:
         # Let finish whatever arrives meanwhile: the stop is acted on just after.
         ledger.git(root, "add", "--", *paths)
         _stopped_here()
+        # The commit a stop can interrupt works on a copy of the index: git creates a lock
+        # before it registers the handler that removes it on a signal (tempfile.c), so a stop
+        # in that instant leaves the lock -- here the copy's, removed with the scratch
+        # directory, never the repository's index.lock. copy2 keeps the mtime (racy git).
+        shutil.copy2(index, scratch / "index")
         status, output = _run(
             [
                 *("bash", str(audit.RUNNER), str(COMMIT_DEADLINE)),
                 *("git", "-C", str(root), "commit", "-q", "-m", MESSAGE, "--", *paths),
-            ]
+            ],
+            env={**os.environ, "GIT_INDEX_FILE": str(scratch / "index")},
         )
         # A post-commit hook runs after git wrote the commit: it stands whatever came after,
         # a failure, the deadline or a stop.
         committed = status == 0 or _landed(root, head, paths)
+        if committed:
+            # The repository's index takes the commit's entries (a hook may have changed
+            # them): a short write, let finish like `add`.
+            ledger.git(root, "reset", "-q", "--", *paths)
         _stopped_here(
             "committed before it was stopped, without the ledger's first record: the first "
             "tool call's record will be its origin, and the tests it writes unobserved"
@@ -221,6 +238,7 @@ def _commit(root: Path, contents: dict[Path, dict[str, Any]]) -> None:
                     (root / path).write_bytes(content)
             for directory in made:
                 directory.rmdir()
+        shutil.rmtree(scratch, ignore_errors=True)
 
 
 def _landed(root: Path, head: str, paths: list[str]) -> bool:

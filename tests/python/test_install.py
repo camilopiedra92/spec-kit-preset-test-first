@@ -545,6 +545,7 @@ def test_an_installer_stopped_at_any_moment_of_its_writes_leaves_no_lock_and_no_
         for path in (".claude", ".specify/test-first.json"):
             subprocess.run(["rm", "-rf", str(project / path)], check=True)
         (project / ".git" / "index.lock").unlink(missing_ok=True)
+        git(project, "reset", "-q")  # one broken attempt must not stage files for the next
         git(project, "update-ref", "-d", "refs/worktree/test-first/ledger")
 
     assert broken == []
@@ -568,3 +569,17 @@ def test_an_installer_stopped_during_its_first_record_says_it_had_finished(
     assert stopped.value.code == 128 + signal.SIGTERM
     assert "had finished" in capsys.readouterr().err
     assert git(project, "rev-list", "--count", ledger.REF) == "1"
+
+
+def test_the_commit_a_stop_can_interrupt_never_holds_the_repositorys_index_lock(
+    project: Path,
+) -> None:
+    # git creates a lock file before it registers the handler that removes it on a signal
+    # (tempfile.c, git 2.43): a stop in that instant would leave .git/index.lock behind.
+    held = project.parent / "index-lock-held"
+    hook = project / ".git" / "hooks" / "pre-commit"
+    hook.write_text(f'#!/bin/sh\n[ -e .git/index.lock ] && touch "{held}"\nexit 0\n')
+    hook.chmod(0o755)
+
+    assert install.main(ARGS) == 0
+    assert not held.exists()
