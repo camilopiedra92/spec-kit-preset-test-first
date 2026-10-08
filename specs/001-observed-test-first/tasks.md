@@ -834,7 +834,11 @@ gate still runs and an old `tasks.md` is read.
 - [X] T043 Document the file-level `not-judged` entry (a test file whose runs never said which tests it holds) in data-model.md "Verdict", contracts/audit.md's output and the README per data-model "Verdict" (missing)
 - [X] T044 Reword the README's `refactored` line to "a call that did not change test-side paths together with anything else" per FR-009 (contradicts)
 - [X] T045 Remove the unused `WORKTREE_AND_INDEX` from `scripts/python/ledger.py` per plan: no code without a caller (unrequested)
-- [ ] T046 After the pull request merges on green, tag `v2.0.0` on the merged commit and check that `preset.yml`, the CHANGELOG and the tag agree per Constitution V (missing)
+- [X] T046 After the pull request merges on green, tag `v2.0.0` on the merged commit and check that `preset.yml`, the CHANGELOG and the tag agree per Constitution V (missing)
+  - PR #10 squash-merged on green as 45f9575 (CI green on the PR's last commit and on main);
+    release v2.0.0 published 2026-10-08 on that commit, notes from the CHANGELOG 2.0.0 section;
+    preset.yml 2.0.0 and the CHANGELOG agree; the tag's GitHub archive holds only the preset
+    (commands/, scripts/, preset.yml, README, CHANGELOG, LICENSE)
 
 ## Phase 10: Convergence
 
