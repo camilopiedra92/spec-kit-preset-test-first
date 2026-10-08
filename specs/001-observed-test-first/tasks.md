@@ -873,3 +873,12 @@ gate still runs and an old `tasks.md` is read.
     `index.lock` and breaks the repository) and make the traps idempotent — each handler ignores
     all four signals before it exits
   - red: `returned with the command alive, 7 of 10`; after the fix 0 of 50 pairs, five runs
+
+## Phase 13: Convergence
+
+- [X] T056 Make the installer's "landed" check hold only for its own commit — HEAD's parent is the recorded HEAD and HEAD's message is the installer's — so another process moving HEAD during the install is refused and undone, not reported as committed; unit cases seen red first for a hook that moves HEAD and refuses, and for a concurrent commit per FR-014 (contradicts)
+  - red: both reported `committed; a post-commit hook did not finish or failed` with the files
+    left staged
+- [ ] T057 Make `run-bounded.sh` ignore SIGPIPE, so a caller that stops reading its stderr cannot end it mid-cleanup with the command alive; a `tests/run-bounded.sh` case seen red first whose reader exits right after terminating the runner, with a command that ignores SIGTERM, repeated per Constitution IV (contradicts)
+- [ ] T058 Run `install-stop-gate.sh`'s suite check and its `git commit` under `run-bounded.sh` with deadlines, refusing with everything put back when either outlives its deadline; `tests/stop-gate.sh` cases seen red first for a hung suite and a hung pre-commit hook per Constitution IV (contradicts)
+- [ ] T059 Say in the README that a commit which landed stands when what follows it fails or is stopped, and have the installer, stopped after its commit landed, also say that the first tool call's record will be the ledger's origin per FR-014 (partial)

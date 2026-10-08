@@ -427,3 +427,24 @@ def test_an_installer_terminated_in_a_post_commit_hook_leaves_the_commit_standin
 
     assert git(project, "rev-parse", "HEAD~1") == before
     assert git(project, "status", "--porcelain") == ""
+
+
+@pytest.mark.parametrize("hook_status", [1, 0])
+def test_another_commit_moving_head_is_not_taken_for_the_installs(
+    hook_status: int, project: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A pre-commit hook that commits something else: refusing (1), or letting git go on to
+    lose the race for HEAD (0). Either way the install's own commit did not land."""
+    hook = project / ".git" / "hooks" / "pre-commit"
+    hook.write_text(
+        "#!/bin/sh\n"
+        "c=$(git commit-tree HEAD^{tree} -p HEAD -m concurrent) && git update-ref HEAD $c\n"
+        f"exit {hook_status}\n"
+    )
+    hook.chmod(0o755)
+
+    assert install.main(ARGS) == 1
+    err = capsys.readouterr().err
+    assert "committed" not in err.replace("not committed", "")
+    assert git(project, "log", "-1", "--format=%s") == "concurrent"
+    assert git(project, "status", "--porcelain") == ""

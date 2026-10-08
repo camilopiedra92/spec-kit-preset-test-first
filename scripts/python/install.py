@@ -189,8 +189,12 @@ def _commit(root: Path, contents: dict[Path, dict[str, Any]]) -> None:
 
 
 def _landed(root: Path, head: str) -> bool:
-    """Whether HEAD moved past `head`: the commit was written, whatever happened after."""
-    return audit.quiet_git(root, "rev-parse", "--verify", "--quiet", "HEAD") != head
+    """Whether this install's commit was written, whatever happened after it: HEAD is a commit
+    whose parent is `head` and whose subject is this installer's. Any other move of HEAD (a
+    hook or another process committing) is not this install's commit."""
+    shown = audit.quiet_git(root, "log", "-1", "--format=%P%n%s", "HEAD")
+    parents, _, subject = shown.partition("\n")
+    return parents == head and subject == MESSAGE
 
 
 def _settings(path: Path) -> dict[str, Any]:
