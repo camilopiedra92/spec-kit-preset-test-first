@@ -943,6 +943,11 @@ gate still runs and an old `tasks.md` is read.
   - the name stays per worktree as a symbolic ref to `refs/test-first/ledgers/<random id>`; a
     removed worktree's ledger is deleted at the next ledger's creation; alternatives in research.md
     R2 ("Revised"); `tests/ledger.sh` after: median 84 and 85 ms per record (SC-003)
+  - the independent review found two worktrees creating their first ledgers at once could fail one
+    record: the orphans were deleted in one transaction, which another prune's delete aborts.
+    Each is now deleted alone, guarded by the value listed, and one already pruned or moved is
+    left; red first: `update-ref --stdin` exit 128 in both race scenarios. A delete without its
+    old value now fails the "moved" case (seen, then restored)
 - [X] T069 Bound the audit's history walk, which costs git processes, not test runs: `birth()` and `restored()` build each test file's touching list by calling `change(i)` for every record of the effective history — one `git diff-tree` each (about 19 ms), recomputed by every audit because `_changes` lives in one `Auditor`, over a history that is not cut at the base and crosses earlier features' records, while the budget is checked only before replays (1,500 records measured 28–29 s for one red test with nothing to replay; past the Stop hook's 300 s timeout near 15,000). Make a turn's cost independent of the ledger's total length: no record older than the base's lineage is walked, the changed paths of many records come from one git process and/or a content-addressed store keyed by the tree pair that survives across audits, and the budget is checked during the walk with an unjudged birth reported as not judged; record the alternatives in research.md; measure SC-004's Stop audit on a ledger of 1,500 and 15,000 records per SC-004, FR-024 and Constitution IV (partial; likelihood medium)
   - red: `uv run pytest tests/python/test_cli.py -k grow` — `assert 79 == 44` git processes for an
     audit after 40 earlier records against 5; the parsing case of `changed_paths_of` went red

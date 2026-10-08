@@ -324,7 +324,7 @@ def _record(where: Location, call: Call, config: Config) -> tuple[str | None, li
 def _claim(worktree: Path) -> None:
     """Point REF at a ledger of this worktree's own, once: the first record creates it through
     REF. A name already set by a run stopped before its first record is kept."""
-    if _symbolic_target(worktree, REF) is not None:
+    if _quiet(worktree, "symbolic-ref", "--quiet", REF) is not None:
         return
     _prune(worktree)
     git(worktree, "symbolic-ref", REF, LEDGERS + uuid.uuid4().hex)
@@ -342,20 +342,23 @@ def _prune(worktree: Path) -> None:
     prefixes = ["main-worktree/"] + (
         [f"worktrees/{entry.name}/" for entry in linked.iterdir()] if linked.is_dir() else []
     )
-    live = {_symbolic_target(worktree, prefix + REF) for prefix in prefixes}
-    orphans = [line.split(" ") for line in listed.splitlines() if line.split(" ")[0] not in live]
-    if orphans:
-        # Each deleted only if it still holds what was listed.
-        commands = "".join(f"delete {name} {value}\n" for name, value in orphans)
-        git(worktree, "update-ref", "--stdin", input=commands)
+    live = {_quiet(worktree, "symbolic-ref", "--quiet", prefix + REF) for prefix in prefixes}
+    for name, value in (line.split(" ") for line in listed.splitlines()):
+        if name in live:
+            continue
+        try:
+            # Only if it still holds what was listed.
+            git(worktree, "update-ref", "-d", name, value)
+        except subprocess.CalledProcessError:
+            # Pruned by another worktree's first record, or moved: not this run's to delete.
+            # Anything else (a held lock) is reported.
+            if _quiet(worktree, "rev-parse", "--verify", "--quiet", name) == value:
+                raise
 
 
-def _symbolic_target(worktree: Path, name: str) -> str | None:
-    result = subprocess.run(
-        ["git", "-C", str(worktree), "symbolic-ref", "--quiet", name],
-        capture_output=True,
-        text=True,
-    )
+def _quiet(worktree: Path, *args: str) -> str | None:
+    """git's output, or None when the command fails (a name that does not resolve)."""
+    result = subprocess.run(["git", "-C", str(worktree), *args], capture_output=True, text=True)
     return result.stdout.strip() if result.returncode == 0 else None
 
 

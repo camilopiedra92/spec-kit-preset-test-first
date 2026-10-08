@@ -190,3 +190,44 @@ def test_a_removed_worktrees_ledger_is_pruned_when_another_ledger_is_created(
             git(repo, "symbolic-ref", ledger.REF),
         ]
     )
+
+
+def orphan_then(repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, race: str) -> str:
+    """A removed worktree's ledger, which `race` changes right after the next creation lists it:
+    as another worktree's prune would ("delete"), or as a writer would ("move")."""
+    gone = tmp_path / "gone"
+    git(repo, "worktree", "add", "-q", "-b", "gone", str(gone))
+    ledger.record(gone, CALL, CONFIG)
+    name = git(gone, "symbolic-ref", ledger.REF)
+    git(repo, "worktree", "remove", "--force", str(gone))
+    real_git = ledger.git
+
+    def racing(worktree: Path, *args: str, **kwargs: object) -> str:
+        listed = real_git(worktree, *args, **kwargs)  # type: ignore[arg-type]
+        if args[0] == "for-each-ref" and listed:
+            if race == "delete":
+                real_git(worktree, "update-ref", "-d", name)
+            else:
+                moved = real_git(worktree, "commit-tree", f"{name}^{{tree}}", "-m", "moved")
+                real_git(worktree, "update-ref", name, moved)
+        return listed
+
+    monkeypatch.setattr(ledger, "git", racing)
+    return name
+
+
+def test_an_orphan_another_worktree_pruned_first_does_not_fail_the_record(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    orphan_then(repo, tmp_path, monkeypatch, "delete")
+
+    assert ledger.record(repo, CALL, CONFIG) is not None
+
+
+def test_an_orphan_that_moved_after_it_was_listed_is_not_deleted(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    name = orphan_then(repo, tmp_path, monkeypatch, "move")
+
+    assert ledger.record(repo, CALL, CONFIG) is not None
+    assert git(repo, "for-each-ref", "--format=%(refname)", name) == name
