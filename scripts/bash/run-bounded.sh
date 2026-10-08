@@ -59,8 +59,11 @@ kill_group() {
 terminated=
 # shellcheck disable=SC2329  # invoked by the EXIT trap
 cleanup() {
-  # A second signal must not cut this short: the command's group is killed below.
-  trap '' TERM INT HUP QUIT
+  # A second signal must not cut this short: the command's group is killed below. Nor a
+  # caller that stopped reading this runner's stderr: bash's report of a killed job would
+  # raise SIGPIPE. Ignored here only, once the command runs with its own dispositions: an
+  # ignored signal is inherited across exec, and would change the command's pipelines.
+  trap '' TERM INT HUP QUIT PIPE
   # Ended by a signal while the command runs: SIGTERM first and the grace period, as the
   # deadline does, so the command can clean up (git removes its lock files on SIGTERM, and
   # cannot on SIGKILL).
@@ -84,13 +87,13 @@ cleanup() {
 # runs (bash would skip it on QUIT) and knows it was a signal. Nothing runs on
 # KILL: the watchdog, a group of its own, still enforces the deadline then.
 trap cleanup EXIT
-# Each handler ignores all four signals before anything else: one arriving
+# Each handler ignores these signals, and SIGPIPE, before anything else: one arriving
 # right behind the first would otherwise run a handler again and exit inside
 # the EXIT trap, skipping the grace period and the group kill.
-trap 'trap "" TERM INT HUP QUIT; terminated=1; exit 143' TERM
-trap 'trap "" TERM INT HUP QUIT; terminated=1; exit 130' INT
-trap 'trap "" TERM INT HUP QUIT; terminated=1; exit 129' HUP
-trap 'trap "" TERM INT HUP QUIT; terminated=1; exit 131' QUIT
+trap 'trap "" TERM INT HUP QUIT PIPE; terminated=1; exit 143' TERM
+trap 'trap "" TERM INT HUP QUIT PIPE; terminated=1; exit 130' INT
+trap 'trap "" TERM INT HUP QUIT PIPE; terminated=1; exit 129' HUP
+trap 'trap "" TERM INT HUP QUIT PIPE; terminated=1; exit 131' QUIT
 
 # Job control gives each background job its own process group, led by the
 # job's first process, so $! names the group.

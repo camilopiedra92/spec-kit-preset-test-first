@@ -187,5 +187,34 @@ done
 [ "$early" -eq 0 ] || problem "runner terminated twice at once: returned with the command alive, $early of 10"
 set +m
 
+# The command keeps each signal's default action: the runner ignores them only for its own
+# cleanup, since an ignored signal is inherited across exec and would change how the command
+# ends (SIGPIPE in its pipelines, SIGTERM from anyone stopping it).
+for signal in PIPE TERM INT HUP QUIT; do
+  out=$(bash "$RUN" 5 bash -c "kill -$signal \$\$; echo survived" 2> /dev/null)
+  [ -z "$out" ] || problem "the command inherited an ignored SIG$signal"
+done
+
+# A caller that terminates the runner and goes away at once, its pipe on the runner's stderr
+# left with no reader: bash's report of the killed job then raises SIGPIPE in the runner, which
+# must not end it before the grace period and the group kill.
+orphans=0
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+  python3 -c '
+import subprocess, sys, time
+runner = subprocess.Popen(
+    ["bash", sys.argv[1], "61", "sh", "-c", "(trap \"\" TERM; exec sleep 9111) & exec sleep 9112"],
+    stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+)
+time.sleep(1)
+runner.terminate()
+' "$RUN"
+  sleep 6.5 # the grace period, and a margin
+  pgrep -f "^sleep 9111" > /dev/null && orphans=$((orphans + 1))
+  pkill -KILL -f "sleep 911[12]"
+  pkill -KILL -f "run-bounded.sh 61 sh -c"
+done
+[ "$orphans" -eq 0 ] || problem "runner terminated by a caller that went away: the command outlived the grace, $orphans of 10"
+
 [ "$fail" -eq 0 ] && echo "ok: run-bounded"
 exit "$fail"
