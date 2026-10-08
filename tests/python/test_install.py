@@ -545,6 +545,7 @@ def test_an_installer_stopped_at_any_moment_of_its_writes_leaves_no_lock_and_no_
         for path in (".claude", ".specify/test-first.json"):
             subprocess.run(["rm", "-rf", str(project / path)], check=True)
         (project / ".git" / "index.lock").unlink(missing_ok=True)
+        git(project, "reset", "-q")  # one broken attempt must not stage files for the next
         git(project, "update-ref", "-d", "refs/worktree/test-first/ledger")
 
     assert broken == []
@@ -568,3 +569,34 @@ def test_an_installer_stopped_during_its_first_record_says_it_had_finished(
     assert stopped.value.code == 128 + signal.SIGTERM
     assert "had finished" in capsys.readouterr().err
     assert git(project, "rev-list", "--count", ledger.REF) == "1"
+
+
+def test_the_commit_a_stop_can_interrupt_holds_no_lock_of_the_repository_before_its_hooks(
+    project: Path,
+) -> None:
+    # git opens each lock file before it registers it for removal on a signal (tempfile.c):
+    # a stop in that instant would leave .git/index.lock or .git/next-index-<pid>.lock behind.
+    held = project.parent / "lock-held"
+    hook = project / ".git" / "hooks" / "pre-commit"
+    hook.write_text(f'#!/bin/sh\nls .git/*.lock > /dev/null 2>&1 && touch "{held}"\nexit 0\n')
+    hook.chmod(0o755)
+
+    assert install.main(ARGS) == 0
+    assert not held.exists()
+
+
+def test_the_commits_own_index_keeps_a_sparse_checkouts_files_out_of_the_cone(
+    project: Path,
+) -> None:
+    (project / "far").mkdir()
+    (project / "far" / "x.txt").write_text("x\n")
+    git(project, "add", "far")
+    git(project, "commit", "-q", "-m", "far")
+    git(project, "sparse-checkout", "set", "--cone", "tests", "src", ".specify", ".claude")
+    seen = project.parent / "hook-status"
+    hook = project / ".git" / "hooks" / "pre-commit"
+    hook.write_text(f'#!/bin/sh\ngit status --porcelain > "{seen}"\nexit 0\n')
+    hook.chmod(0o755)
+
+    assert install.main(ARGS) == 0
+    assert "far/x.txt" not in seen.read_text()  # not reported deleted: still skip-worktree
