@@ -16,7 +16,7 @@ def commit(repo: Path, name: str) -> str:
 def with_origin(repo: Path, tmp_path: Path, set_head: bool = True) -> str:
     """Publish main to a bare origin and fetch it back; return main's commit."""
     origin = tmp_path / "origin.git"
-    git(tmp_path, "init", "-q", "--bare", str(origin))
+    git(tmp_path, "init", "-q", "--bare", "-b", "main", str(origin))
     git(repo, "remote", "add", "origin", str(origin))
     git(repo, "push", "-q", "origin", "main")
     git(repo, "fetch", "-q", "origin")
