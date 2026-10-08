@@ -63,7 +63,11 @@ what was measured: README, "Why 2.0.0's rules, by source".
 - `run-bounded.sh`, terminated or interrupted itself, sends its command
   SIGTERM and waits the grace period before SIGKILL, as its deadline does,
   so the command can clean up (git removes its lock files); it used to send
-  SIGKILL at once.
+  SIGKILL at once. Ending, it ignores further signals and SIGPIPE, so a second
+  signal or a caller that stopped reading cannot cut its cleanup short.
+- `install-stop-gate.sh` runs the suite and its commit under `run-bounded.sh`
+  (540 and 300 seconds): a suite or commit hook that never finishes is
+  refused, the repository as it was.
 
 ### Removed
 

@@ -46,6 +46,11 @@ fi
 hook=.claude/hooks/stop-gate.sh
 settings=.claude/settings.json
 runner=.specify/presets/test-first/scripts/bash/run-bounded.sh
+# The suite and the commit's hooks are commands this script does not control:
+# each runs under the runner, with the hook's own deadline for the suite.
+suite_deadline=540
+commit_deadline=300
+message="Gate the end of every Claude turn on the test suite"
 # -L as well: a dangling symlink is not -e, and writing through it would land
 # the hook wherever it points. A hook with no Stop entry is how a repository
 # turns the gate off, so this refusal is also what keeps it off.
@@ -120,7 +125,20 @@ else
 fi
 # The hook blocks every turn whose suite is red, so a suite that is red today
 # would block every turn from the first one.
-if ! out=$("$@" 2>&1); then
+# To a file, as the hook does: a process that left the suite's group would hold
+# a pipe, and with it this script, open past the deadline.
+log=$(mktemp) || exit 1
+# `|| status=$?`: under set -e a failing command would end the script here.
+status=0
+bash "$runner" "$suite_deadline" "$@" > "$log" 2>&1 || status=$?
+out=$(cat "$log")
+rm -f "$log"
+if [ "$status" -eq 124 ]; then
+  printf '%s\n' "$out" | tail -n 20 >&2
+  echo "install-stop-gate: the suite did not finish in ${suite_deadline}s; a gate on it would block every turn" >&2
+  exit 1
+fi
+if [ "$status" -ne 0 ]; then
   printf '%s\n' "$out" | tail -n 20 >&2
   echo "install-stop-gate: the suite is red; make it green before gating on it" >&2
   exit 1
@@ -228,10 +246,22 @@ printf '%s\n' "$merged" > "$settings"
 git add "$hook" "$settings"
 # A commit hook's own output does not say what it refused, and a commit-msg
 # policy will refuse every attempt; the caller needs to know which it was.
-if ! git commit -q -m "Gate the end of every Claude turn on the test suite" \
+head=$(git rev-parse --verify --quiet HEAD)
+status=0
+bash "$runner" "$commit_deadline" git commit -q -m "$message" \
   -m "Written by install-stop-gate: a Stop hook runs \`$words\` and blocks a red turn once." \
   -m "To turn it off, remove its entry under hooks.Stop in .claude/settings.json and keep $hook: deleting it makes /speckit-implement install the gate again." \
-  -- "$hook" "$settings"; then
+  -- "$hook" "$settings" || status=$?
+# A post-commit hook runs after git wrote the commit: this script's own commit
+# (its parent the HEAD recorded above, its subject this message) stands
+# whatever came after it; any other move of HEAD is not this commit.
+if [ "$status" -ne 0 ] && [ "$(git log -1 --format='%P%n%s' HEAD)" = "$head"$'\n'"$message" ]; then
+  echo "install-stop-gate: committed; a post-commit hook did not finish or failed" >&2
+elif [ "$status" -eq 124 ]; then
+  echo "install-stop-gate: the commit did not finish in ${commit_deadline}s: a pre-commit or" >&2
+  echo "                   commit-msg hook that hangs; nothing is left behind" >&2
+  exit 1
+elif [ "$status" -ne 0 ]; then
   echo "install-stop-gate: the commit was refused, by a pre-commit or commit-msg hook if" >&2
   echo "                   its output is above; nothing is left behind" >&2
   exit 1

@@ -423,10 +423,11 @@ def test_an_installer_terminated_in_a_post_commit_hook_leaves_the_commit_standin
             break
         time.sleep(0.1)
     proc.terminate()
-    proc.wait(timeout=20)
+    _, err = proc.communicate(timeout=20)
 
     assert git(project, "rev-parse", "HEAD~1") == before
     assert git(project, "status", "--porcelain") == ""
+    assert b"origin" in err  # no first record was written: the first call's record is it
 
 
 @pytest.mark.parametrize("hook_status", [1, 0])

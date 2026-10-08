@@ -410,6 +410,52 @@ FAKE
     }
   done
 
+  # The installer runs the suite and its commit under the runner: a suite or a commit hook that
+  # never finishes is refused at its deadline, the repository as it was and nothing left
+  # running. Shortened here by the runner committed in the repository, which passes the real
+  # one 2 seconds whatever it is asked.
+  fresh bounded
+  printf '#!/usr/bin/env bash\nshift\nexec bash "%s" 2 "$@"\n' "$PRESET/scripts/bash/run-bounded.sh" \
+    > "$repo/$runner"
+  git -C "$repo" -c user.name=t -c user.email=t@t commit -q -am "a runner with a 2-second deadline"
+  echo hang > "$tmp/verdict"
+  before=$(snapshot)
+  start=$SECONDS
+  if out=$(run); then
+    echo "gated on a suite that never finished: $out"
+    return 1
+  fi
+  echo "$out" | grep -q "did not finish" || {
+    echo "a hung suite was not refused at its deadline: $out"
+    return 1
+  }
+  [ $((SECONDS - start)) -le 12 ] && [ "$(snapshot)" = "$before" ] || {
+    echo "a hung suite took $((SECONDS - start))s or changed the repository"
+    return 1
+  }
+  if pgrep -f "^sleep 9301" > /dev/null; then
+    pkill -KILL -f "sleep 9301"
+    echo "the installer's hung suite outlived its deadline"
+    return 1
+  fi
+  echo green > "$tmp/verdict"
+  printf '#!/bin/sh\nsleep 9306\n' > "$repo/.git/hooks/pre-commit"
+  chmod +x "$repo/.git/hooks/pre-commit"
+  before=$(snapshot)
+  if out=$(run); then
+    echo "committed past a commit hook that never finished: $out"
+    return 1
+  fi
+  echo "$out" | grep -q "did not finish" && [ "$(snapshot)" = "$before" ] || {
+    echo "a hung commit hook was not refused with the repository as it was: $out"
+    return 1
+  }
+  if pgrep -f "^sleep 9306" > /dev/null; then
+    pkill -KILL -f "sleep 9306"
+    echo "the installer's hung commit hook outlived its deadline"
+    return 1
+  fi
+
   # Reverting the feature that installed the gate removes both its files.
   # That is not a decision about the gate, so the next run installs it again,
   # whatever else was deleted before it.

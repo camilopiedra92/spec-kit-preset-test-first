@@ -176,7 +176,12 @@ def _commit(root: Path, contents: dict[Path, dict[str, Any]]) -> None:
     finally:
         if not committed and _landed(root, head):
             # Terminated after git wrote the commit (in a post-commit hook): it stands.
-            print("test-first install: committed before it was stopped", file=sys.stderr)
+            print(
+                "test-first install: committed before it was stopped, without the ledger's first "
+                "record: the first tool call's record will be its origin, and the tests it "
+                "writes unobserved",
+                file=sys.stderr,
+            )
         elif not committed:
             subprocess.run(["git", "-C", str(root), "reset", "-q", "--", *paths], check=False)
             for path, content in before.items():

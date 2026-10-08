@@ -885,5 +885,9 @@ gate still runs and an old `tasks.md` is read.
     exec and change the command's pipelines (the owner asked that nothing outside be affected)
   - a case checks the command keeps the default action of SIGPIPE, SIGTERM, SIGINT, SIGHUP and
     SIGQUIT: red with SIGPIPE ignored at the top, and with the SIGHUP handler made an ignore
-- [ ] T058 Run `install-stop-gate.sh`'s suite check and its `git commit` under `run-bounded.sh` with deadlines, refusing with everything put back when either outlives its deadline; `tests/stop-gate.sh` cases seen red first for a hung suite and a hung pre-commit hook per Constitution IV (contradicts)
-- [ ] T059 Say in the README that a commit which landed stands when what follows it fails or is stopped, and have the installer, stopped after its commit landed, also say that the first tool call's record will be the ledger's origin per FR-014 (partial)
+- [X] T058 Run `install-stop-gate.sh`'s suite check and its `git commit` under `run-bounded.sh` with deadlines, refusing with everything put back when either outlives its deadline; `tests/stop-gate.sh` cases seen red first for a hung suite and a hung pre-commit hook per Constitution IV (contradicts)
+  - red: the installer waited on the hung suite past a minute; the tests shorten the deadlines
+    with a runner committed in the repository that passes the real one 2 seconds, so the script
+    gains no knob only tests use; it also gets T054's own-commit check for a `post-commit` hook
+- [X] T059 Say in the README that a commit which landed stands when what follows it fails or is stopped, and have the installer, stopped after its commit landed, also say that the first tool call's record will be the ledger's origin per FR-014 (partial)
+  - red: `assert b'origin' in b'test-first install: committed before it was stopped\n'`

@@ -89,7 +89,9 @@ changed, ignored, skip-worktree, a symlink or inside a symlinked directory,
 not a settings object), with a ledger entry already there, with globs git
 cannot use or that match no tracked test, without the preset's
 `run-bounded.sh`, when a commit hook rejects it or outlives the commit's
-300-second deadline, or when it is terminated during its commit.
+300-second deadline, or when it is terminated during its commit. A commit
+that landed stands when what follows it fails or is stopped (a `post-commit`
+hook), and the installer says so.
 The audit by hand: `python3 .specify/presets/test-first/scripts/python/cli.py audit`.
 
 ### Limits
