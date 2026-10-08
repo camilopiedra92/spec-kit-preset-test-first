@@ -1,5 +1,6 @@
 import io
 import json
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -205,3 +206,44 @@ def test_a_branch_created_without_a_tree_change_is_judged_on_the_line_it_came_fr
 
     monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps({"cwd": str(repo), "session_id": "s"})))
     assert audit.main(["--stop"]) == 0
+
+
+def git_processes_of_an_audit(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, records_before: int
+) -> int:
+    calls = feature(repo)
+    for i in range(records_before):
+        calls.call({"notes.txt": str(i)})
+    calls.call({"tests/test_b.py": TEST_B})
+    calls.call({"src/b.py": "B\n"})
+    run(repo, monkeypatch)  # warms the memo: what is left is the walk
+    spawned: list[list[str]] = []
+    real = subprocess.run
+
+    def counting(args: list[str], *rest: object, **kwargs: object) -> object:
+        if args[0] == "git":
+            spawned.append(args)
+        return real(args, *rest, **kwargs)  # type: ignore[call-overload]
+
+    monkeypatch.setattr(subprocess, "run", counting)
+    assert run(repo, monkeypatch) == 0
+    monkeypatch.undo()
+    return len(spawned)
+
+
+def test_an_audits_git_processes_do_not_grow_with_the_ledger(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fresh(name: str) -> Path:
+        root = tmp_path / name
+        root.mkdir()
+        git(root, "init", "-q", "-b", "main")
+        git(root, "config", "user.email", "t@example.com")
+        git(root, "config", "user.name", "T")
+        git(root, "commit", "-q", "--allow-empty", "-m", "init")
+        return root
+
+    short = git_processes_of_an_audit(fresh("short"), monkeypatch, 5)
+    long = git_processes_of_an_audit(fresh("long"), monkeypatch, 40)
+
+    assert long == short

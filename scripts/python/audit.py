@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import copy
 import hashlib
+import itertools
 import json
 import os
 import re
@@ -357,6 +358,50 @@ def changed_paths(worktree: Path, before: str, after: str) -> set[str]:
     return set(filter(None, listing.split("\0")))
 
 
+def changed_paths_of(worktree: Path, pairs: list[tuple[str, str]]) -> list[set[str]]:
+    """The change of each pair of trees, from one git process whatever their number: the walk
+    of a long ledger would otherwise cost a process per record on every audit.
+
+    `diff-tree --stdin` echoes each input line, then that pair's paths, NUL-terminated; the
+    next echo is known, since it is the next pair, so a path can never be taken for one.
+    """
+    if not pairs:
+        return []
+    lines = "".join(f"{before} {after}\n" for before, after in pairs)
+    # Not ledger.git: its strip would take the newline that ends an empty last pair's echo.
+    out = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(worktree),
+            "diff-tree",
+            "--stdin",
+            "-r",
+            "-z",
+            "--no-renames",
+            "--name-only",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+        input=lines,
+    ).stdout
+    changes: list[set[str]] = []
+    at = 0
+    for k, (before, after) in enumerate(pairs):
+        header = f"{before} {after}\n"
+        assert out.startswith(header, at), f"diff-tree --stdin echoed no {header!r}"
+        at += len(header)
+        following = f"{pairs[k + 1][0]} {pairs[k + 1][1]}\n" if k + 1 < len(pairs) else None
+        paths: set[str] = set()
+        while at < len(out) and not (following and out.startswith(following, at)):
+            end = out.index("\0", at)
+            paths.add(out[at:end])
+            at = end + 1
+        changes.append(paths)
+    return changes
+
+
 class Birth(NamedTuple):
     at: int | None
     imported: bool = False
@@ -681,10 +726,15 @@ class Auditor:
         return None
 
     def change(self, i: int) -> set[str]:
-        """The paths record i changed against its previous in the effective history."""
+        """The paths record i changed against its previous in the effective history; the
+        first asked computes every record's at once."""
         pair = (self.history[i - 1].tree, self.history[i].tree)
         if pair not in self._changes:
-            self._changes[pair] = changed_paths(self.worktree, *pair)
+            trees = (record.tree for record in self.history)
+            missing = sorted({p for p in itertools.pairwise(trees) if p not in self._changes})
+            self._changes.update(
+                zip(missing, changed_paths_of(self.worktree, missing), strict=True)
+            )
         return self._changes[pair]
 
     def observe(self, i: int, file: str) -> Observation:

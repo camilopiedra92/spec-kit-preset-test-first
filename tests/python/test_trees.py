@@ -96,3 +96,19 @@ def test_the_load_probe_replaces_one_file_and_nothing_else(repo: Path) -> None:
         "tests/u.py": "u",
         "src/a.py": "a",
     }
+
+
+def test_the_changes_of_many_pairs_come_apart_whatever_their_paths(repo: Path) -> None:
+    one = tree_of(repo, {"src/a.py": "a"})
+    two = tree_of(repo, {"src/a.py": "b", "tests/new\nline.py": "t"})
+    three = tree_of(repo, {"src/a.py": "b", "tests/new\nline.py": "t", " lead.txt": "x"})
+
+    changes = audit.changed_paths_of(repo, [(one, two), (two, three), (two, two), (one, two)])
+
+    assert changes == [
+        {"src/a.py", "tests/new\nline.py"},
+        {" lead.txt"},
+        set(),
+        {"src/a.py", "tests/new\nline.py"},
+    ]
+    assert audit.changed_paths_of(repo, [(three, three)]) == [set()]

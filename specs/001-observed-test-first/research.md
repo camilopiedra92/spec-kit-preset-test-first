@@ -370,6 +370,20 @@ effective history follows the branch across `checkout -b`, renames, visits to ot
 rebases, which a clock-based range does not: rebasing onto a newer main moved the base's time past
 the feature's early records.
 
+**Revised (convergence pass 8, T069)**: replays were bounded that way, but finding which records
+changed a test's file was not: every audit ran one `git diff-tree` per record of the effective
+history, which runs back through main's and earlier features' records to the origin, and the
+budget is checked only before a replay. A Stop audit took 28–29 s on 1,500 records (a reviewer's
+measurement) and 4 min 49 s on 15,000 with the memo warm, past nothing yet but growing with every
+feature in the worktree. Every record's change now comes from one `git diff-tree --stdin` given
+all the effective history's pairs of trees: the same Stop audit took 0.7–0.8 s cold and 0.3–0.4 s
+warm on 1,500 and 15,000 records, and the story-close audit 0.45 s on 15,000 (L7). Considered and
+not taken, as they would bound nothing the measurement shows: stopping the walk at the base (which
+record is older than a base is not a property of the record: a rebase moves the base past the
+feature's own records, and a cut there would hide births); keeping the changes between audits,
+keyed by the pair of trees (state on disk for under a second); and checking the budget inside the
+walk, which is now one process.
+
 **Alternatives considered**:
 - The story-close audit alone (the first version): prompted, so skippable.
 - A git `pre-push` hook: deterministic, but after the fact, and `--no-verify` skips it.
@@ -694,6 +708,13 @@ and Antigravity showed nothing test-first-specific in searches (second-hand).
   Later the same day, after stories 2–5, same machine and versions (pytest 9.1.1 on Python
   3.12.12): cold 26–27 s, warm 8–9 s, and the Stop hook's turn with one test and its code 1–2 s
   (`tests/audit.sh`, four runs, one of them in a reviewer's clone).
+- **Audit cost on a long ledger** (T069, 2026-10-07, one run per size, git 2.55.0, Python 3.14.7,
+  macOS arm64 Mac16,8, the units' fake runner): ledgers of 1,500 and 15,000 records built with
+  `git fast-import` on one branch, then one test red and its code through the hook. Before, each
+  record's change in its own `git diff-tree`: the story-close audit 4 min 49 s at 15,000 records,
+  memo warm (a reviewer measured the Stop audit at 28–29 s on 1,500). After, all of them from one
+  `git diff-tree --stdin`: Stop audit 0.8 s cold and 0.3 s warm at 1,500, 0.7 s and 0.4 s at
+  15,000; story-close audit 0.45 s at 15,000, verdict `red` both times. Directional.
 - **Validation in renta** (T034, 2026-10-07, Claude Code 2.1.293 in `claude -p`, Spec Kit 1.1.0,
   git 2.55.0, pytest 9.1.1 on Python 3.14.7, macOS arm64 Mac16,8): a clone of renta (861 files),
   the preset updated from 1.6.0 to this branch's archive, the ledger installed on a feature
