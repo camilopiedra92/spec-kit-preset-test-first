@@ -95,8 +95,8 @@ calls. A call is one tool use: one write, one edit, one shell command.
 - Commit in a call of its own: a test written and committed in one call
   reaches the ledger already in HEAD, as if it came from elsewhere.
 - A subagent that writes code or tests works in this worktree, one at a time:
-  a worktree of its own has a ledger of its own, removed with it, and two
-  writers at once land in one record. This narrows "parallel tasks [P] can
+  a worktree of its own records into a ledger of its own, which this
+  worktree's audit never reads, and two writers at once land in one record. This narrows "parallel tasks [P] can
   run together" above: tasks marked `[P]` still run one after another.
 - A case found while implementing — an edge case, a failure mode — does not go
   into the test in progress. Add it to the test list of the task whose

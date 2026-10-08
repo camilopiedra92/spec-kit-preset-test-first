@@ -50,8 +50,9 @@ observes instead:
   `still-red`, `unobserved` (no birth in this ledger), `not-judged` (with the
   reason, such as a run that wrote no JUnit; a test file that no run could
   read is reported under its path). The remedy for the first three is
-  the redo sequence: remove the test, revert its code, write the test again
-  alone, see it fail, restore the code — with a stub of the code first, in
+  the redo sequence: remove the test (its file, when it is the file's only
+  test), revert its code, write the test again alone, see it fail, restore
+  the code — with a stub of the code first, in
   a call of its own, for a test whose file did not load before its code. A
   test born green because it passes without any source file is fixed in the
   configuration instead, committed on its own: `run` reaches code outside the
@@ -120,21 +121,19 @@ What the audit does not check, and where it does not hold:
 - A test added to an unchanged test file by a change elsewhere (generated
   cases) is not found as new.
 - Tests arriving with commits the ledger did not see written (a merge, a
-  cherry-pick), or written and committed in one call, are `unobserved`. The
-  ledger stays on the machine that recorded it — it holds uncommitted and
-  untracked files, so it is never pushed — and a feature continued on
-  another machine or clone starts a new one: finish a feature where it
-  started.
+  cherry-pick), or written and committed in one call, are `unobserved`.
 - Test and code brought in together by one call that copies rather than
   writes (`git checkout <rev> -- <path>`, a patch) are `born-with-code`.
 - A `--run` that imports the real worktree's code instead of the record's —
   an editable install, a workspace package linked into `node_modules` — makes
   a test written first look `born-green`; the uv recipe above prevents it for
   a src layout, and a pnpm workspace is not tested.
-- The ledger is local to each worktree. In another clone, where the hook
-  entries arrive committed and nothing installed a ledger, the first tool
-  call's record is the ledger's origin, and the tests it writes are
-  `unobserved`.
+- The ledger is local to each worktree and stays on its machine: neither the
+  preset nor a plain `git push` sends it (`git push --mirror` would, below).
+  A feature continued in another clone or on another machine starts a new
+  ledger there, whose first tool call's record is its origin: the tests
+  written before, and those that call writes, are `unobserved`. Finish a
+  feature where it started.
 - A restored test keeps its earlier verdict, whatever code now stands
   beside it.
 - Replays use the environment as it is at audit time, and observe a flaky
@@ -371,6 +370,20 @@ lost):
   negative), so the case would pass against the stub. Sentinel stubs made
   every test fail trivially in the 2026-10-05 pair of runs below; the
   sessions that validated 2.0.0 used a raising stub (research L7).
+- Renames and consolidations in calls that change only test-side paths, and
+  commits in calls of their own: reasoning from the audit's own rules, not
+  measured on their own. A call that replaces accepted tests is `refactored`
+  only when it changes the test side alone, and only up to as many passing
+  tests as it replaced (research R13); a test written and committed in one
+  call arrives in HEAD as if from elsewhere, so it is `unobserved` (R14).
+- The redo removes a test's file when it holds the only test: Vitest 5.0.3
+  reports a file without tests the way it reports a file that cannot load,
+  so an emptied file would read as inconclusive rather than as the test gone
+  (research R6, from the JUnit probes in L7).
+- The review copy's `PostToolUse` entries are removed with its `Stop` ones: a
+  session in the copy would otherwise record the reviewer's wrong versions
+  into the copy's ledger and be blocked by its Stop audit, as by the 1.x gate.
+  Reasoning, not measured.
 - Removed, recording red runs and breaking the code on purpose to accept a
   first-run pass: the first is what the ledger observes; the second could not
   tell behaviour that existed before the task from code written a moment
@@ -379,8 +392,8 @@ lost):
 - Not adopted: a separate test-writing agent (no gain at 3–8.5 times the
   tokens, Böckeler, two runs per arm); an LLM judging every write (TDD Guard,
   Probity: still a model's verdict, blind to shell writes unless shells are
-  denied); code-writing subagents in worktrees of their own (each one's
-  ledger goes with it); an index kept between hook calls (measured 8 times
+  denied); code-writing subagents in worktrees of their own (each records
+  into a ledger of its own, which the feature's audit never reads); an index kept between hook calls (measured 8 times
   faster on a fresh clone, reverted after review: it kept recording files the
   real index had stopped tracking; research R2).
 
