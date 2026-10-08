@@ -18,7 +18,7 @@ import time
 from collections import Counter
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import Any, NamedTuple, Self
 from xml.etree import ElementTree
 
 import ledger
@@ -86,7 +86,7 @@ class Replayer:
             )
         )
 
-    def __enter__(self) -> Replayer:
+    def __enter__(self) -> Self:
         self._prune_abandoned()
         self.temporary = Path(tempfile.mkdtemp(prefix=f"{SCRATCH_PREFIX}{os.getpid()}-"))
         self.scratch = self.temporary / "worktree"
@@ -182,6 +182,7 @@ class Replayer:
             ["bash", str(RUNNER), str(deadline), "sh", "-c", command],
             cwd=self.scratch,
             capture_output=True,
+            check=False,
         ).returncode
         return RunResult(parse_junit(junit), timed_out=status == TIMED_OUT)
 
@@ -315,7 +316,9 @@ def resolve_base(worktree: Path, override: str | None = None) -> str:
 
 def quiet_git(worktree: Path, *args: str) -> str:
     """git's output, or "" when the command fails (an absent ref, for instance)."""
-    result = subprocess.run(["git", "-C", str(worktree), *args], capture_output=True, text=True)
+    result = subprocess.run(
+        ["git", "-C", str(worktree), *args], capture_output=True, text=True, check=False
+    )
     return result.stdout.strip() if result.returncode == 0 else ""
 
 

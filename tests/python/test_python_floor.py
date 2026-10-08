@@ -17,7 +17,7 @@ def test_an_older_python_is_refused_with_a_message_not_a_traceback(command: str)
     )
 
     result = subprocess.run(
-        [sys.executable, "-c", probe], capture_output=True, text=True, input="{}"
+        [sys.executable, "-c", probe], capture_output=True, text=True, input="{}", check=False
     )
 
     assert result.returncode == 2
