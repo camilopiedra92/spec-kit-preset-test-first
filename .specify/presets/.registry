@@ -20,9 +20,9 @@
       "installed_at": "2026-10-07T13:43:31.509239+00:00"
     },
     "test-first": {
-      "version": "2.0.0",
+      "version": "2.0.1",
       "source": "local",
-      "manifest_hash": "sha256:dab7f547f19e17e28972591ad837bf3221b6e245b504f46b3478832f6f42e1a8",
+      "manifest_hash": "sha256:152e627ca4366253d3a918a524afb9c06af6b6a9cf00406c0400ee27154da6f6",
       "enabled": true,
       "priority": 10,
       "registered_commands": {
@@ -37,7 +37,7 @@
           "speckit-implement"
         ]
       },
-      "installed_at": "2026-10-08T14:57:51.165417+00:00"
+      "installed_at": "2026-10-08T16:47:18.921195+00:00"
     }
   }
 }
