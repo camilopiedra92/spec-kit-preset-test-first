@@ -361,6 +361,40 @@ def test_a_first_record_that_fails_after_the_commit_says_what_was_left(
     assert git(project, "status", "--porcelain") == ""
 
 
+def test_a_git_failure_in_the_first_record_says_the_commit_stands(
+    project: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    unreadable = project / "unreadable.txt"  # untracked: `git add -A` of the snapshot fails on it
+    unreadable.write_text("x\n")
+    unreadable.chmod(0)
+    try:
+        assert install.main(ARGS) == 1
+    finally:
+        unreadable.chmod(0o644)
+
+    err = capsys.readouterr().err
+    assert "committed, but the ledger's first record failed" in err
+    assert "Permission denied" in err
+    assert git(project, "show", "--name-only", "--format=", "HEAD").splitlines() == [
+        ".claude/settings.json",
+        ".specify/test-first.json",
+    ]
+
+
+def test_an_os_error_in_the_first_record_says_the_commit_stands(
+    project: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    def failing(*args: object) -> None:
+        raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(ledger, "record", failing)
+
+    assert install.main(ARGS) == 1
+    err = capsys.readouterr().err
+    assert "committed, but the ledger's first record failed" in err
+    assert "No space left on device" in err
+
+
 def test_a_commit_hook_that_outlives_the_deadline_is_refused_with_everything_put_back(
     project: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

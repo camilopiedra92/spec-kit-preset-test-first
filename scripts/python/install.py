@@ -60,7 +60,12 @@ def main(argv: list[str]) -> int:
         # The ledger's first record: the worktree as the install leaves it, so the first tool
         # call's record is a change and the tests it writes are born in it.
         origin: ledger.Call = {"session": "install", "agent": None, "tool": "install", "call": None}
-        ledger.record(root, origin, ledger.parse_config(config))
+        try:
+            ledger.record(root, origin, ledger.parse_config(config))
+        except subprocess.CalledProcessError as error:
+            raise ledger.RecordError(f"git failed: {(error.stderr or '').strip()}") from None
+        except OSError as error:
+            raise ledger.RecordError(str(error)) from None
         _stopped_here()
     except Refused as refusal:
         print(f"test-first install: {refusal}", file=sys.stderr)
