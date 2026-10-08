@@ -33,7 +33,8 @@ what was measured: README, "Why 2.0.0's rules, by source".
 - The same audit as a `Stop` hook (`cli.py audit --stop`): within a
   120-second budget, it blocks a turn once when a new test was born with its
   code, born green or rewritten to green, or when the audit cannot run (a
-  configuration or git error); it is silent where there is nothing to judge
+  configuration or git error, the preset's `run-bounded.sh` missing, an OS
+  error such as a full disk); it is silent where there is nothing to judge
   (no ledger, a detached HEAD, the default branch).
 - The installer (`cli.py install --tests … --sources … --run …`): one
   commit of `.specify/test-first.json` and both hook entries, or a refusal

@@ -454,8 +454,9 @@ for pass in cold warm; do
 done
 [ "$seconds" -le 120 ] || problem "$SCENARIO: the warm audit took $seconds s, over 2 minutes"
 
-# SC-004's Stop on that feature: the next turn writes a test with its code. The Stop replays only
-# what the turn changed, so it stays within 30 seconds however many files came before.
+# SC-004's Stop on that feature: the next turn writes a test with its code. Every earlier test is
+# green, so the Stop replays only the turn's file and stays within 30 seconds however many files
+# came before (a file with tests still red or not yet run would cost one run each).
 write tests/test_m21.py 'from src.m21 import f\n\ndef test_21():\n    assert f(1) == 21\n' &&
   write src/m21.py 'def f(k):\n    return k * 21\n' && record
 start=$(date +%s)
