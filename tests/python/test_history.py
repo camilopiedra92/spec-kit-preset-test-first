@@ -43,5 +43,15 @@ def test_detached_records_of_a_rebase_are_skipped() -> None:
     assert commits(audit.effective_history(ledger, "feat")) == ["c0", "c1", "c4"]
 
 
-def test_a_branch_with_no_record_has_no_history() -> None:
-    assert audit.effective_history(records("main", "main"), "feat") == []
+def test_a_branch_with_no_record_stands_at_the_newest_and_has_the_line_it_came_from() -> None:
+    # `git checkout -b feat` with the tree unchanged adds no record (FR-002).
+    ledger = records("main", "main")
+
+    assert commits(audit.effective_history(ledger, "feat")) == ["c0", "c1"]
+
+
+def test_a_branch_switched_to_without_a_tree_change_ends_at_the_newest_record() -> None:
+    # feat2 was moved to feat's state elsewhere (a fast-forward), then checked out: no record.
+    ledger = records("feat2", "feat", "feat")
+
+    assert commits(audit.effective_history(ledger, "feat2")) == ["c0", "c2"]

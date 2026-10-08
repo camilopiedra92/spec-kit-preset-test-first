@@ -1,3 +1,4 @@
+import io
 import json
 from pathlib import Path
 
@@ -189,3 +190,18 @@ def test_a_branch_with_no_common_ancestor_is_a_refusal(
 
     assert run(repo, monkeypatch) == 2
     assert "Traceback" not in capsys.readouterr().err
+
+
+def test_a_branch_created_without_a_tree_change_is_judged_on_the_line_it_came_from(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    calls = feature(repo)
+    calls.call({"tests/test_b.py": TEST_B})
+    calls.call({"src/b.py": "B\n"})
+    git(repo, "checkout", "-q", "-b", "feat2")  # the same tree: no record on feat2
+
+    assert run(repo, monkeypatch) == 0
+    assert capsys.readouterr().out.startswith("red tests.test_b::test_b ")
+
+    monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps({"cwd": str(repo), "session_id": "s"})))
+    assert audit.main(["--stop"]) == 0

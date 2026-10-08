@@ -315,14 +315,18 @@ class Record(NamedTuple):
 def effective_history(records: list[Record], branch: str) -> list[Record]:
     """The records of the branch's line of work, oldest first (data-model.md).
 
-    Walking back from the branch's newest record with a current lineage: a record on the
-    lineage is included; one off it is skipped when the lineage has an older record (a visit
-    elsewhere and back), and otherwise included as the line the lineage came from.
+    The ledger's newest record is where the branch stands now, whatever branch it names: the
+    audit records the worktree first, so a newest record on another branch means the branch
+    was created or checked out without changing the tree, which adds no record (FR-002).
+    Walking back from it with a current lineage: a record on the lineage is included; one off
+    it is skipped when the lineage has an older record (a visit elsewhere and back), and
+    otherwise included as the line the lineage came from.
     """
+    if not records:
+        return []
     lineage: str | None = branch
-    line: list[Record] = []
-    newest = max((i for i, record in enumerate(records) if record.branch == branch), default=-1)
-    for i in range(newest, -1, -1):
+    line = [records[-1]]
+    for i in range(len(records) - 2, -1, -1):
         record = records[i]
         if record.branch != lineage:
             if any(older.branch == lineage for older in records[:i]):
