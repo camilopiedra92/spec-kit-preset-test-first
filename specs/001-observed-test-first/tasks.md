@@ -992,7 +992,15 @@ gate still runs and an old `tasks.md` is read.
 
 ## Phase 17: Convergence
 
-- [ ] T079 Make the Stop audit judge the test files changed most recently first, so the budget runs out on old files rather than on this turn's: today every Stop replays every file differing from the base at the newest record, alphabetically, and with 70 files at about 2 s per run a test born with its code in `tests/test_z.py` came out `not-judged` and the turn was not blocked; a case seen red first, and SC-004's Stop measured on a feature of many files per FR-024 and SC-004 (partial; likelihood medium for large features)
+- [X] T079 Make the Stop audit judge the test files changed most recently first, so the budget runs out on old files rather than on this turn's: today every Stop replays every file differing from the base at the newest record, alphabetically, and with 70 files at about 2 s per run a test born with its code in `tests/test_z.py` came out `not-judged` and the turn was not blocked; a case seen red first, and SC-004's Stop measured on a feature of many files per FR-024 and SC-004 (partial; likelihood medium for large features)
+  - red: `uv run pytest tests/python/test_stop.py -k "this_turns or only_the_files"` — `assert 0
+    == 2` with a 75-second budget on a fake clock (alphabetical order spent it on older files),
+    and `tests/test_b.py` among the files a warm Stop replayed. Each mutation (alphabetical order;
+    no memo listing) fails only its own case
+  - a Stop takes the files most recently changed first and lists a file the turn left unchanged
+    from its newest remembered run; `tests/audit.sh` now times a Stop after 20 files: 10 s before,
+    6 s after (research.md R12 "Revised again", L7). Considered: ordering alone, a Stop over the
+    turn's records only, a smaller budget
 - [ ] T080 Correct the README: the ledger is never pushed by the preset or a plain push, but `git push --mirror` sends every worktree's ledger; and merge the machine-switch sentence into the existing "The ledger is local to each worktree" item, which says the same, per FR-022 (contradicts)
 - [ ] T081 Make `_prune` refuse with a RecordError when a worktree's name cannot be read (`symbolic-ref` exit 128), instead of taking its live ledger for an orphan and deleting it per Constitution IV (contradicts; likelihood theoretical)
 - [ ] T082 Make the installer, stopped while its first record runs, say that the commit stands and what the stop left, as it does for a stop during the commit, per FR-014 and contracts/install-ledger.md (partial; likelihood low)

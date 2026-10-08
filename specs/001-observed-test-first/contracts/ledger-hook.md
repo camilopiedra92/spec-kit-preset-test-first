@@ -62,7 +62,10 @@ Input: Claude Code's `Stop` JSON on stdin; fields read: `cwd`, `session_id`, `st
    its timeout and discards its output, so a timed-out Stop audit would let the turn end without a
    decision (research L7): no new run starts after the budget is spent, and a run already stopped by
    a deadline at least that long is not retried; what is left is judged by a later turn or the
-   story-close audit, from the memo.
+   story-close audit, from the memo. The test files are taken most recently changed first, and a
+   file the turn left unchanged lists its tests from its newest remembered run since it last
+   changed instead of a new run at the newest record, so the budget goes to the turn's own files;
+   a test that appears without its file changing waits for the story-close audit.
 4. If any new test has a failing verdict that is final before the end (data-model.md): exit 2;
    stderr lists those tests with their verdict, record and call, and each one's remedy from
    data-model.md's remedy table.

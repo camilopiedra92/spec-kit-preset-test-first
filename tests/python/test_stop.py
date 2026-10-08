@@ -300,3 +300,49 @@ def test_a_branch_with_no_common_ancestor_blocks_the_stop_with_its_error(
 
     assert stop(repo, monkeypatch) == 2
     assert capsys.readouterr().err.startswith("test-first audit:")
+
+
+def test_the_budget_goes_to_this_turns_files_before_older_ones(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls = feature(repo)
+    for name in ("a", "b", "c"):  # earlier work, accepted, and alphabetically first
+        calls.call({f"tests/test_{name}.py": f"def test_{name}(): # expects src/{name}.py X\n"})
+        calls.call({f"src/{name}.py": "X\n"})
+    # No earlier Stop: the memo is cold, so the older files cost replays too.
+    calls.call({"tests/test_z.py": "def test_z(): # expects src/z.py Z\n", "src/z.py": "Z\n"})
+    clock = [0.0]
+    replay = audit.Replayer._replay
+
+    def costly(self: audit.Replayer, tree: str, file: str, deadline: int) -> audit.RunResult:
+        clock[0] += 10  # each replay takes 10 seconds
+        return replay(self, tree, file, deadline)
+
+    monkeypatch.setattr("audit.time.monotonic", lambda: clock[0])
+    monkeypatch.setattr(audit.Replayer, "_replay", costly)
+
+    # Judging test_z takes seven replays of the 21 a cold Stop makes: 75 seconds fit it only
+    # when it comes first.
+    assert stop(repo, monkeypatch, False, "--budget", "75") == 2
+
+
+def test_a_stop_replays_only_the_files_this_turn_changed(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls = feature(repo)
+    for name in ("a", "b", "c"):
+        calls.call({f"tests/test_{name}.py": f"def test_{name}(): # expects src/{name}.py X\n"})
+        calls.call({f"src/{name}.py": "X\n"})
+    assert stop(repo, monkeypatch) == 0  # an earlier turn's Stop: the memo is warm
+    calls.call({"tests/test_z.py": "def test_z(): # expects src/z.py Z\n", "src/z.py": "Z\n"})
+    replayed: list[str] = []
+    replay = audit.Replayer._replay
+
+    def watched(self: audit.Replayer, tree: str, file: str, deadline: int) -> audit.RunResult:
+        replayed.append(file)
+        return replay(self, tree, file, deadline)
+
+    monkeypatch.setattr(audit.Replayer, "_replay", watched)
+
+    assert stop(repo, monkeypatch) == 2
+    assert set(replayed) == {"tests/test_z.py"}

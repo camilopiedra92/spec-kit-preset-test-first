@@ -384,6 +384,22 @@ feature's own records, and a cut there would hide births); keeping the changes b
 keyed by the pair of trees (state on disk for under a second); and checking the budget inside the
 walk, which is now one process.
 
+**Revised again (convergence pass 9, T079)**: the walk was bounded, but each Stop still replayed
+every test file that differs from the base at the newest record, which is new every turn, and in
+alphabetical order: with 70 files at 2 s per run the budget ran out on earlier files and a test
+born with its code in the turn's own file came out not judged, the turn unblocked (a reviewer's
+reproduction, now a unit case on a fake clock). A Stop now takes the files most recently changed
+first, and lists a file the turn left unchanged from its newest remembered run since it last
+changed; only the turn's own files are replayed. On the 20-file feature of `tests/audit.sh`, the
+Stop of a turn writing a test with its code took 10 s before and 6 s after (pytest about 0.3 s per
+run, one run each; at SC-004's 2 s per run that is roughly 54 s against 14 s, an estimate). The
+story-close audit is unchanged: it replays every file at the newest record. Its cost: a test that
+appears without its file changing (an id generated from code) is found at the story close, not at
+a Stop, which FR-024 allows. Considered and not taken: ordering alone (each Stop still spends its
+budget replaying files nobody touched); a Stop over the turn's records only (it would never show a
+failing verdict left from an earlier turn whose Stop was cut by the budget or blocked by another
+hook); a smaller budget (moves the problem to fewer files).
+
 **Alternatives considered**:
 - The story-close audit alone (the first version): prompted, so skippable.
 - A git `pre-push` hook: deterministic, but after the fact, and `--no-verify` skips it.
@@ -715,6 +731,11 @@ and Antigravity showed nothing test-first-specific in searches (second-hand).
   memo warm (a reviewer measured the Stop audit at 28–29 s on 1,500). After, all of them from one
   `git diff-tree --stdin`: Stop audit 0.8 s cold and 0.3 s warm at 1,500, 0.7 s and 0.4 s at
   15,000; story-close audit 0.45 s at 15,000, verdict `red` both times. Directional.
+- **Stop cost on a feature of many files** (T079, 2026-10-08, `tests/audit.sh`'s 20-file SC-004
+  project, one run per version, pytest 9.1.1 via `uv run --no-project --with pytest`, Python
+  3.12.12, git 2.55.0, macOS arm64 Mac16,8): after the warm audit, one turn writes a test with
+  its code. The Stop took 10 s with every file replayed at the newest record, 6 s with only the
+  turn's file replayed; both blocked on `born-with-code`. Directional.
 - **Validation in renta** (T034, 2026-10-07, Claude Code 2.1.293 in `claude -p`, Spec Kit 1.1.0,
   git 2.55.0, pytest 9.1.1 on Python 3.14.7, macOS arm64 Mac16,8): a clone of renta (861 files),
   the preset updated from 1.6.0 to this branch's archive, the ledger installed on a feature

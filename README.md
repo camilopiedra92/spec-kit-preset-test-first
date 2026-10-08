@@ -62,9 +62,11 @@ observes instead:
   or when the audit cannot run (a configuration or git error). It stays
   silent where there is nothing to judge — no configuration, no ledger, a
   detached HEAD, the default branch — and on a stop that continues a turn it
-  already blocked. A birth the budget leaves unjudged waits for the next turn
-  or the story's audit. `/speckit-implement` runs the audit in full at each
-  story's close, before the review.
+  already blocked. It takes the files changed most recently first and replays
+  only what the turn changed, the rest coming from earlier turns' runs. A birth
+  the budget leaves unjudged waits for the next turn or the story's audit.
+  `/speckit-implement` runs the audit in full at each story's close, before
+  the review.
 
 The audit checks order, not strength: that a test failed before its code, not
 that it tells right behaviour from wrong. Strength is the story review's,
@@ -147,7 +149,8 @@ What the audit does not check, and where it does not hold:
 - The Stop hook shows a failing verdict once per turn; it does not prevent
   the turn from ending, judges nothing on the default branch or a detached
   HEAD, and leaves to a later turn the births its 120-second budget does not
-  reach.
+  reach. A test that appears in a file the turn did not change (an id
+  generated from code) is judged at the story's audit, not at a Stop.
 - The ledger stores every tracked and untracked-but-not-ignored file of the
   worktree, an un-ignored secret included, as git objects in the local
   repository; `git push --mirror`, from any worktree, would send every

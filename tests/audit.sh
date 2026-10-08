@@ -454,5 +454,19 @@ for pass in cold warm; do
 done
 [ "$seconds" -le 120 ] || problem "$SCENARIO: the warm audit took $seconds s, over 2 minutes"
 
+# SC-004's Stop on that feature: the next turn writes a test with its code. The Stop replays only
+# what the turn changed, so it stays within 30 seconds however many files came before.
+write tests/test_m21.py 'from src.m21 import f\n\ndef test_21():\n    assert f(1) == 21\n' &&
+  write src/m21.py 'def f(k):\n    return k * 21\n' && record
+start=$(date +%s)
+out=$(printf '{"cwd": "%s", "session_id": "s", "stop_hook_active": false}' "$REPO" |
+  python3 "$CLI" audit --stop 2>&1)
+code=$?
+seconds=$(($(date +%s) - start))
+echo "SC-004 Stop audit of one turn after 20 files: $seconds s"
+[ "$code" = 2 ] && grep -q "^born-with-code tests.test_m21::test_21 " <<< "$out" ||
+  problem "$SCENARIO (Stop): exit $code: $out"
+[ "$seconds" -le 30 ] || problem "$SCENARIO (Stop): $seconds s, over 30"
+
 [ "$fail" -eq 0 ] && echo "ok: audit"
 exit "$fail"

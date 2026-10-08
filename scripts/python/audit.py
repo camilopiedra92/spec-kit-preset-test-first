@@ -118,14 +118,17 @@ class Replayer:
         ledger.git(self.worktree, "worktree", "remove", "--force", str(self.scratch))
         shutil.rmtree(self.temporary, ignore_errors=True)
 
-    def run(self, tree: str, file: str, deadline: int) -> RunResult:
-        """The file's outcomes at the tree, from the memo when this run was already made."""
+    def run(self, tree: str, file: str, deadline: int, remembered_only: bool = False) -> RunResult:
+        """The file's outcomes at the tree, from the memo when this run was already made; with
+        `remembered_only`, NotRemembered rather than a new run."""
         entry = (
             self.memo / hashlib.sha256(f"{tree}\0{file}\0{self.config.run}".encode()).hexdigest()
         )
         stored = _stored(entry)
         if stored is not None and (not stored["timed_out"] or stored["deadline"] >= deadline):
             return RunResult(stored["outcomes"], stored["timed_out"])
+        if remembered_only:
+            raise NotRemembered(f"no run of {file} at {tree} yet")
         if self.spent_at is not None and time.monotonic() >= self.spent_at:
             raise BudgetSpent("the Stop hook's budget ran out before this replay")
         result = self._replay(tree, file, deadline)
@@ -137,16 +140,18 @@ class Replayer:
             os.replace(partial, entry)  # atomic: a killed audit leaves no torn entry
         return result
 
-    def observe(self, tree: str, file: str, deadline: int) -> Observation:
+    def observe(
+        self, tree: str, file: str, deadline: int, remembered_only: bool = False
+    ) -> Observation:
         """The file's outcomes at the tree, and whether they say which tests exist (R6)."""
-        result = self.run(tree, file, deadline)
+        result = self.run(tree, file, deadline, remembered_only)
         outcomes = result.outcomes
         if outcomes is None:
             return Observation(None, conclusive=False, timed_out=result.timed_out)
         if outcomes and all(outcome == "failed" for outcome in outcomes.values()):
             # Every case failed: a load failure looks like this, so compare with the report of
             # the same file made unparseable, on the same tree.
-            probe = self.run(load_probe(self.worktree, tree, file), file, deadline)
+            probe = self.run(load_probe(self.worktree, tree, file), file, deadline, remembered_only)
             if probe.timed_out:
                 # Whether the file loaded cannot be told: the judgement waits on a longer run.
                 return Observation(outcomes, conclusive=False, timed_out=True)
@@ -412,6 +417,10 @@ class BudgetSpent(NotJudged):
     """A Stop audit's budget ran out: judged by a later turn or the story-close audit."""
 
 
+class NotRemembered(NotJudged):
+    """A run asked of the memo only was never made."""
+
+
 class Lifecycle(NamedTuple):
     """Where a test's life from its birth ended: its state, the record, and why."""
 
@@ -510,15 +519,19 @@ class Auditor:
         """Every new test with its verdict (data-model.md, Verdict): reported at the newest
         record by a test-side file that differs from the base, and not by the base's run."""
         newest = self.history[-1].tree
-        files = sorted(
-            path
-            for path in changed_paths_of(self.worktree, [(self.base_tree(), newest)])[0]
-            if ledger.classify(self.config, path) == "test"
-        )
+        new_side = changed_paths_of(self.worktree, [(self.base_tree(), newest)])[0]
+        tests = (path for path in new_side if ledger.classify(self.config, path) == "test")
+        # The most recently changed first: a Stop's budget then runs out on earlier work, which
+        # earlier turns judged, and not on the file this turn wrote.
+        files = sorted(tests, key=lambda path: (-self.last_changed(path), path))
         judged: list[tuple[str, Verdict]] = []
         for file in files:
             judged.extend(self.report_file(file))
         return judged
+
+    def last_changed(self, file: str) -> int:
+        """The newest record that changed the file, or 0 (the origin) when none did."""
+        return max((i for i in range(1, len(self.history)) if file in self.change(i)), default=0)
 
     def report_file(self, file: str) -> list[tuple[str, Verdict]]:
         """The new tests of one file with their verdicts."""
@@ -545,6 +558,10 @@ class Auditor:
         """The tests the file holds at the newest record, and why they cannot be judged ("" when
         they can). When the newest run cannot say, the last run that did, if any."""
         last = len(self.history) - 1
+        if self.replayer.spent_at is not None:  # a Stop
+            remembered = self.remembered_since_change(file)
+            if remembered is not None:
+                return remembered, ""
         try:
             newest = self.observe(last, file)
         except NotJudged as error:
@@ -557,6 +574,23 @@ class Auditor:
             else f"the command wrote no JUnit for {file}: check `run` and the environment"
         )
         return self.last_known(file, last), reason
+
+    def remembered_since_change(self, file: str) -> dict[str, str] | None:
+        """The tests of the file's newest remembered conclusive run since the file last changed,
+        or None. A Stop lists a file this turn left unchanged from there instead of replaying it
+        at a record that is new every turn: with many files that cost every Stop its budget
+        before this turn's file was reached. A test that appears without its file changing (an
+        id generated from code) waits for the story-close audit, which replays the newest."""
+        for j in range(len(self.history) - 1, self.last_changed(file) - 1, -1):
+            try:
+                seen = self.replayer.observe(
+                    self.history[j].tree, file, self.deadline, remembered_only=True
+                )
+            except NotJudged:
+                continue
+            if seen.conclusive:
+                return seen.outcomes or {}
+        return None
 
     def last_known(self, file: str, last: int) -> dict[str, str] | None:
         """The tests of the file's last conclusive run before `last` that reported any."""
