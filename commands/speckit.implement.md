@@ -141,8 +141,9 @@ completion report that the story was not audited.
 The ledger's Stop hook runs the same audit at the end of every turn, within a
 budget, and blocks the turn once when a new test is born with its code, born
 green or rewritten to green: apply that test's remedy before going on. It
-also blocks once when the audit cannot run (a configuration or git error),
-with the error.
+also blocks once when the audit cannot run (a configuration or git error,
+the preset's `run-bounded.sh` missing, an OS error such as a full disk), with
+the error.
 
 ## Project setup
 

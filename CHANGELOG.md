@@ -63,7 +63,8 @@ what was measured: README, "Why 2.0.0's rules, by source".
   stub raises rather than returning a placeholder, and a task's property case
   is written with its first case; each story's audit summary goes in the
   completion report, and a test whose file did not load before its code is
-  redone with a stub first; writing subagents work one at a time in the
+  redone with a stub first; the redo removes a test's file when it holds the
+  only test; writing subagents work one at a time in the
   feature's worktree, narrowing core's "parallel tasks [P] can run
   together"; the story review receives the audit's
   report, counts a failing verdict as a finding, and removes the copy's

@@ -60,7 +60,8 @@ observes instead:
 - **The Stop hook.** The same audit runs at the end of every turn within a
   120-second budget, reusing every run already made, and blocks the turn once
   when a new test was born with its code, born green or rewritten to green,
-  or when the audit cannot run (a configuration or git error). It stays
+  or when the audit cannot run (a configuration or git error, the preset's
+  `run-bounded.sh` missing, an OS error such as a full disk). It stays
   silent where there is nothing to judge — no configuration, no ledger, a
   detached HEAD, the default branch — and on a stop that continues a turn it
   already blocked. It takes the files changed most recently first and replays
@@ -156,7 +157,8 @@ What the audit does not check, and where it does not hold:
   repository; `git push --mirror`, from any worktree, would send every
   worktree's ledger. No git-ignored file.
 - Concurrent writers in one worktree are not supported, and fail closed:
-  their changes land in one record.
+  their changes land in one record, so a test and its code written at once
+  are `born-with-code`.
 - Code drafted outside the worktree and brought in later cannot be told from
   code written in place.
 - A test that existed at the base and changed in the feature is not judged,
@@ -277,7 +279,9 @@ Measured on 2026-10-07, macOS on an M-series Mac (Mac16,8), git 2.55.0
 files, depending on the machine's load, and 91–94 ms on a clone of renta (861
 files) once git has rewritten its index, the hook on Python 3.14.7; an audit of 60 new tests in 20 files,
 pytest 9.1.1 on Python 3.12.12, took 26–29 s from an empty memo and 8–9 s
-warm, and a Stop turn with one test and its code 1–2 s. On a ledger of
+warm. A Stop turn with one test and its code took 1–2 s in a one-file
+project and, on 2026-10-08, 6 s after that 20-file feature (10 s before the
+Stop replayed only what a turn changed). On a ledger of
 15,000 records the Stop audit of one test took under a second; before its
 history walk became one git process, the Stop audit took 28–29 s at 1,500
 records and the story-close audit 4 min 49 s at 15,000 (research L7, one run
@@ -371,6 +375,11 @@ lost):
   negative), so the case would pass against the stub. Sentinel stubs made
   every test fail trivially in the 2026-10-05 pair of runs below; the
   sessions that validated 2.0.0 used a raising stub (research L7).
+- Writing subagents one at a time, in the feature's worktree (narrowing
+  core's "parallel tasks [P] can run together"): a subagent in a worktree of
+  its own records into a ledger the feature's audit never reads, and two
+  writers at once land in one record, judged `born-with-code` (research R1,
+  R14). Reasoning from the ledger's design, not measured.
 - Renames and consolidations in calls that change only test-side paths, and
   commits in calls of their own: reasoning from the audit's own rules, not
   measured on their own. A call that replaces accepted tests is `refactored`
