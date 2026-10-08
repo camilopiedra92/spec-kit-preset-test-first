@@ -37,4 +37,8 @@ def test_a_change_is_the_paths_that_differ(repo: Path) -> None:
     (repo / "src" / "año.py").write_text("new\n")
     after = snapshot(repo)
 
-    assert audit.changed_paths(repo, before, after) == {"src/a.py", "tests/test_a.py", "src/año.py"}
+    assert audit.changed_paths_of(repo, [(before, after)])[0] == {
+        "src/a.py",
+        "tests/test_a.py",
+        "src/año.py",
+    }

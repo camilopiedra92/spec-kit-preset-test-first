@@ -275,8 +275,10 @@ files, depending on the machine's load, and 91–94 ms on a clone of renta (861
 files) once git has rewritten its index, the hook on Python 3.14.7; an audit of 60 new tests in 20 files,
 pytest 9.1.1 on Python 3.12.12, took 26–29 s from an empty memo and 8–9 s
 warm, and a Stop turn with one test and its code 1–2 s. On a ledger of
-15,000 records the Stop audit of one test took under a second, where one git
-process per record had taken minutes (research L7, one run).
+15,000 records the Stop audit of one test took under a second; before its
+history walk became one git process, the Stop audit took 28–29 s at 1,500
+records and the story-close audit 4 min 49 s at 15,000 (research L7, one run
+per size).
 
 With v1.0.0, in one pilot (Spec Kit 1.1.0, 2026-10-05), `/speckit-tasks`
 produced 61 tasks, 52 citing requirement IDs, against 29 and 5 without the

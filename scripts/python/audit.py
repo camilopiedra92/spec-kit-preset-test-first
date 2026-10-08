@@ -354,17 +354,10 @@ def load_records(worktree: Path) -> list[Record]:
     return records
 
 
-def changed_paths(worktree: Path, before: str, after: str) -> set[str]:
-    """The paths whose presence or content differs between two trees (data-model.md, Change)."""
-    listing = ledger.git(
-        worktree, "diff-tree", "-r", "-z", "--no-renames", "--name-only", before, after
-    )
-    return set(filter(None, listing.split("\0")))
-
-
 def changed_paths_of(worktree: Path, pairs: list[tuple[str, str]]) -> list[set[str]]:
-    """The change of each pair of trees, from one git process whatever their number: the walk
-    of a long ledger would otherwise cost a process per record on every audit.
+    """The change of each pair of trees -- the paths whose presence or content differs
+    (data-model.md, Change) -- from one git process whatever their number: the walk of a long
+    ledger would otherwise cost a process per record on every audit.
 
     `diff-tree --stdin` echoes each input line, then that pair's paths, NUL-terminated; the
     next echo is known, since it is the next pair, so a path can never be taken for one.
@@ -519,7 +512,7 @@ class Auditor:
         newest = self.history[-1].tree
         files = sorted(
             path
-            for path in changed_paths(self.worktree, self.base_tree(), newest)
+            for path in changed_paths_of(self.worktree, [(self.base_tree(), newest)])[0]
             if ledger.classify(self.config, path) == "test"
         )
         judged: list[tuple[str, Verdict]] = []
@@ -734,7 +727,7 @@ class Auditor:
         pair = (self.history[i - 1].tree, self.history[i].tree)
         if pair not in self._changes:
             trees = (record.tree for record in self.history)
-            missing = sorted({p for p in itertools.pairwise(trees) if p not in self._changes})
+            missing = list({p for p in itertools.pairwise(trees) if p not in self._changes})
             self._changes.update(
                 zip(missing, changed_paths_of(self.worktree, missing), strict=True)
             )
@@ -765,7 +758,7 @@ def seconds_from(least: int) -> Callable[[str], int]:
     deadline of 0 kills every run, while a budget of 0 judges from the runs already made."""
 
     def seconds(text: str) -> int:
-        value = int(text) if text.isdigit() else -1
+        value = int(text)  # argparse turns its ValueError into the same usage error
         if not least <= value <= 999_999_999:
             raise argparse.ArgumentTypeError(f"{text!r}: seconds are {least} to 999999999")
         return value

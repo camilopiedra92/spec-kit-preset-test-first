@@ -374,7 +374,7 @@ the feature's early records.
 changed a test's file was not: every audit ran one `git diff-tree` per record of the effective
 history, which runs back through main's and earlier features' records to the origin, and the
 budget is checked only before a replay. A Stop audit took 28–29 s on 1,500 records (a reviewer's
-measurement) and 4 min 49 s on 15,000 with the memo warm, past nothing yet but growing with every
+measurement) and the story-close audit 4 min 49 s on 15,000 with the memo warm, growing with every
 feature in the worktree. Every record's change now comes from one `git diff-tree --stdin` given
 all the effective history's pairs of trees: the same Stop audit took 0.7–0.8 s cold and 0.3–0.4 s
 warm on 1,500 and 15,000 records, and the story-close audit 0.45 s on 15,000 (L7). Considered and

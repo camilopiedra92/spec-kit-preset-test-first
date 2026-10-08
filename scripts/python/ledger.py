@@ -282,7 +282,18 @@ def record(worktree: Path, call: Call, config: Config) -> str | None:
     """Append the worktree's state as a record; None when it equals the newest record's."""
     where = locate(worktree)
     assert where is not None, f"{worktree} is a git worktree"
-    return _record(where, call, config)[0]
+    return _recorded(where, call, config)[0]
+
+
+def _recorded(where: Location, call: Call, config: Config) -> tuple[str | None, list[str]]:
+    """`_record`, with every way it can fail as a RecordError that says what failed."""
+    try:
+        return _record(where, call, config)
+    except subprocess.CalledProcessError as error:
+        raise RecordError(f"git failed: {(error.stderr or str(error)).strip()}") from None
+    except OSError as error:
+        # The temporary index could not be made (a full disk, a read-only $TMPDIR).
+        raise RecordError(str(error)) from None
 
 
 def _record(where: Location, call: Call, config: Config) -> tuple[str | None, list[str]]:
@@ -407,11 +418,8 @@ def post_tool_use(payload: dict[str, str]) -> tuple[int, str]:
         "call": payload.get("tool_use_id"),
     }
     try:
-        _, changed = _record(where, call, config)
-    except subprocess.CalledProcessError as error:
-        return 2, f"test-first ledger: no record of this call: {error.stderr or error}\n"
-    except (RecordError, OSError) as error:
-        # OSError: the temporary index could not be made (a full disk, a read-only $TMPDIR).
+        _, changed = _recorded(where, call, config)
+    except RecordError as error:
         return 2, f"test-first ledger: no record of this call: {error}\n"
     if changed:
         return 2, mixed_message(config, changed)

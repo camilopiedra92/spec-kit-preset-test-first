@@ -387,7 +387,7 @@ def test_an_os_error_in_the_first_record_says_the_commit_stands(
     def failing(*args: object) -> None:
         raise OSError(28, "No space left on device")
 
-    monkeypatch.setattr(ledger, "record", failing)
+    monkeypatch.setattr(ledger, "_record", failing)
 
     assert install.main(ARGS) == 1
     err = capsys.readouterr().err
