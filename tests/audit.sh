@@ -7,6 +7,10 @@
 #
 # Usage:  tests/audit.sh        from the repository root
 set -uo pipefail
+# Git as CI sees it: none of the developer's global or system configuration, whose
+# core.fsmonitor would start a daemon for every scratch repository, and whose hooks,
+# signing or default branch would make a local run differ from CI's.
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 
 PRESET="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CLI="$PRESET/scripts/python/cli.py"
